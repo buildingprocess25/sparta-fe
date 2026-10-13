@@ -92,7 +92,7 @@ export function TrialDokumenViewer({
 
             <div className="flex flex-col items-start sm:items-end shrink-0">
               <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 text-xs font-bold mb-1">
-                STATUS: TRIAL AKTIF (LEGAL)
+                STATUS: TRIAL AKTIF
               </Badge>
               <span className="text-[11px] text-slate-400 font-mono">
                 Sistem SPARTA v2.0

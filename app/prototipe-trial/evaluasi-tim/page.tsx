@@ -18,7 +18,6 @@ import {
   Vote,
   Search,
   ArrowRight,
-  Sparkles,
 } from 'lucide-react';
 
 export default function EvaluasiTimAntreanPage() {
@@ -64,7 +63,7 @@ export default function EvaluasiTimAntreanPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <TrialNavbar subtitle="Evaluasi Pasca-Trial Mandiri (PP, BMES, S&B)" />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-6">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-6">
         {/* Header Hero Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-start gap-3.5">
@@ -76,16 +75,6 @@ export default function EvaluasiTimAntreanPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Antrean Evaluasi Bersama (3 Tim)
                 </h1>
-                {votingCount > 0 && (
-                  <Badge className="bg-orange-600 hover:bg-orange-700 text-white font-mono text-xs">
-                    {votingCount} Menunggu Penilaian
-                  </Badge>
-                )}
-                {lolosCount > 0 && (
-                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs">
-                    {lolosCount} Kuorum Lolos
-                  </Badge>
-                )}
               </div>
               <p className="text-xs text-slate-500 mt-1 max-w-xl">
                 Pengisian formulir penilaian mandiri pasca-uji coba gerai oleh Tim PP, BMES, dan S&B. Item lolos ke B&M Regional Manager jika minimal 2 dari 3 tim menyatakan setuju.
@@ -93,10 +82,6 @@ export default function EvaluasiTimAntreanPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-orange-50/70 p-3 rounded-xl border border-orange-200/80">
-            <Sparkles className="w-4 h-4 text-orange-600 shrink-0" />
-            <span>Form mandiri independen + upload bukti uji coba lapangan.</span>
-          </div>
         </div>
 
         {/* Tab & Pencarian */}

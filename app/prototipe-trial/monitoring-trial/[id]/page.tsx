@@ -1,15 +1,17 @@
 // =============================================================================
 // app/prototipe-trial/monitoring-trial/[id]/page.tsx
 // Halaman Detail Dokumen Resmi Pelaksanaan Trial (Katalog SPK) Sparta
-// Fitur: Pratinjau Dokumen Cetak PDF Resmi, Tab Spesifikasi, Riwayat,
-// & Aksi Resmi Pengakhiran Masa Pengujian Trial Lapangan
-// Desain: Anti-Slop Industrial Clean, Tombol Solid Pastel
+// Fitur:
+// 1. Pratinjau Dokumen Cetak PDF Resmi & Spesifikasi Lengkap
+// 2. Alur Evaluasi Lapangan Inline (1 Role Representatif, Tanpa Modal Pop-up)
+// 3. Aksi Akhiri Masa Pengujian Trial Lapangan & Penetapan Master Harga
+// Desain: Anti-Slop Industrial Clean, Tombol Solid Pastel, Font Geist (font-sans)
 // =============================================================================
 
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState, useMemo, Suspense } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { TrialNavbar } from '@/components/prototipe-trial/TrialNavbar';
 import { TrialDetailHeader } from '@/components/prototipe-trial/TrialDetailHeader';
@@ -17,8 +19,10 @@ import { TrialTimelineBar } from '@/components/prototipe-trial/TrialTimelineBar'
 import { TrialDokumenViewer } from '@/components/prototipe-trial/TrialDokumenViewer';
 import { TrialSpesifikasiCard } from '@/components/prototipe-trial/TrialSpesifikasiCard';
 import { TrialAuditLogCard } from '@/components/prototipe-trial/TrialAuditLogCard';
+import { TrialEvaluasiKuorumCard } from '@/components/prototipe-trial/TrialEvaluasiKuorumCard';
 import { useTrialStore } from '@/components/prototipe-trial/store';
 import { getRemainingDays } from '@/components/prototipe-trial/types';
+import { confirmAlert, successAlert } from '@/components/ui/sweetalert';
 import { Button } from '@/components/ui/button';
 import {
   FileText,
@@ -26,19 +30,33 @@ import {
   ClockAlert,
   Layers,
   History,
+  ClipboardCheck,
 } from 'lucide-react';
 
-export default function DetailMonitoringTrialPage() {
+function DetailMonitoringTrialContent() {
   const params = useParams();
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const itemId = typeof params?.id === 'string' ? params.id : '';
 
   const { items, mounted, updateItem } = useTrialStore();
-  const [activeTab, setActiveTab] = useState<'dokumen' | 'spek' | 'history'>('dokumen');
 
   const item = useMemo(() => {
     return items.find((i) => i.id === itemId);
   }, [items, itemId]);
+
+  // Tab State: 'dokumen' | 'evaluasi' | 'spek' | 'history'
+  const [userTab, setUserTab] = useState<'dokumen' | 'evaluasi' | 'spek' | 'history' | null>(null);
+
+  // Tab yang aktif berdasarkan interaksi user atau fallback status item
+  const activeTab = useMemo<'dokumen' | 'evaluasi' | 'spek' | 'history'>(() => {
+    if (userTab) return userTab;
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'evaluasi') return 'evaluasi';
+    if (item && item.status !== 'TRIAL_AKTIF' && item.status !== 'TRIAL_DRAFT') {
+      return 'evaluasi';
+    }
+    return 'dokumen';
+  }, [userTab, searchParams, item]);
 
   if (!mounted) {
     return (
@@ -58,7 +76,7 @@ export default function DetailMonitoringTrialPage() {
           </p>
           <Link
             href="/prototipe-trial/monitoring-trial"
-            className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors"
+            className="mt-4 px-4 py-2 bg-emerald-200 text-emerald-950 rounded-lg text-xs font-semibold hover:bg-emerald-300 transition-colors"
           >
             Kembali ke Katalog Monitoring
           </Link>
@@ -69,14 +87,24 @@ export default function DetailMonitoringTrialPage() {
 
   const isAktif = item.status === 'TRIAL_AKTIF';
 
-  // Helper: Akhiri Masa Pengujian Trial Resmi
-  const handleEndTrial = () => {
+  // Helper: Akhiri Masa Pengujian Trial Resmi (Tetap di halaman ini & beralih ke Evaluasi Inline)
+  const handleEndTrial = async () => {
     const sisa = getRemainingDays(item.trialStartDate, item.durasiHari);
-    const confirmMsg = sisa > 0
-      ? `Apakah Anda yakin ingin mengakhiri masa pengujian item ini lebih awal (sisa ${sisa} hari)? Item akan langsung dialihkan ke tahap Evaluasi Kuorum 3 Tim.`
-      : 'Akhiri masa pengujian trial ini dan lanjutkan ke tahap Evaluasi Kuorum 3 Tim?';
+    const title = sisa > 0 ? 'Akhiri Pengujian Lebih Awal?' : 'Akhiri Masa Pengujian?';
+    const text = sisa > 0
+      ? `Apakah Anda yakin ingin mengakhiri masa pengujian item ini lebih awal (sisa durasi: ${sisa} hari)?`
+      : `Akhiri masa pengujian trial untuk item ${item.kode} dan lanjutkan ke tahap Evaluasi Lapangan?`;
 
-    if (confirm(confirmMsg)) {
+    const isConfirmed = await confirmAlert({
+      title,
+      text,
+      icon: 'warning',
+      confirmTone: 'amber',
+      confirmButtonText: 'Ya, Akhiri Pengujian',
+      cancelButtonText: 'Batal',
+    });
+
+    if (isConfirmed) {
       updateItem(item.id, (prev) => ({
         ...prev,
         status: 'TRIAL_EVALUASI_VOTING',
@@ -86,11 +114,18 @@ export default function DetailMonitoringTrialPage() {
             role: 'Pengawas B&M',
             action: 'EVALUATE',
             tanggal: new Date().toISOString().split('T')[0],
-            catatan: `Masa pengujian trial lapangan diakhiri${sisa > 0 ? ` lebih awal (sisa ${sisa} hari)` : ''}. Item resmi dialihkan ke tahap Evaluasi Kuorum 3 Tim (PP, BMES, S&B).`,
+            catatan: `Masa pengujian trial lapangan diakhiri${sisa > 0 ? ` lebih awal (sisa ${sisa} hari)` : ''}. Item resmi dialihkan ke tahap Evaluasi Lapangan.`,
           },
         ],
       }));
-      router.push('/prototipe-trial/evaluasi-tim');
+
+      // Beralih ke tab evaluasi langsung di halaman ini
+      setUserTab('evaluasi');
+
+      await successAlert(
+        'Masa Pengujian Berakhir',
+        'Item resmi dialihkan ke tahap Evaluasi Lapangan. Silakan isi formulir evaluasi langsung di tab Evaluasi.'
+      );
     }
   };
 
@@ -120,10 +155,11 @@ export default function DetailMonitoringTrialPage() {
         {/* Timeline Visual Alur Sparta */}
         <TrialTimelineBar item={item} />
 
-        {/* Tab Navigasi Konten Monitoring */}
+        {/* Tab Navigasi Konten Monitoring & Evaluasi Inline */}
         <div className="flex items-center gap-2 border-b border-slate-200 pt-2 pb-1 print:hidden">
+          {/* Tab 1: Dokumen Pelaksanaan */}
           <button
-            onClick={() => setActiveTab('dokumen')}
+            onClick={() => setUserTab('dokumen')}
             className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === 'dokumen'
                 ? 'border-emerald-600 text-emerald-700'
@@ -134,8 +170,43 @@ export default function DetailMonitoringTrialPage() {
             <span>Dokumen Pelaksanaan Trial</span>
           </button>
 
+          {/* Tab 2: Evaluasi Lapangan Inline (1 Role Representatif) */}
           <button
-            onClick={() => setActiveTab('spek')}
+            onClick={() => setUserTab('evaluasi')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+              activeTab === 'evaluasi'
+                ? 'border-orange-600 text-orange-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            <span>Evaluasi Lapangan</span>
+            {item.status === 'TRIAL_PENDING_FINAL_BM_REG' ? (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-950">
+                Siap Master
+              </span>
+            ) : item.status === 'TRIAL_PROMOTED_MASTER' ? (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-950">
+                Masuk Master
+              </span>
+            ) : item.status === 'TRIAL_EVALUASI_TIDAK_LANJUT' || item.status === 'TRIAL_DITOLAK_REG_MGR' ? (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-950">
+                Tidak Lanjut
+              </span>
+            ) : item.status === 'TRIAL_EVALUASI_VOTING' ? (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-950">
+                Perlu Evaluasi
+              </span>
+            ) : (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                Masa Uji
+              </span>
+            )}
+          </button>
+
+          {/* Tab 3: Spesifikasi Teknis & Berkas */}
+          <button
+            onClick={() => setUserTab('spek')}
             className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === 'spek'
                 ? 'border-emerald-600 text-emerald-700'
@@ -143,11 +214,12 @@ export default function DetailMonitoringTrialPage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Spesifikasi & Berkas</span>
+            <span>Spesifikasi &amp; Berkas</span>
           </button>
 
+          {/* Tab 4: Riwayat Audit */}
           <button
-            onClick={() => setActiveTab('history')}
+            onClick={() => setUserTab('history')}
             className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === 'history'
                 ? 'border-emerald-600 text-emerald-700'
@@ -164,29 +236,40 @@ export default function DetailMonitoringTrialPage() {
           <TrialDokumenViewer item={item} showPrintButton={false} />
         )}
 
-        {/* Tab 2: Spesifikasi Fisik & Lampiran */}
+        {/* Tab 2: Evaluasi Lapangan Inline (1 Role Representatif, Tanpa Modal) */}
+        {activeTab === 'evaluasi' && (
+          <TrialEvaluasiKuorumCard item={item} onEndTrial={handleEndTrial} />
+        )}
+
+        {/* Tab 3: Spesifikasi Fisik & Lampiran */}
         {activeTab === 'spek' && (
           <TrialSpesifikasiCard item={item} />
         )}
 
-        {/* Tab 3: Riwayat Audit Log */}
+        {/* Tab 4: Riwayat Audit Log */}
         {activeTab === 'history' && (
           <TrialAuditLogCard logs={item.historyLog} />
         )}
       </main>
 
-      {/* Sticky Bottom Action Bar Khusus Monitoring */}
+      {/* Sticky Bottom Action Bar Khusus Monitoring & Evaluasi */}
       <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 py-3.5 px-4 sm:px-8 shadow-lg print:hidden">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-slate-600">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 font-semibold text-emerald-800 border border-emerald-200">
-              Katalog: Trial Aktif Cabang
+              {isAktif ? 'Katalog: Trial Aktif Cabang' : 'Katalog: Evaluasi Pasca-Trial'}
             </span>
             <span className="hidden sm:inline text-slate-400">•</span>
             <span className="text-slate-500">
               {isAktif
                 ? 'Item sah digunakan untuk transaksi dan penerbitan SPK perbaikan cabang.'
-                : 'Masa aktif trial telah selesai dan sedang menjalani proses evaluasi.'}
+                : item.status === 'TRIAL_PENDING_FINAL_BM_REG'
+                ? 'Evaluasi lapangan selesai (Lanjut). Menunggu penetapan akhir B&M Regional Manager.'
+                : item.status === 'TRIAL_EVALUASI_TIDAK_LANJUT'
+                ? 'Evaluasi lapangan selesai (Tidak Lanjut). Tersedia opsi re-trial tanpa deadlock.'
+                : item.status === 'TRIAL_PROMOTED_MASTER'
+                ? 'Item resmi masuk ke dalam Master Harga SPARTA permanen.'
+                : 'Masa aktif trial selesai. Sedang berlangsung pengisian evaluasi lapangan.'}
             </span>
           </div>
 
@@ -198,6 +281,7 @@ export default function DetailMonitoringTrialPage() {
               Kembali ke Katalog
             </Link>
 
+            {/* Aksi Jika Masih Aktif: Akhiri Masa Pengujian */}
             {isAktif && (
               <Button
                 type="button"
@@ -206,6 +290,18 @@ export default function DetailMonitoringTrialPage() {
               >
                 <ClockAlert className="w-3.5 h-3.5 text-amber-900" />
                 <span>Akhiri Masa Pengujian</span>
+              </Button>
+            )}
+
+            {/* Tombol Cepat Buka Form Evaluasi jika status sedang voting dan tab bukan evaluasi */}
+            {!isAktif && item.status === 'TRIAL_EVALUASI_VOTING' && activeTab !== 'evaluasi' && (
+              <Button
+                type="button"
+                onClick={() => setUserTab('evaluasi')}
+                className="bg-orange-200 hover:bg-orange-300 active:bg-orange-400 text-orange-950 text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs border-0 cursor-pointer transition-colors"
+              >
+                <ClipboardCheck className="w-3.5 h-3.5 text-orange-900" />
+                <span>Isi Evaluasi Lapangan</span>
               </Button>
             )}
 
@@ -221,5 +317,17 @@ export default function DetailMonitoringTrialPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function DetailMonitoringTrialPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-xs text-slate-500 font-sans">
+        Memuat dokumen pelaksanaan trial...
+      </div>
+    }>
+      <DetailMonitoringTrialContent />
+    </Suspense>
   );
 }

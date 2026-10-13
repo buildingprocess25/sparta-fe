@@ -91,7 +91,7 @@ export default function PrototipeTrialLandingPage() {
     },
     {
       key: 'monitoring',
-      name: 'Trial Aktif (Katalog SPK)',
+      name: 'Trial Aktif',
       roleDescription: 'Monitoring masa aktif di cabang & cetak dokumen resmi.',
       href: '/prototipe-trial/monitoring-trial',
       icon: <ClockAlert className="w-5 h-5 text-emerald-600" />,

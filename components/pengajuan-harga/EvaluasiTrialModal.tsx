@@ -473,7 +473,7 @@ export function EvaluasiTrialModal({
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed pl-7">
-                  Material terbukti bagus selama uji coba di toko. Ajukan ke <strong>Regional Manager</strong> agar disahkan menjadi master resmi.
+                  Material terbukti bagus selama uji coba. Ajukan menjadi item Master.
                 </p>
               </div>
 

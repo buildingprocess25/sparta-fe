@@ -52,7 +52,7 @@ export default function DetailRegionalManagerTrialPage() {
   const [hargaReviseNote, setHargaReviseNote] = useState('');
   const [hargaReviseError, setHargaReviseError] = useState('');
 
-  const [masterApproveNote, setMasterApproveNote] = useState('Berdasarkan kuorum evaluasi 3 tim dan uji coba lapangan, item ini resmi disahkan menjadi Master Harga.');
+  const [masterApproveNote, setMasterApproveNote] = useState('Berdasarkan evaluasi, item ini layak menjadi Master Harga.');
   const [masterRejectNote, setMasterRejectNote] = useState('');
   const [masterRejectError, setMasterRejectError] = useState('');
   const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -138,23 +138,6 @@ export default function DetailRegionalManagerTrialPage() {
 
         {/* Timeline Visual Alur Sparta */}
         <TrialTimelineBar item={item} />
-
-        {/* Banner Konteks Fase 2 (Penetapan Master) */}
-        {isPendingMaster && (
-          <div className="bg-emerald-50/70 border-2 border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
-            <div className="p-2 bg-emerald-100 rounded-xl text-emerald-700 shrink-0">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-sm font-bold text-emerald-950">
-                Fase 2: Penetapan Akhir Master Harga Pasca-Evaluasi Kuorum
-              </h2>
-              <p className="text-xs text-emerald-900/80 leading-relaxed">
-                Masa uji coba trial telah selesai dan kuorum evaluasi 3 tim (PP, BMES, S&B) telah terpenuhi ({quorum.agreeCount}/3 tim menyetujui). Anda memiliki wewenang final untuk mengesahkan item ini secara permanen ke dalam katalog Master Harga resmi perusahaan.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Tab Navigasi Konten */}
         <div className="flex items-center gap-2 border-b border-slate-200 pt-2 pb-1">
@@ -327,7 +310,7 @@ export default function DetailRegionalManagerTrialPage() {
             approveDescription={
               isPendingHarga
                 ? `Sistem akan otomatis menerbitkan Dokumen Pelaksanaan Trial untuk pelaksanaan trial operasional di cabang.`
-                : `Item ${item.kode} akan disahkan ke katalog Master Harga resmi.`
+                : `Item akan disahkan ke katalog Master Harga.`
             }
             approveNote={isPendingHarga ? hargaApproveNote : masterApproveNote}
             onApproveNoteChange={isPendingHarga ? setHargaApproveNote : setMasterApproveNote}
@@ -338,7 +321,7 @@ export default function DetailRegionalManagerTrialPage() {
             reviseDescription={
               isPendingHarga
                 ? 'Kembalikan ke S&B Specialist untuk penyesuaian koefisien bahan/upah atau margin rekanan.'
-                : 'Item tidak disahkan ke Master Harga. Namun sesuai kebijakan non-deadlock, Maker tetap memiliki hak untuk mengajukan kembali di masa mendatang.'
+                : 'Item tidak disahkan ke Master Harga.'
             }
             reviseNote={isPendingHarga ? hargaReviseNote : masterRejectNote}
             onReviseNoteChange={(val) => {

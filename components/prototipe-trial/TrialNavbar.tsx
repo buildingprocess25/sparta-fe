@@ -29,7 +29,7 @@ export const TRIAL_ROLES: RoleRoute[] = [
   { key: 'bm_gm', label: 'B&M GM', href: '/prototipe-trial/bm-general-manager' },
   { key: 'sb', label: 'S&B Specialist', href: '/prototipe-trial/sb-specialist' },
   { key: 'reg_mgr', label: 'Regional Manager', href: '/prototipe-trial/regional-manager' },
-  { key: 'monitoring', label: 'Trial Aktif (SPK)', href: '/prototipe-trial/monitoring-trial' },
+  { key: 'monitoring', label: 'Trial Aktif', href: '/prototipe-trial/monitoring-trial' },
   { key: 'evaluasi', label: 'Evaluasi Tim', href: '/prototipe-trial/evaluasi-tim' },
   { key: 'master', label: 'Master Harga', href: '/prototipe-trial/master-harga' },
 ];

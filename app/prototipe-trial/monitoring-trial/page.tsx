@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { TrialNavbar } from '@/components/prototipe-trial/TrialNavbar';
 import { useTrialStore } from '@/components/prototipe-trial/store';
 import { TRIAL_STATUS_MAP, getRemainingDays } from '@/components/prototipe-trial/types';
+import { confirmAlert, successAlert } from '@/components/ui/sweetalert';
 import { Input } from '@/components/ui/input';
 import {
   ClockAlert,
@@ -19,6 +20,7 @@ import {
   ArrowRight,
   Clock,
   Calendar,
+  Vote,
 } from 'lucide-react';
 
 export default function MonitoringTrialAntreanPage() {
@@ -63,16 +65,26 @@ export default function MonitoringTrialAntreanPage() {
   };
 
   // Helper: Akhiri Masa Pengujian Trial Resmi
-  const handleEndTrial = (id: string, e: React.MouseEvent) => {
+  const handleEndTrial = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const targetItem = items.find((i) => i.id === id);
     const sisa = targetItem ? getRemainingDays(targetItem.trialStartDate, targetItem.durasiHari) : 0;
-    const confirmMsg = sisa > 0
-      ? `Apakah Anda yakin ingin mengakhiri masa pengujian item ini lebih awal (sisa ${sisa} hari)? Item akan langsung dialihkan ke tahap Evaluasi Kuorum 3 Tim.`
-      : 'Akhiri masa pengujian trial ini dan lanjutkan ke tahap Evaluasi Kuorum 3 Tim?';
+    const title = sisa > 0 ? 'Akhiri Pengujian Lebih Awal?' : 'Akhiri Masa Pengujian?';
+    const text = sisa > 0
+      ? `Apakah Anda yakin ingin mengakhiri masa pengujian item ini lebih awal (sisa durasi: ${sisa} hari)?`
+      : `Akhiri masa pengujian trial untuk item ${targetItem?.kode} dan lanjutkan ke tahap Evaluasi?`;
 
-    if (confirm(confirmMsg)) {
+    const isConfirmed = await confirmAlert({
+      title,
+      text,
+      icon: 'warning',
+      confirmTone: 'amber',
+      confirmButtonText: 'Ya, Akhiri Pengujian',
+      cancelButtonText: 'Batal',
+    });
+
+    if (isConfirmed) {
       updateItem(id, (item) => ({
         ...item,
         status: 'TRIAL_EVALUASI_VOTING',
@@ -82,10 +94,15 @@ export default function MonitoringTrialAntreanPage() {
             role: 'Pengawas B&M',
             action: 'EVALUATE',
             tanggal: new Date().toISOString().split('T')[0],
-            catatan: `Masa pengujian trial lapangan diakhiri${sisa > 0 ? ` lebih awal (sisa ${sisa} hari)` : ''}. Item resmi dialihkan ke tahap Evaluasi Kuorum 3 Tim (PP, BMES, S&B).`,
+            catatan: `Masa pengujian trial lapangan diakhiri${sisa > 0 ? ` lebih awal (sisa ${sisa} hari)` : ''}. Item resmi dialihkan ke tahap Evaluasi.`,
           },
         ],
       }));
+
+      await successAlert(
+        'Masa Pengujian Berakhir',
+        `Item ${targetItem?.kode || ''} kini berstatus Evaluasi Pasca-Trial. Silakan klik tombol Evaluasi.`
+      );
     }
   };
 
@@ -169,7 +186,6 @@ export default function MonitoringTrialAntreanPage() {
                   <th className="py-3.5 px-4">Durasi Uji</th>
                   <th className="py-3.5 px-4">Sisa Hari</th>
                   <th className="py-3.5 px-4">Harga Final</th>
-                  <th className="py-3.5 px-4">No. Dokumen SK</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Aksi</th>
                 </tr>
@@ -232,9 +248,6 @@ export default function MonitoringTrialAntreanPage() {
                         <td className="py-3.5 px-4 font-mono font-bold text-emerald-950">
                           {formatRupiah(item.hargaTrialFinal || item.estimasiHargaMaker)}
                         </td>
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500 max-w-[140px] truncate" title={item.nomorDokumenTrial}>
-                          {item.nomorDokumenTrial || '-'}
-                        </td>
                         <td className="py-3.5 px-4">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusMeta.badgeClass}`}
@@ -245,23 +258,42 @@ export default function MonitoringTrialAntreanPage() {
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {isAktif && (
-                              <button
-                                onClick={(e) => handleEndTrial(item.id, e)}
-                                title="Akhiri masa pengujian trial dan bawa item ke tahap evaluasi 3 tim"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-amber-200 hover:bg-amber-300 rounded-md transition-colors cursor-pointer border-0 shadow-2xs"
+                            {isAktif ? (
+                              <>
+                                <button
+                                  onClick={(e) => handleEndTrial(item.id, e)}
+                                  title="Akhiri masa pengujian trial dan bawa item ke tahap evaluasi 3 tim"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-amber-200 hover:bg-amber-300 rounded-md transition-colors cursor-pointer border-0 shadow-2xs"
+                                >
+                                  <ClockAlert className="w-3 h-3 text-amber-900" />
+                                  <span>Akhiri Trial</span>
+                                </button>
+                                <Link
+                                  href={`/prototipe-trial/monitoring-trial/${item.id}`}
+                                  className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-md bg-emerald-200 hover:bg-emerald-300 text-emerald-950 shadow-2xs transition-colors border-0"
+                                >
+                                  <span>Dokumen</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </Link>
+                              </>
+                            ) : item.status === 'TRIAL_EVALUASI_VOTING' ? (
+                              <Link
+                                href={`/prototipe-trial/monitoring-trial/${item.id}?tab=evaluasi`}
+                                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-md bg-orange-200 hover:bg-orange-300 text-orange-950 shadow-2xs transition-colors border-0"
                               >
-                                <ClockAlert className="w-3 h-3 text-amber-900" />
-                                <span>Akhiri Trial</span>
-                              </button>
+                                <Vote className="w-3 h-3 text-orange-900" />
+                                <span>Evaluasi</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            ) : (
+                              <Link
+                                href={`/prototipe-trial/monitoring-trial/${item.id}?tab=evaluasi`}
+                                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-md bg-emerald-200 hover:bg-emerald-300 text-emerald-950 shadow-2xs transition-colors border-0"
+                              >
+                                <span>Detail &amp; Evaluasi</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </Link>
                             )}
-                            <Link
-                              href={`/prototipe-trial/monitoring-trial/${item.id}`}
-                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-md bg-emerald-200 hover:bg-emerald-300 text-emerald-950 shadow-2xs transition-colors border-0"
-                            >
-                              <span>Dokumen</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </Link>
                           </div>
                         </td>
                       </tr>

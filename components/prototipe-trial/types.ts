@@ -53,6 +53,7 @@ export interface FormEvaluasiTim {
   catatan: string;
   lampiranName?: string;
   lampiranUrl?: string;
+  lampiranList?: LampiranFileItem[];
   tanggal: string;
 }
 

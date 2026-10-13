@@ -12,6 +12,7 @@ import {
   TrialStatus,
   KoefisienItem,
   FormEvaluasiTim,
+  LampiranFileItem,
   calculateEvaluationQuorum,
 } from './types';
 
@@ -693,6 +694,50 @@ export function submitTrialTimEvaluation(id: string, form: FormEvaluasiTim): voi
   });
 }
 
+export function submitSingleEvaluation(
+  id: string,
+  form: {
+    namaPenilai: string;
+    keputusan: 'LANJUT' | 'TIDAK_LANJUT';
+    catatan: string;
+    lampiranName?: string;
+    lampiranList?: LampiranFileItem[];
+    tanggal: string;
+  }
+): void {
+  const primaryName = form.lampiranName || (form.lampiranList && form.lampiranList.length > 0 ? form.lampiranList[0].name : undefined);
+  const formEvaluasi: FormEvaluasiTim = {
+    tim: 'TIM_BMES',
+    namaPenilai: form.namaPenilai,
+    keputusan: form.keputusan,
+    catatan: form.catatan,
+    lampiranName: primaryName,
+    lampiranUrl: primaryName ? '#' : undefined,
+    lampiranList: form.lampiranList,
+    tanggal: form.tanggal,
+  };
+
+  updateTrialItem(id, (item) => ({
+    ...item,
+    evaluasiBMES: formEvaluasi,
+    status: form.keputusan === 'LANJUT' ? 'TRIAL_PENDING_FINAL_BM_REG' : 'TRIAL_EVALUASI_TIDAK_LANJUT',
+    historyLog: [
+      ...item.historyLog,
+      {
+        role: 'Evaluator Lapangan',
+        namaUser: form.namaPenilai,
+        action: 'EVALUATE',
+        tanggal: form.tanggal,
+        catatan: `Evaluasi lapangan selesai: ${
+          form.keputusan === 'LANJUT'
+            ? 'Direkomendasikan Lanjut ke Master Harga.'
+            : 'Tidak Lanjut.'
+        } Catatan: "${form.catatan}"`,
+      },
+    ],
+  }));
+}
+
 export function approveTrialFinalMaster(id: string, catatan: string): void {
   updateTrialItem(id, (item) => ({
     ...item,
@@ -854,6 +899,7 @@ export function useTrialStore() {
     approveRegMgrConfig: approveTrialRegMgrConfig,
     reviseRegMgrConfig: reviseTrialRegMgrConfig,
     submitEvaluation: submitTrialTimEvaluation,
+    submitSingleEvaluation,
     approveFinalMaster: approveTrialFinalMaster,
     rejectFinalMaster: rejectTrialFinalMaster,
     reEntry: reEntryTrialAction,

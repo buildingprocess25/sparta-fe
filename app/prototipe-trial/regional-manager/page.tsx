@@ -99,7 +99,7 @@ export default function RegionalManagerAntreanPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              2. Penetapan Akhir Master ({masterCount})
+              2. Penetapan Master ({masterCount})
             </button>
             <button
               onClick={() => setActiveTab('history')}
