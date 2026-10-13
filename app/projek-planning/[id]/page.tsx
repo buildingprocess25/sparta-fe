@@ -20,6 +20,7 @@ import {
   fetchProjekPlanningDetail, processBmApproval, processBmRegionalApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
   downloadProjekPlanningPdf, downloadProjekPlanningPhotosPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
+  extractGdriveFileId, getGdriveDirectDownloadUrl,
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
 import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch, BRANCH_TO_ULOK } from "@/lib/constants";
@@ -216,7 +217,7 @@ function FileProxyRow({
 }) {
   const [loading, setLoading] = React.useState<"view" | "download" | null>(null);
   const [viewed, setViewed] = React.useState(false);
-  const showDownload = !isDirectUserLink(fileUrl);
+  const showDownload = !!firstFileUrl(fileUrl);
 
   React.useEffect(() => {
     const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
@@ -256,38 +257,56 @@ function FileProxyRow({
   if (!hasFile) return null;
 
   const handle = async (mode: "view" | "download") => {
-    setLoading(mode);
-    let newWindow: Window | null = null;
-    if (mode === "view") {
-      newWindow = window.open("about:blank", "_blank");
-      if (newWindow) {
-        newWindow.document.write("<html><body style='font-family:sans-serif;padding:20px;text-align:center;'><h3 style='color:#666'>Memuat dokumen, harap tunggu...</h3></body></html>");
-      }
-    }
+    const directUrl = firstFileUrl(fileUrl);
+    if (!directUrl) return;
 
-    try {
-      const directUrl = firstFileUrl(fileUrl);
-      if (directUrl && !shouldUseDriveProxy(directUrl)) {
-        if (mode === "view" && newWindow) {
-          newWindow.location.href = directUrl;
-        } else {
-          if (newWindow) newWindow.close();
-          window.open(directUrl, "_blank", "noopener,noreferrer");
-        }
-      } else {
-        await proxyProjekPlanningFile(projektId, field, mode, undefined, newWindow);
-      }
+    if (mode === "view") {
+      // Langsung buka link asli dokumen di tab baru tanpa proxy backend
+      window.open(directUrl, "_blank", "noopener,noreferrer");
       setViewed(true);
       onViewed(field);
       const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
       const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
-      // Lihat atau unduh sama-sama dihitung sudah membuka dokumen untuk approval.
       localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
-    } catch (e: any) {
-      if (newWindow) newWindow.close();
-      alert(`Gagal: ${e.message}`);
+      return;
     }
-    setLoading(null);
+
+    if (mode === "download") {
+      setLoading("download");
+      try {
+        const fileId = extractGdriveFileId(directUrl);
+        if (fileId) {
+          const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = downloadUrl;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = directUrl;
+          a.download = `file_${field}_${projektId}`;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        setViewed(true);
+        onViewed(field);
+        const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
+        const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
+        localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
+      } catch (e: any) {
+        alert(`Gagal mengunduh: ${e.message}`);
+      } finally {
+        setLoading(null);
+      }
+    }
   };
 
   return (

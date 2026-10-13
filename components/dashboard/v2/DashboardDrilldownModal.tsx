@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ArrowLeft, Download, FileText, Activity, HardHat, FileCheck, Search, ChevronLeft, ChevronRight, Layers, Clock, AlertTriangle, CheckCircle2, Timer } from 'lucide-react';
+import { X, ArrowLeft, Download, FileText, Activity, HardHat, FileCheck, Search, ChevronLeft, ChevronRight, Layers, Clock, AlertTriangle, CheckCircle2, Timer, ClipboardList, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatRupiah } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -202,17 +202,17 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                         const tHari = (s.pertambahan_spk || [])
                             .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt.status_persetujuan || '').toUpperCase()))
                             .reduce((acc: number, curr: any) => acc + (Number(curr.pertambahan_hari) || 0), 0);
-                        
+
                         const finalDate = new Date(endDateStr);
                         if (isNaN(finalDate.getTime())) return true;
-                        
+
                         if (tHari > 0) {
                             finalDate.setDate(finalDate.getDate() + tHari);
                         }
 
                         // Compare with today
                         const today = new Date();
-                        today.setHours(0, 0, 0, 0); 
+                        today.setHours(0, 0, 0, 0);
                         finalDate.setHours(0, 0, 0, 0);
 
                         return finalDate.getTime() >= today.getTime();
@@ -657,7 +657,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                         const denda = formatRupiah(project.opname_final?.[0]?.nilai_denda || 0);
 
                         let tambahHari = 0;
-                        project.spk?.forEach((s:any) => s.pertambahan_spk?.forEach((pt:any) => { if(['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt.status_persetujuan || '').toUpperCase())) tambahHari += Number(pt.pertambahan_hari || 0); }));
+                        project.spk?.forEach((s: any) => s.pertambahan_spk?.forEach((pt: any) => { if (['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt.status_persetujuan || '').toUpperCase())) tambahHari += Number(pt.pertambahan_hari || 0); }));
 
                         const il = project.instruksi_lapangan?.[0];
                         const statusIL = il?.status || 'ONGOING';
@@ -755,7 +755,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         const op = project.opname_final?.[0];
                                         const hDenda = op?.hari_denda || 0;
                                         const allP = project._all_projects_for_ulok || [project];
-                                        
+
                                         // Cari project yang memiliki denda tersebut
                                         const matchingProject = allP.find((p: any) => (p.opname_final?.[0]?.hari_denda || 0) === hDenda);
 
@@ -765,7 +765,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             st = matchingProject.berkas_serah_terima?.[0]?.created_at;
                                             tgt = matchingProject.spk?.[0]?.waktu_selesai;
                                         }
-                                        
+
                                         // Jika lingkup yg kena denda blm ST, ambil dari lingkup lain (yg melakukan serah terima)
                                         if (!st) {
                                             const pWithSt = allP.find((p: any) => p.berkas_serah_terima?.[0]?.created_at);
@@ -1289,13 +1289,37 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         const scope = proj.toko?.lingkup_pekerjaan || '';
         const suffix = scope ? ` (${scope})` : '';
 
+        // 0. Project Planning (FPD)
+        const ppList = (proj.project_planning && Array.isArray(proj.project_planning)) ? proj.project_planning : [];
+        let ppData = ppList.length > 0 ? ppList[0] : null;
+        if (!ppData && (allProjects || projects)) {
+            const projectListToSearch = allProjects || projects;
+            const counterpart = projectListToSearch.find((p: any) => p.toko?.nomor_ulok === proj.toko?.nomor_ulok && p.project_planning?.length > 0);
+            if (counterpart) {
+                ppData = counterpart.project_planning[0];
+            }
+        }
+        if (ppData) {
+            const ppStatusLabel = (ppData.status || '').replace(/_/g, ' ');
+            nodes.push({
+                type: 'PROJECT_PLANNING',
+                title: `Project Planning${suffix}`,
+                desc: ppStatusLabel || 'Tersedia',
+                icon: <ClipboardList className="w-5 h-5" />,
+                color: 'violet',
+                data: ppData,
+                isActive: true,
+                isCompleted: ['COMPLETED', 'SELESAI'].includes(String(ppData.status || '').toUpperCase())
+            });
+        }
+
         // 1. RAB
         const hasRab = proj.rab && proj.rab.length > 0;
         nodes.push({
             type: 'PENAWARAN',
             title: `Penawaran RAB${suffix}`,
             desc: hasRab ? formatRupiah(proj.rab[0].grand_total_final) : 'Belum Tersedia',
-            icon: <FileText className="w-5 h-5"/>,
+            icon: <FileText className="w-5 h-5" />,
             color: hasRab ? 'indigo' : 'slate',
             data: hasRab ? proj.rab[0] : null,
             isActive: hasRab,
@@ -1308,7 +1332,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             type: 'SPK',
             title: `Surat Perintah Kerja${suffix}`,
             desc: hasSpk ? formatRupiah(proj.spk[0].grand_total) : 'Belum Tersedia',
-            icon: <HardHat className="w-5 h-5"/>,
+            icon: <HardHat className="w-5 h-5" />,
             color: hasSpk ? 'blue' : 'slate',
             data: hasSpk ? proj.spk[0] : null,
             isActive: hasSpk,
@@ -1342,7 +1366,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                 type: 'Tambah SPK',
                 title: `Tambah SPK${tsSuffix}`,
                 desc: `${t.pertambahan_hari} Hari`,
-                icon: <Clock className="w-5 h-5"/>,
+                icon: <Clock className="w-5 h-5" />,
                 color: 'cyan',
                 data: t,
                 isActive: true,
@@ -1358,7 +1382,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                 type: 'IL_ROOT',
                 title: `Instruksi Lapangan${suffix}`,
                 desc: formatRupiah(totalIL),
-                icon: <Activity className="w-5 h-5"/>,
+                icon: <Activity className="w-5 h-5" />,
                 color: 'orange',
                 data: { isILRoot: true, projectData: proj },
                 isActive: true,
@@ -1394,7 +1418,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             type: 'PENGAWASAN',
             title: `Pengawasan${suffix}`,
             desc: hasPengawasan ? (pSelesai ? 'SELESAI' : pengawasanTerlambat > 0 ? 'TERLAMBAT' : 'PROGRESS') : 'Belum Tersedia',
-            icon: <Search className="w-5 h-5"/>,
+            icon: <Search className="w-5 h-5" />,
             color: hasPengawasan ? 'purple' : 'slate',
             data: hasPengawasan ? { isPengawasanRoot: true, ganttData: proj.gantt, projectData: proj } : null,
             isActive: hasPengawasan,
@@ -1411,7 +1435,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             type: 'Opname Parsial',
             title: `Opname Parsial${suffix}`,
             desc: hasParsial ? formatRupiah(parsialTotal) : 'Belum Tersedia',
-            icon: <Activity className="w-5 h-5"/>,
+            icon: <Activity className="w-5 h-5" />,
             color: hasParsial ? 'sky' : 'slate',
             data: parsialData,
             isActive: hasParsial,
@@ -1424,7 +1448,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             type: 'ST',
             title: `Serah Terima Selesai${suffix}`,
             desc: hasST ? 'Selesai' : 'Belum Tersedia',
-            icon: <FileCheck className="w-5 h-5"/>,
+            icon: <FileCheck className="w-5 h-5" />,
             color: hasST ? 'emerald' : 'slate',
             data: hasST ? proj.berkas_serah_terima[0] : null,
             isActive: hasST,
@@ -1445,7 +1469,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             type: 'Opname Final',
             title: `Opname Final / KTK${suffix}`,
             desc: hasFinal ? `${formatRupiah(opnameFinal[0].grand_total_final || opnameFinal[0].nilai_opname || 0)} (${opnameStatus})` : 'Belum Tersedia',
-            icon: <CheckCircle2 className="w-5 h-5"/>,
+            icon: <CheckCircle2 className="w-5 h-5" />,
             color: hasFinal ? 'teal' : 'slate',
             data: hasFinal ? opnameFinal[0] : null,
             isActive: hasFinal,
@@ -1460,7 +1484,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             type: 'DONE',
             title: `Proyek Selesai${suffix}`,
             desc: isProyekSelesai ? 'Tercapai' : 'Belum Tercapai',
-            icon: <CheckCircle2 className="w-5 h-5"/>,
+            icon: <CheckCircle2 className="w-5 h-5" />,
             color: isProyekSelesai ? 'emerald' : 'slate',
             data: null,
             isActive: isProyekSelesai,
@@ -1552,7 +1576,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                     className="bg-white text-slate-700 hover:bg-slate-50 font-semibold rounded-xl shrink-0 shadow-sm border border-slate-200 transition-all h-10 px-4 group"
                     onClick={(e) => {
                         e.preventDefault();
-                        window.open(getProxyUrl(url), '_blank', 'noopener,noreferrer');
+                        window.open(url, '_blank', 'noopener,noreferrer');
                     }}
                 >
                     <FileText className="w-4 h-4 mr-2 text-red-500 group-hover:scale-110 transition-transform" /> {label}
@@ -1589,9 +1613,9 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         const renderStandardTokoInfo = () => {
             const tk = data.toko || selectedProject?.toko || {};
             let lingkupGabungan = selectedProject?._jhk_lingkup_gabungan ? selectedProject._jhk_lingkup_gabungan.join(' & ') : tk.lingkup_pekerjaan || '-';
-        if (initialCardType === 'JHK' || initialCardType === 'TAMBAH_HARI_SPK') {
-            lingkupGabungan = 'SIPIL + ME';
-        }
+            if (initialCardType === 'JHK' || initialCardType === 'TAMBAH_HARI_SPK') {
+                lingkupGabungan = 'SIPIL + ME';
+            }
 
             return (
                 <>
@@ -1612,6 +1636,214 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         };
 
         const commonExcluded = ['id_toko', 'lingkup_pekerjaan', 'proyek', 'nomor_ulok', 'nama_toko', 'kode_toko'];
+
+        if (type === 'PROJECT_PLANNING') {
+            const lowerData: any = {};
+            Object.keys(data).forEach(k => { lowerData[k.toLowerCase()] = data[k]; });
+
+            const renderPpPersetujuanRow = (label: string, namaField: string, emailField: string, waktuField: string) => {
+                if (!lowerData[emailField] && !lowerData[namaField] && !lowerData[waktuField]) return null;
+
+                let nama = lowerData[namaField];
+                if (!nama && lowerData[emailField]) {
+                    let emailName = String(lowerData[emailField]).split('@')[0];
+                    emailName = emailName.replace(/\./g, ' ');
+                    nama = emailName.replace(/\b\w/g, (l: string) => l.toUpperCase());
+                }
+                if (!nama) nama = '-';
+
+                const w = lowerData[waktuField] ? String(lowerData[waktuField]).replace(/\.\d+\+.*$/, '') : '';
+                if (!w && nama === '-') return null;
+
+                return (
+                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                        <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">{label}</th>
+                        <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
+                            {w ? `Disetujui ${formatDateIndo(w).replace(/ pukul.*$/, '')} oleh ${nama}` : '-'}
+                        </td>
+                    </tr>
+                );
+            };
+
+            const pBangunan = data.p_bangunan ? `${data.p_bangunan} m` : '';
+            const lBangunan = data.l_bangunan ? `${data.l_bangunan} m` : '';
+            const dimBangunan = (pBangunan && lBangunan) ? `${pBangunan} x ${lBangunan}` : (pBangunan || lBangunan || null);
+
+            const pParkir = data.p_area_parkir ? `${data.p_area_parkir} m` : '';
+            const lParkir = data.l_area_parkir ? `${data.l_area_parkir} m` : '';
+            const dimParkir = (pParkir && lParkir) ? `${pParkir} x ${lParkir}` : (pParkir || lParkir || null);
+
+            const tipeBangunan = data.is_ruko !== undefined && data.is_ruko !== null
+                ? `${data.is_ruko ? 'Ruko' : 'Non-Ruko'}${data.jumlah_lantai ? ` (${data.jumlah_lantai} Lantai)` : ''}`
+                : null;
+            const statusLabel = data.status ? String(data.status).replace(/_/g, ' ').toUpperCase() : '-';
+
+            return (
+                <div className="w-full h-full flex flex-col bg-slate-50/20">
+                    <div className="px-8 pt-8 pb-4">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                            <h4 className="text-lg font-bold text-slate-800 tracking-tight">Dokumen Project Planning Tersedia</h4>
+                            <div className="flex flex-wrap gap-3">
+                                {renderMainPdfButton(data.link_pdf, data.id, 'PROJECT_PLANNING', 'Lihat PDF Project Planning')}
+                                {(data.total_foto_dokumentasi === undefined || Number(data.total_foto_dokumentasi) > 0) && (
+                                    <Button
+                                        className="bg-amber-600 text-white hover:bg-amber-700 font-semibold rounded-xl shrink-0 shadow-md shadow-amber-500/20 hover:scale-105 transition-all h-11 px-6"
+                                        onClick={async () => {
+                                            try {
+                                                await viewGeneratedPdfOnline(data.id, 'PROJECT_PLANNING_PHOTOS');
+                                            } catch (err) {
+                                                alert('Gagal memuat PDF Lampiran Foto Dokumentasi.');
+                                            }
+                                        }}
+                                    >
+                                        <Camera className="w-4 h-4 mr-2" />
+                                        {data.total_foto_dokumentasi ? `Unduh Lampiran Foto` : 'Unduh Lampiran Foto'}
+                                    </Button>
+                                )}
+                                {renderPdfButton(data.link_fpd, 'Gambar Kerja Sipil (FPD)')}
+                                {renderPdfButton(data.link_gambar_kerja, 'Gambar Kerja ME')}
+                                {renderPdfButton(data.link_siteplan, 'Siteplan')}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-8 md:p-10 pt-4 flex-1 overflow-y-auto custom-scrollbar">
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
+                            <table className="w-full text-left border-collapse">
+                                <tbody>
+                                    {renderStandardTokoInfo()}
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                        <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Status Pengajuan</th>
+                                        <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
+                                            <span className="inline-flex px-3 py-1 text-xs font-bold rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                                                {statusLabel}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {data.nama_pengaju && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Nama Pengaju</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.nama_pengaju}</td>
+                                        </tr>
+                                    )}
+                                    {data.email_pembuat && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Email Pembuat</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.email_pembuat}</td>
+                                        </tr>
+                                    )}
+                                    {renderPpPersetujuanRow('Persetujuan B&M Manager (Tahap 1)', 'bm_approver_name', 'bm_approver_email', 'bm_waktu_persetujuan')}
+                                    {renderPpPersetujuanRow('Persetujuan PP Specialist (Tahap 1)', 'pp1_approver_name', 'pp1_approver_email', 'pp1_waktu_persetujuan')}
+                                    {renderPpPersetujuanRow('Persetujuan B&M Manager (Tahap 2)', 'bm2_approver_name', 'bm2_approver_email', 'bm2_waktu_persetujuan')}
+                                    {renderPpPersetujuanRow('Persetujuan B&M Regional Manager', 'bm_regional_approver_name', 'bm_regional_approver_email', 'bm_regional_waktu_persetujuan')}
+                                    {renderPpPersetujuanRow('Persetujuan PP Specialist (Tahap 2)', 'pp2_approver_name', 'pp2_approver_email', 'pp2_waktu_persetujuan')}
+                                    {renderPpPersetujuanRow('Persetujuan PP Manager (Final)', 'pp_manager_approver_name', 'pp_manager_approver_email', 'pp_manager_waktu_persetujuan')}
+                                    {tipeBangunan && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Tipe Bangunan</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{tipeBangunan}</td>
+                                        </tr>
+                                    )}
+                                    {dimBangunan && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Dimensi Bangunan</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{dimBangunan}</td>
+                                        </tr>
+                                    )}
+                                    {dimParkir && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Dimensi Area Parkir</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{dimParkir}</td>
+                                        </tr>
+                                    )}
+                                    {data.luas_bangunan && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Luas Bangunan</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.luas_bangunan} m²</td>
+                                        </tr>
+                                    )}
+                                    {data.luas_area_sales && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Luas Area Sales</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.luas_area_sales} m²</td>
+                                        </tr>
+                                    )}
+                                    {data.luas_gudang && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Luas Gudang</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.luas_gudang} m²</td>
+                                        </tr>
+                                    )}
+                                    {data.luas_area_parkir && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Luas Area Parkir</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.luas_area_parkir} m²</td>
+                                        </tr>
+                                    )}
+                                    {data.luas_area_terbuka && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Luas Area Terbuka</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.luas_area_terbuka} m²</td>
+                                        </tr>
+                                    )}
+                                    {data.luas_area_terbangun && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Luas Area Terbangun</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.luas_area_terbangun} m²</td>
+                                        </tr>
+                                    )}
+                                    {data.estimasi_biaya && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Estimasi Biaya</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
+                                                <span className="text-base font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg -ml-3">
+                                                    {fR(data.estimasi_biaya)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {data.beanspot_tipe && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Tipe Bean Spot</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.beanspot_tipe}</td>
+                                        </tr>
+                                    )}
+                                    {data.is_head_to_head !== undefined && data.is_head_to_head !== null && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Head to Head</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.is_head_to_head ? `Ya${data.jarak_head_to_head ? ` (${data.jarak_head_to_head} m)` : ''}` : 'Tidak'}</td>
+                                        </tr>
+                                    )}
+                                    {data.is_seating_area !== undefined && data.is_seating_area !== null && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Seating Area</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.is_seating_area ? 'Ya' : 'Tidak'}</td>
+                                        </tr>
+                                    )}
+                                    {data.akhir_masa_sewa && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Akhir Masa Sewa</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{formatDateIndo(data.akhir_masa_sewa).replace(/ pukul.*$/, '')}</td>
+                                        </tr>
+                                    )}
+                                    {data.spd && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">SPD</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{fR(data.spd)}</td>
+                                        </tr>
+                                    )}
+                                    {data.keterangan && (
+                                        <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Keterangan</th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">{data.keterangan}</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
 
         if (type === 'PENAWARAN') {
             const excludedKeys = ['id', 'created_at', 'updated_at', 'link_pdf_gabungan', 'link_pdf_non_sbo', 'link_pdf_rekapitulasi', 'link_pdf_sph', 'logo', 'pemberi_persetujuan', 'waktu_persetujuan', 'file_asuransi', 'pemberi_persetujuan_koordinator', 'waktu_persetujuan_koordinator', 'nama_persetujuan_koordinator', 'pemberi_persetujuan_manager', 'waktu_persetujuan_manager', 'nama_persetujuan_manager', 'pemberi_persetujuan_direktur', 'waktu_persetujuan_direktur', 'nama_persetujuan_direktur', 'waktu_penolakan', 'ditolak_oleh', 'durasi_pekerjaan', 'kategori_lokasi', 'no_polis', 'berlaku_polis', 'luas_bangunan', 'luas_terbangun', 'luas_area_terbuka', 'alasan_penolakan', 'catatan_penolakan', ...commonExcluded];
@@ -1703,12 +1935,12 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                 <div className="w-full h-full flex flex-col bg-slate-50/20">
                     <div className="px-8 pt-8 pb-4">
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-                                <div>
-                                    <h4 className="text-lg font-bold text-slate-800 tracking-tight">Dokumen SPK</h4>
-                                </div>
-                                {renderMainPdfButton(data.link_pdf, undefined, undefined, 'Lihat PDF SPK')}
+                            <div>
+                                <h4 className="text-lg font-bold text-slate-800 tracking-tight">Dokumen SPK</h4>
                             </div>
+                            {renderMainPdfButton(data.link_pdf, undefined, undefined, 'Lihat PDF SPK')}
                         </div>
+                    </div>
                     <div className="p-8 md:p-10 pt-4 flex-1 overflow-y-auto custom-scrollbar">
                         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
                             <table className="w-full text-left border-collapse">
@@ -2370,52 +2602,52 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         );
 
         return (
-                <div className="w-full h-full flex flex-col bg-slate-50/20">
-                    <div className="px-8 pt-8 pb-4">
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                            <div>
-                                <h4 className="text-lg font-bold text-slate-800 tracking-tight">Dokumen Tersedia</h4>
-                            </div>
-                            {renderMainPdfButton(selectedMemoForDrawer?.pdfUrl || data.link_pdf, undefined, undefined, 'Lihat PDF Pengawasan')}
+            <div className="w-full h-full flex flex-col bg-slate-50/20">
+                <div className="px-8 pt-8 pb-4">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h4 className="text-lg font-bold text-slate-800 tracking-tight">Dokumen Tersedia</h4>
                         </div>
+                        {renderMainPdfButton(selectedMemoForDrawer?.pdfUrl || data.link_pdf, undefined, undefined, 'Lihat PDF Pengawasan')}
                     </div>
+                </div>
                 <div className="p-8 md:p-10 flex-1 overflow-y-auto custom-scrollbar">
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
                         <table className="w-full text-left border-collapse">
                             <tbody>
-                        {keys.map((k, i) => {
-                            const valStr = String(data[k]);
-                            const isLink = valStr.startsWith('http://') || valStr.startsWith('https://');
-                            const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !k.toLowerCase().includes('tahun') && !k.toLowerCase().includes('hari') && !k.toLowerCase().includes('durasi') && !k.toLowerCase().includes('polis'));
+                                {keys.map((k, i) => {
+                                    const valStr = String(data[k]);
+                                    const isLink = valStr.startsWith('http://') || valStr.startsWith('https://');
+                                    const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !k.toLowerCase().includes('tahun') && !k.toLowerCase().includes('hari') && !k.toLowerCase().includes('durasi') && !k.toLowerCase().includes('polis'));
 
-                            const displayVal = isCurrency ? fR(data[k]) : valStr;
+                                    const displayVal = isCurrency ? fR(data[k]) : valStr;
 
-                            return (
-                                <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors group">
-                                    <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">
-                                        {k.replace(/_/g, ' ')}
-                                    </th>
-                                    <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
-                                        {isLink ? (
-                                        <a
-                                            href="#"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                window.open(getProxyUrl(valStr), '_blank', 'noopener,noreferrer');
-                                            }}
-                                            className="inline-flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg px-3 py-1.5 -ml-3 transition-colors"
-                                        >
-                                            <FileText className="w-4 h-4 shrink-0" /> Lihat Dokumen
-                                        </a>
-                                    ) : (
-                                        <span className={`text-base font-semibold break-words ${isCurrency ? 'text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg -ml-3' : 'text-slate-800'}`}>
-                                            {displayVal}
-                                        </span>
-                                    )}
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                                    return (
+                                        <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors group">
+                                            <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">
+                                                {k.replace(/_/g, ' ')}
+                                            </th>
+                                            <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
+                                                {isLink ? (
+                                                    <a
+                                                        href="#"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            window.open(getProxyUrl(valStr), '_blank', 'noopener,noreferrer');
+                                                        }}
+                                                        className="inline-flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg px-3 py-1.5 -ml-3 transition-colors"
+                                                    >
+                                                        <FileText className="w-4 h-4 shrink-0" /> Lihat Dokumen
+                                                    </a>
+                                                ) : (
+                                                    <span className={`text-base font-semibold break-words ${isCurrency ? 'text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg -ml-3' : 'text-slate-800'}`}>
+                                                        {displayVal}
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

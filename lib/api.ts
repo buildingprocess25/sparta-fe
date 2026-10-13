@@ -4645,7 +4645,7 @@ export const downloadDokumentasiBangunanPdf = async (id: number): Promise<boolea
 
 export const viewGeneratedPdfOnline = async (
     id: number,
-    tipe: "RAB" | "SPK" | "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK"
+    tipe: "RAB" | "SPK" | "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK" | "PROJECT_PLANNING_PHOTOS"
 ): Promise<boolean> => {
     const popup = window.open("about:blank", "_blank");
     if (!popup) throw new Error("Browser memblokir tab baru. Izinkan popup untuk membuka PDF online.");
@@ -4669,6 +4669,7 @@ export const viewGeneratedPdfOnline = async (
         OPNAME_FINAL: `/api/final_opname/${id}/pdf`,
         INSTRUKSI_LAPANGAN: `/api/instruksi-lapangan/${id}/pdf`,
         PROJECT_PLANNING: `/api/projek-planning/${id}/pdf`,
+        PROJECT_PLANNING_PHOTOS: `/api/projek-planning/${id}/photos-pdf`,
         BERKAS_SERAH_TERIMA: `/api/berkas_serah_terima/${id}/pdf`,
         PENGAWASAN: `/api/pengawasan/${id}/pdf`,
         PERTAMBAHAN_SPK: `/api/pertambahan-spk/${id}/pdf`,
@@ -5868,6 +5869,30 @@ export const proxyProjekPlanningFile = async (
         document.body.removeChild(a);
     }
     setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+};
+
+/**
+ * Mengekstrak file ID dari berbagai variasi URL Google Drive.
+ */
+export const extractGdriveFileId = (url?: string | null): string | null => {
+    if (!url) return null;
+    const cleanUrl = String(url).split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || "";
+    const match = cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                  cleanUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+                  cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+};
+
+/**
+ * Mengembalikan direct export download URL jika merupakan link Google Drive,
+ * atau URL asli jika bukan.
+ */
+export const getGdriveDirectDownloadUrl = (url?: string | null): string => {
+    const fileId = extractGdriveFileId(url);
+    if (fileId) {
+        return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    }
+    return String(url || "").split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || "";
 };
 
 /** Proses approval BM Manager. */
