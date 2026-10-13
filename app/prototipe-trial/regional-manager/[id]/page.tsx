@@ -309,7 +309,7 @@ export default function DetailRegionalManagerTrialPage() {
             approveTitle={isPendingHarga ? 'Setujui' : 'Tetapkan ke Master'}
             approveDescription={
               isPendingHarga
-                ? `Sistem akan otomatis menerbitkan Dokumen Pelaksanaan Trial untuk pelaksanaan trial operasional di cabang.`
+                ? `Sistem akan otomatis menerbitkan Dokumen Pelaksanaan Trial untuk pelaksanaan trial.`
                 : `Item akan disahkan ke katalog Master Harga.`
             }
             approveNote={isPendingHarga ? hargaApproveNote : masterApproveNote}
@@ -320,7 +320,7 @@ export default function DetailRegionalManagerTrialPage() {
             reviseTone={isPendingHarga ? 'amber' : 'rose'}
             reviseDescription={
               isPendingHarga
-                ? 'Kembalikan ke S&B Specialist untuk penyesuaian koefisien bahan/upah atau margin rekanan.'
+                ? 'Kembalikan ke S&B Specialist untuk penyesuaian koefisien atau margin.'
                 : 'Item tidak disahkan ke Master Harga.'
             }
             reviseNote={isPendingHarga ? hargaReviseNote : masterRejectNote}

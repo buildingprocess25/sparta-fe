@@ -82,7 +82,7 @@ export function WorksheetHpsSummary({
               {formatRupiah(totalUpahAkhir)}
             </span>
             <span className="text-[10px] text-slate-500 block">
-              Termasuk margin {marginUpah}%
+              Termasuk margin
             </span>
           </div>
 
@@ -95,7 +95,7 @@ export function WorksheetHpsSummary({
               {formatRupiah(totalMaterialAkhir)}
             </span>
             <span className="text-[10px] text-slate-500 block">
-              Termasuk margin {marginMaterial}%
+              Termasuk margin
             </span>
           </div>
 
@@ -111,7 +111,7 @@ export function WorksheetHpsSummary({
             </span>
             <span className="text-[10px] text-slate-500 block">
               {isTermasukBongkaran
-                ? `Termasuk margin ${marginBongkaran}%`
+                ? `Termasuk margin`
                 : "Opsi tidak dipilih"}
             </span>
           </div>

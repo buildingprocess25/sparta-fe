@@ -51,7 +51,7 @@ export default function MasterHargaTrialKatalogPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <TrialNavbar subtitle="Katalog Master Harga Resmi (Lulus Uji Coba Trial)" />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-6">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-6">
         {/* Header Hero Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-start gap-3.5">
@@ -61,22 +61,15 @@ export default function MasterHargaTrialKatalogPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  Katalog Master Harga Resmi
+                  Katalog Master Harga
                 </h1>
-                <Badge className="bg-teal-600 hover:bg-teal-700 text-white font-mono text-xs">
-                  {masterItems.length} Item Resmi Sah
-                </Badge>
               </div>
               <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                Daftar item spesifikasi material dan jasa yang telah sukses melewati tahapan uji coba lapangan, evaluasi kuorum 3 tim, dan disahkan permanen oleh B&M Regional Manager.
+                Daftar item yang disahkan ke Master Harga.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-teal-50/70 p-3 rounded-xl border border-teal-200/80">
-            <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
-            <span>Tersimpan permanen di database Master Harga nasional.</span>
-          </div>
         </div>
 
         {/* Pencarian */}
@@ -162,7 +155,7 @@ export default function MasterHargaTrialKatalogPage() {
                             href={`/prototipe-trial/master-harga/${item.id}`}
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-2xs transition-colors"
                           >
-                            <span>Detail Master</span>
+                            <span>Detail</span>
                             <ArrowRight className="w-3 h-3" />
                           </Link>
                         </td>
