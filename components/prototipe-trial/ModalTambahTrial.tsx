@@ -28,19 +28,11 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   FlaskConical,
   Upload,
   Clock,
   Sparkles,
   X,
-  Building,
   Layers,
   Coins,
   CheckCircle2,
@@ -50,8 +42,8 @@ import {
   FileText,
 } from "lucide-react";
 import type { StylesConfig } from "react-select";
-import { TrialItem, TrialStatus, RoleTrial, LampiranFileItem } from "./types";
-import { addTrialItem, useTrialStore } from "./store";
+import { TrialItem, TrialStatus, LampiranFileItem } from "./types";
+import { addTrialItem, updateTrialItem, useTrialStore } from "./store";
 import {
   getKodeData,
   generateDeskripsiOtomatis,
@@ -63,6 +55,7 @@ interface ModalTambahTrialProps {
   onClose: () => void;
   nextIndex?: number;
   onSuccess?: (item: TrialItem) => void;
+  itemToEdit?: TrialItem | null;
 }
 
 export interface SelectOption {
@@ -422,19 +415,6 @@ const DEFAULT_AREA_OPTIONS = [
   { label: "Area Parkir Depan", value: "Area Parkir Depan" },
 ];
 
-const CABANG_OPTIONS = [
-  "Cikokol",
-  "Bandung",
-  "Surabaya",
-  "Semarang",
-  "Medan",
-  "Makassar",
-  "Palembang",
-  "Tangerang",
-  "Jakarta Barat",
-  "Bekasi",
-];
-
 const DEFAULT_UKURAN_OPTIONS = [
   { label: "60x60", value: "60x60" },
   { label: "40x40", value: "40x40" },
@@ -516,13 +496,14 @@ export function ModalTambahTrial({
   onClose,
   nextIndex = 110,
   onSuccess,
+  itemToEdit = null,
 }: ModalTambahTrialProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { items: existingTrialItems } = useTrialStore();
 
   // Konteks Prototype (Aktor Maker & Cabang Uji Coba)
-  const [makerOption, setMakerOption] = useState(MAKER_OPTIONS[0]);
-  const [cabang, setCabang] = useState("Cikokol");
+  const [makerOption] = useState(MAKER_OPTIONS[0]);
+  const [cabang] = useState("Cikokol");
 
   // Durasi Masa Uji Coba
   const [durasiBulan, setDurasiBulan] = useState<2 | 3 | 4>(3);
@@ -552,6 +533,38 @@ export function ModalTambahTrial({
 
   // Lampiran Berkas (Mendukung Multi-Upload / Bulking)
   const [lampiranList, setLampiranList] = useState<UploadedFileItem[]>([]);
+
+  // Prefill data saat mode edit draf
+  useEffect(() => {
+    if (isOpen && itemToEdit) {
+      setNamaItem(itemToEdit.item || "");
+      setKategori(itemToEdit.kategori || "Pekerjaan Keramik");
+      setMerk(itemToEdit.merk || "");
+      setWarna(itemToEdit.warna || "");
+      setTipe(itemToEdit.tipe || "");
+      setPermukaan(itemToEdit.permukaan || "Matte Anti-Slip");
+      setImplementasi(itemToEdit.implementasi || "Lantai Gerai");
+      setLokasi(itemToEdit.lokasi || "Area Sales & Kasir");
+      setSatuan(itemToEdit.satuan || "m2");
+      setInformasiTambahan(itemToEdit.informasiTambahan || "");
+      setEstimasiHarga(itemToEdit.estimasiHargaMaker || 125000);
+      setIsTermasukBongkaran(Boolean(itemToEdit.isTermasukBongkaran));
+      setAlasanTrial(itemToEdit.alasanTrial || "");
+      setDurasiBulan(itemToEdit.durasiBulan || 3);
+      if (itemToEdit.lampiranMakerList) {
+        setLampiranList(
+          itemToEdit.lampiranMakerList.map((f) => ({
+            id: f.id,
+            name: f.name,
+            size: f.size || 1024,
+            type: f.type || "application/pdf",
+            url: f.url,
+            isImage: Boolean(f.name.match(/\.(jpg|jpeg|png|webp)$/i)),
+          }))
+        );
+      }
+    }
+  }, [isOpen, itemToEdit]);
 
   // Nilai Gabungan Ukuran, Tebal, dan Toleransi
   const combinedUkuran = useMemo(() => {
@@ -814,26 +827,46 @@ export function ModalTambahTrial({
       lampiranMakerName,
       lampiranMakerUrl,
       lampiranMakerList: lampiranMakerList.length > 0 ? lampiranMakerList : undefined,
-      makerRole: makerOption.role as RoleTrial,
+      makerRole: (makerOption.role as TrialItem['makerRole']) || 'MAKER_SENIOR',
       makerNama: makerOption.value,
-      tanggalPengajuan: today,
+      tanggalPengajuan: itemToEdit?.tanggalPengajuan || today,
       status: statusTarget,
-      historyLog: [
-        {
-          role: `Maker (${makerOption.role})`,
-          namaUser: makerOption.value,
-          action: "SUBMIT",
-          tanggal: today,
-          catatan: isDraft
-            ? "Pengajuan disimpan sebagai draf."
-            : makerOption.role === "PP_MANAGER"
-              ? "Diajukan oleh PP Manager (Alur PP Manager otomatis dilewati ke B&M General Manager)."
-              : "Pengajuan trial dikirimkan ke PP Manager untuk verifikasi awal.",
-        },
-      ],
+      historyLog: itemToEdit
+        ? [
+            ...itemToEdit.historyLog,
+            {
+              role: `Maker (${makerOption.role})`,
+              namaUser: makerOption.value,
+              action: isDraft ? 'SUBMIT' : 'RE_ENTRY',
+              tanggal: today,
+              catatan: isDraft ? 'Draf diperbarui oleh Maker.' : 'Item diajukan resmi kembali oleh Maker.',
+            },
+          ]
+        : [
+            {
+              role: `Maker (${makerOption.role})`,
+              namaUser: makerOption.value,
+              action: 'SUBMIT',
+              tanggal: today,
+              catatan: isDraft
+                ? 'Pengajuan disimpan sebagai draf.'
+                : makerOption.role === 'PP_MANAGER'
+                  ? 'Diajukan oleh PP Manager (Alur PP Manager otomatis dilewati ke B&M General Manager).'
+                  : 'Pengajuan trial dikirimkan ke PP Manager untuk verifikasi awal.',
+            },
+          ],
     };
 
-    addTrialItem(newItem);
+    if (itemToEdit) {
+      updateTrialItem(itemToEdit.id, () => ({
+        ...newItem,
+        id: itemToEdit.id,
+        kode: itemToEdit.kode,
+        kodeMaster: itemToEdit.kodeMaster || newItem.kodeMaster,
+      }));
+    } else {
+      addTrialItem(newItem);
+    }
     if (onSuccess) onSuccess(newItem);
     onClose();
   };

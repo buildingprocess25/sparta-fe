@@ -14,7 +14,6 @@ import {
   Sparkles,
   Layers,
   ChevronRight,
-  Home,
 } from 'lucide-react';
 import { resetToDefaultTrialItems } from './store';
 
@@ -36,12 +35,10 @@ export const TRIAL_ROLES: RoleRoute[] = [
 ];
 
 interface TrialNavbarProps {
-  title?: string;
   subtitle?: string;
 }
 
 export function TrialNavbar({
-  title = 'Prototipe Alur Trial',
   subtitle,
 }: TrialNavbarProps) {
   const pathname = usePathname();

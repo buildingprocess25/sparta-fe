@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import {
   TrialItem,
   TrialStatus,
@@ -744,30 +744,59 @@ export function reEntryTrialAction(
   });
 }
 
+let cachedItemsSnapshot: TrialItem[] = [];
+let cachedRawSnapshot: string | null = null;
+
+function subscribeTrialStore(callback: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(EVENT_NAME, callback);
+  window.addEventListener('storage', callback);
+  window.addEventListener('focus', callback);
+
+  return () => {
+    window.removeEventListener(EVENT_NAME, callback);
+    window.removeEventListener('storage', callback);
+    window.removeEventListener('focus', callback);
+  };
+}
+
+function getTrialStoreSnapshot(): TrialItem[] {
+  if (typeof window === 'undefined') return INITIAL_MOCK_ITEMS;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw === cachedRawSnapshot && cachedItemsSnapshot.length > 0) {
+    return cachedItemsSnapshot;
+  }
+  cachedRawSnapshot = raw;
+  cachedItemsSnapshot = getStoredTrialItems();
+  return cachedItemsSnapshot;
+}
+
+function getTrialStoreServerSnapshot(): TrialItem[] {
+  return INITIAL_MOCK_ITEMS;
+}
+
+const noopSubscribe = () => () => {};
+
 // Custom Hook Reactive (Clean Architecture)
 export function useTrialStore() {
-  const [items, setItems] = useState<TrialItem[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const items = useSyncExternalStore(
+    subscribeTrialStore,
+    getTrialStoreSnapshot,
+    getTrialStoreServerSnapshot
+  );
+
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  );
 
   const reload = useCallback(() => {
-    setItems(getStoredTrialItems());
+    if (typeof window !== 'undefined') {
+      cachedRawSnapshot = null;
+      window.dispatchEvent(new Event(EVENT_NAME));
+    }
   }, []);
-
-  useEffect(() => {
-    setMounted(true);
-    reload();
-
-    const handleStorage = () => reload();
-    window.addEventListener(EVENT_NAME, handleStorage);
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('focus', handleStorage);
-
-    return () => {
-      window.removeEventListener(EVENT_NAME, handleStorage);
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('focus', handleStorage);
-    };
-  }, [reload]);
 
   return {
     items,

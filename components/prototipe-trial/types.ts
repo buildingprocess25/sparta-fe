@@ -226,17 +226,29 @@ export function calculateEvaluationQuorum(item: TrialItem): {
   totalVoted: number;
   isQuorumApproved: boolean;
   isQuorumRejected: boolean;
+  agreeCount: number;
+  rejectCount: number;
+  filledCount: number;
+  isQuorumMet: boolean;
+  isComplete: boolean;
 } {
   const votes = [item.evaluasiPP, item.evaluasiBMES, item.evaluasiSB].filter(Boolean) as FormEvaluasiTim[];
   const approvedCount = votes.filter((v) => v.keputusan === 'LANJUT').length;
   const rejectedCount = votes.filter((v) => v.keputusan === 'TIDAK_LANJUT').length;
   const totalVoted = votes.length;
+  const isQuorumApproved = approvedCount >= 2;
+  const isQuorumRejected = rejectedCount >= 2;
 
   return {
     approvedCount,
     rejectedCount,
     totalVoted,
-    isQuorumApproved: approvedCount >= 2,
-    isQuorumRejected: rejectedCount >= 2,
+    isQuorumApproved,
+    isQuorumRejected,
+    agreeCount: approvedCount,
+    rejectCount: rejectedCount,
+    filledCount: totalVoted,
+    isQuorumMet: isQuorumApproved,
+    isComplete: totalVoted >= 3,
   };
 }

@@ -222,7 +222,7 @@ export default function MakerTrialPage() {
                               </button>
                             )}
                             <Link
-                              href={`/prototipe-trial/detail/${item.id}`}
+                              href={`/prototipe-trial/maker/${item.id}`}
                               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-red-600 hover:bg-red-50 rounded-md border border-slate-200 transition-colors"
                             >
                               <span>Detail</span>
