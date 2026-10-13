@@ -2,8 +2,8 @@
 // app/prototipe-trial/monitoring-trial/[id]/page.tsx
 // Halaman Detail Dokumen Resmi Pelaksanaan Trial (Katalog SPK) Sparta
 // Fitur: Pratinjau Dokumen Cetak PDF Resmi, Tab Spesifikasi, Riwayat,
-// dan Tombol Simulasi Berakhirnya Durasi untuk Pengujian Evaluasi Kuorum
-// Bahasa: Lugas, Ringkas, Clean Architecture, Font: Geist (font-sans)
+// & Aksi Resmi Pengakhiran Masa Pengujian Trial Lapangan
+// Desain: Anti-Slop Industrial Clean, Tombol Solid Pastel
 // =============================================================================
 
 "use client";
@@ -18,11 +18,12 @@ import { TrialDokumenViewer } from '@/components/prototipe-trial/TrialDokumenVie
 import { TrialSpesifikasiCard } from '@/components/prototipe-trial/TrialSpesifikasiCard';
 import { TrialAuditLogCard } from '@/components/prototipe-trial/TrialAuditLogCard';
 import { useTrialStore } from '@/components/prototipe-trial/store';
+import { getRemainingDays } from '@/components/prototipe-trial/types';
 import { Button } from '@/components/ui/button';
 import {
   FileText,
   Printer,
-  PlayCircle,
+  ClockAlert,
   Layers,
   History,
 } from 'lucide-react';
@@ -68,18 +69,24 @@ export default function DetailMonitoringTrialPage() {
 
   const isAktif = item.status === 'TRIAL_AKTIF';
 
-  const handleSimulateExpired = () => {
-    if (confirm('Simulasikan masa aktif item ini berakhir agar langsung masuk ke tahap Evaluasi Kuorum 3 Tim?')) {
+  // Helper: Akhiri Masa Pengujian Trial Resmi
+  const handleEndTrial = () => {
+    const sisa = getRemainingDays(item.trialStartDate, item.durasiHari);
+    const confirmMsg = sisa > 0
+      ? `Apakah Anda yakin ingin mengakhiri masa pengujian item ini lebih awal (sisa ${sisa} hari)? Item akan langsung dialihkan ke tahap Evaluasi Kuorum 3 Tim.`
+      : 'Akhiri masa pengujian trial ini dan lanjutkan ke tahap Evaluasi Kuorum 3 Tim?';
+
+    if (confirm(confirmMsg)) {
       updateItem(item.id, (prev) => ({
         ...prev,
         status: 'TRIAL_EVALUASI_VOTING',
         historyLog: [
           ...prev.historyLog,
           {
-            role: 'Sistem (Simulasi)',
+            role: 'Pengawas B&M',
             action: 'EVALUATE',
             tanggal: new Date().toISOString().split('T')[0],
-            catatan: 'Masa aktif trial selesai disimulasikan. Item masuk ke antrean Evaluasi Pasca-Trial 3 Tim.',
+            catatan: `Masa pengujian trial lapangan diakhiri${sisa > 0 ? ` lebih awal (sisa ${sisa} hari)` : ''}. Item resmi dialihkan ke tahap Evaluasi Kuorum 3 Tim (PP, BMES, S&B).`,
           },
         ],
       }));
@@ -102,7 +109,7 @@ export default function DetailMonitoringTrialPage() {
               type="button"
               size="sm"
               onClick={() => window.print()}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5 shadow-2xs cursor-pointer"
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-950 text-xs font-semibold gap-1.5 shadow-2xs border-0 cursor-pointer transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Cetak Dokumen PDF</span>
@@ -186,24 +193,26 @@ export default function DetailMonitoringTrialPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/prototipe-trial/monitoring-trial"
-              className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              className="px-3.5 py-2 text-xs font-semibold text-slate-800 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors border-0"
             >
               Kembali ke Katalog
             </Link>
 
             {isAktif && (
               <Button
-                onClick={handleSimulateExpired}
-                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
+                type="button"
+                onClick={handleEndTrial}
+                className="bg-amber-200 hover:bg-amber-300 active:bg-amber-400 text-amber-950 text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs border-0 cursor-pointer transition-colors"
               >
-                <PlayCircle className="w-3.5 h-3.5" />
-                <span>Simulasikan Masa Trial Selesai</span>
+                <ClockAlert className="w-3.5 h-3.5 text-amber-900" />
+                <span>Akhiri Masa Pengujian</span>
               </Button>
             )}
 
             <Button
+              type="button"
               onClick={() => window.print()}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-950 text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs border-0 cursor-pointer transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Cetak PDF</span>

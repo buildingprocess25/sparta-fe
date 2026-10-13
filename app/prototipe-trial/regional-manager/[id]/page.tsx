@@ -167,7 +167,7 @@ export default function DetailRegionalManagerTrialPage() {
             }`}
           >
             {isPendingMaster ? <Vote className="w-4 h-4" /> : <FileCheck2 className="w-4 h-4" />}
-            <span>{isPendingMaster ? 'Rekap Kuorum 3 Tim Evaluasi' : 'Kajian Koefisien S&B'}</span>
+            <span>{isPendingMaster ? 'Rekap Tim Evaluasi' : 'Koefisien'}</span>
           </button>
 
           <button

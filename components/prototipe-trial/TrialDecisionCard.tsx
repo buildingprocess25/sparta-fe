@@ -95,6 +95,9 @@ export function TrialDecisionCard({
             <CardTitle className="text-sm font-bold text-slate-900">
               Keputusan & Catatan Peninjauan
             </CardTitle>
+            <p className="text-xs text-slate-500">
+              Formulir otorisasi langsung di halaman untuk item <span className="font-mono font-semibold text-slate-700">{itemKode}</span>
+            </p>
           </div>
         </div>
 

@@ -1,8 +1,8 @@
 // =============================================================================
 // app/prototipe-trial/monitoring-trial/page.tsx
 // Halaman Katalog Monitoring Trial Aktif di Cabang (Siap SPK) Sparta
-// Fitur: Countdown Sisa Hari, Cetak Dokumen PDF, dan Tombol Simulasi Uji Evaluasi
-// Bahasa: Lugas, Ringkas, Clean Architecture, Font: Geist (font-sans)
+// Fitur: Countdown Sisa Hari, Cetak Dokumen PDF, & Aksi Akhiri Masa Pengujian
+// Desain: Anti-Slop Industrial Clean, Tombol Solid Pastel
 // =============================================================================
 
 "use client";
@@ -19,7 +19,6 @@ import {
   ArrowRight,
   Clock,
   Calendar,
-  PlayCircle,
 } from 'lucide-react';
 
 export default function MonitoringTrialAntreanPage() {
@@ -63,21 +62,27 @@ export default function MonitoringTrialAntreanPage() {
     return `Rp ${val.toLocaleString('id-ID')}`;
   };
 
-  // Helper Simulasi Pengujian: Akhiri Durasi Trial Sekarang
-  const handleSimulateExpired = (id: string, e: React.MouseEvent) => {
+  // Helper: Akhiri Masa Pengujian Trial Resmi
+  const handleEndTrial = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (confirm('Simulasikan masa aktif item ini berakhir agar masuk ke tahap Evaluasi Kuorum 3 Tim?')) {
+    const targetItem = items.find((i) => i.id === id);
+    const sisa = targetItem ? getRemainingDays(targetItem.trialStartDate, targetItem.durasiHari) : 0;
+    const confirmMsg = sisa > 0
+      ? `Apakah Anda yakin ingin mengakhiri masa pengujian item ini lebih awal (sisa ${sisa} hari)? Item akan langsung dialihkan ke tahap Evaluasi Kuorum 3 Tim.`
+      : 'Akhiri masa pengujian trial ini dan lanjutkan ke tahap Evaluasi Kuorum 3 Tim?';
+
+    if (confirm(confirmMsg)) {
       updateItem(id, (item) => ({
         ...item,
         status: 'TRIAL_EVALUASI_VOTING',
         historyLog: [
           ...item.historyLog,
           {
-            role: 'Sistem (Simulasi)',
+            role: 'Pengawas B&M',
             action: 'EVALUATE',
             tanggal: new Date().toISOString().split('T')[0],
-            catatan: 'Masa trial disimulasikan selesai. Item beralih ke tahap evaluasi 3 tim mandiri.',
+            catatan: `Masa pengujian trial lapangan diakhiri${sisa > 0 ? ` lebih awal (sisa ${sisa} hari)` : ''}. Item resmi dialihkan ke tahap Evaluasi Kuorum 3 Tim (PP, BMES, S&B).`,
           },
         ],
       }));
@@ -101,10 +106,8 @@ export default function MonitoringTrialAntreanPage() {
                   Katalog Trial Aktif di Cabang
                 </h1>
               </div>
-              
             </div>
           </div>
-
         </div>
 
         {/* Tab & Pencarian */}
@@ -128,7 +131,7 @@ export default function MonitoringTrialAntreanPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Masa Uji Selesai
+              Evaluasi Pasca-Trial
             </button>
             <button
               onClick={() => setActiveTab('all')}
@@ -138,34 +141,35 @@ export default function MonitoringTrialAntreanPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Semua
+              Semua Item
             </button>
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
+              type="text"
+              placeholder="Cari kode, item, SK..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari kode, item, nomor SK..."
-              className="pl-8 h-8 text-xs bg-slate-50 border-slate-200"
+              className="pl-9 text-xs bg-white border-slate-200 rounded-xl"
             />
           </div>
         </div>
 
-        {/* Tabel Katalog Monitoring */}
+        {/* Tabel Katalog Monitoring Trial */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4">Kode Item</th>
                   <th className="py-3.5 px-4">Material & Spesifikasi</th>
                   <th className="py-3.5 px-4">Cabang</th>
-                  <th className="py-3.5 px-4">Masa Berlaku</th>
+                  <th className="py-3.5 px-4">Durasi Uji</th>
                   <th className="py-3.5 px-4">Sisa Hari</th>
-                  <th className="py-3.5 px-4">Harga SPK Trial</th>
-                  <th className="py-3.5 px-4">Nomor Dokumen</th>
+                  <th className="py-3.5 px-4">Harga Final</th>
+                  <th className="py-3.5 px-4">No. Dokumen SK</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Aksi</th>
                 </tr>
@@ -243,17 +247,17 @@ export default function MonitoringTrialAntreanPage() {
                           <div className="flex items-center justify-end gap-1.5">
                             {isAktif && (
                               <button
-                                onClick={(e) => handleSimulateExpired(item.id, e)}
-                                title="Simulasikan masa trial habis untuk menguji kuorum evaluasi 3 tim"
-                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-md border border-amber-200 transition-colors cursor-pointer"
+                                onClick={(e) => handleEndTrial(item.id, e)}
+                                title="Akhiri masa pengujian trial dan bawa item ke tahap evaluasi 3 tim"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-amber-200 hover:bg-amber-300 rounded-md transition-colors cursor-pointer border-0 shadow-2xs"
                               >
-                                <PlayCircle className="w-3 h-3" />
-                                <span>Uji Evaluasi</span>
+                                <ClockAlert className="w-3 h-3 text-amber-900" />
+                                <span>Akhiri Trial</span>
                               </button>
                             )}
                             <Link
                               href={`/prototipe-trial/monitoring-trial/${item.id}`}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-md bg-emerald-200 hover:bg-emerald-300 text-emerald-950 shadow-2xs transition-colors border-0"
                             >
                               <span>Dokumen</span>
                               <ArrowRight className="w-3 h-3" />

@@ -167,7 +167,7 @@ export const TRIAL_STATUS_MAP: Record<TrialStatus, StatusMeta> = {
     dotColor: 'bg-rose-500',
   },
   TRIAL_AKTIF: {
-    label: 'Trial Aktif (Siap SPK)',
+    label: 'Trial Aktif',
     badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300',
     dotColor: 'bg-emerald-500',
   },
