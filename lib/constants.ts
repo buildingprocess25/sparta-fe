@@ -753,3 +753,104 @@ export const getPpRoles = (userRole: string | string[], email: string) => {
 
     return { isCoor, isBM, isBMRegional, isPP, isPPMgr };
 };
+
+// -----------------------------------------------------------------------------
+// HELPER FORMAT STATUS PROJECT PLANNING
+// -----------------------------------------------------------------------------
+
+export const formatProjectPlanningStatus = (status: string | null | undefined): { label: string; badgeClass: string; timelineColor: string } => {
+    if (!status) {
+        return { label: 'Tersedia', badgeClass: 'bg-slate-50 text-slate-600 border-slate-200', timelineColor: 'slate' };
+    }
+
+    const key = String(status).trim().toUpperCase();
+
+    switch (key) {
+        case 'DRAFT':
+            return {
+                label: 'Draft',
+                badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+                timelineColor: 'slate',
+            };
+        case 'WAITING_BM_APPROVAL':
+            return {
+                label: 'Menunggu B&M Manager (Tahap 1)',
+                badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+                timelineColor: 'amber',
+            };
+        case 'WAITING_PP_APPROVAL_1':
+            return {
+                label: 'Menunggu PP Specialist (Tahap 1)',
+                badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+                timelineColor: 'blue',
+            };
+        case 'PP_DESIGN_3D_REQUIRED':
+            return {
+                label: 'Input Desain 3D',
+                badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+                timelineColor: 'purple',
+            };
+        case 'WAITING_RAB_UPLOAD':
+            return {
+                label: 'Input RAB & Gambar (Tahap 2)',
+                badgeClass: 'bg-orange-50 text-orange-700 border-orange-200',
+                timelineColor: 'orange',
+            };
+        case 'WAITING_BM_APPROVAL_2':
+            return {
+                label: 'Menunggu B&M Manager (Tahap 2)',
+                badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+                timelineColor: 'amber',
+            };
+        case 'WAITING_BM_REGIONAL_APPROVAL':
+            return {
+                label: 'Menunggu B&M Regional',
+                badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+                timelineColor: 'sky',
+            };
+        case 'WAITING_PP_APPROVAL_2':
+            return {
+                label: 'Menunggu PP Specialist (Tahap 2)',
+                badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+                timelineColor: 'cyan',
+            };
+        case 'WAITING_PP_MANAGER_APPROVAL':
+            return {
+                label: 'Menunggu PP Manager (Final)',
+                badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                timelineColor: 'indigo',
+            };
+        case 'COMPLETED':
+        case 'SELESAI':
+        case 'APPROVED':
+            return {
+                label: 'Disetujui (Selesai)',
+                badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                timelineColor: 'emerald',
+            };
+        case 'REJECTED':
+        case 'DITOLAK':
+            return {
+                label: 'Ditolak',
+                badgeClass: 'bg-red-50 text-red-700 border-red-200',
+                timelineColor: 'rose',
+            };
+        case 'REVISION_REQUESTED':
+            return {
+                label: 'Perlu Revisi',
+                badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+                timelineColor: 'amber',
+            };
+        default: {
+            const humanized = key
+                .replace(/_/g, ' ')
+                .toLowerCase()
+                .replace(/\b\w/g, (c) => c.toUpperCase());
+            return {
+                label: humanized,
+                badgeClass: 'bg-violet-50 text-violet-700 border-violet-200',
+                timelineColor: 'violet',
+            };
+        }
+    }
+};

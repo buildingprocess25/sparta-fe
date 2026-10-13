@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchDashboardAll, viewGeneratedPdfOnline } from '@/lib/api';
-import { API_URL } from '@/lib/constants';
+import { API_URL, formatProjectPlanningStatus } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
 import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown, ClipboardList } from 'lucide-react';
 
@@ -124,7 +124,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan, hideHeader }: { nom
         }
     }
     if (ppData) {
-        const ppStatusLabel = (ppData.status || '').replace(/_/g, ' ');
+        const ppMeta = formatProjectPlanningStatus(ppData.status);
         const ppDates = [];
         if (ppData.tanggal_dokumen || ppData.created_at) {
             ppDates.push({ label: 'Dibuat', val: ppData.tanggal_dokumen || ppData.created_at });
@@ -153,9 +153,9 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan, hideHeader }: { nom
         nodes.push({
             type: 'PROJECT_PLANNING',
             title: `Project Planning${suffix}`,
-            desc: ppData.estimasi_biaya ? formatRupiah(ppData.estimasi_biaya) : (ppStatusLabel || 'Tersedia'),
+            desc: ppData.estimasi_biaya ? formatRupiah(ppData.estimasi_biaya) : ppMeta.label,
             icon: <ClipboardList className="w-5 h-5"/>,
-            color: 'purple',
+            color: ppMeta.timelineColor,
             data: ppData,
             isActive: true,
             isCompleted: ['COMPLETED', 'SELESAI', 'APPROVED'].includes(String(ppData.status || '').toUpperCase()),

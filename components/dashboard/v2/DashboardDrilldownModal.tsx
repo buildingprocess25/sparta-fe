@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { formatRupiah } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { viewGeneratedPdfOnline } from '@/lib/api';
-import { API_URL, getParentBranch } from '@/lib/constants';
+import { API_URL, getParentBranch, formatProjectPlanningStatus } from '@/lib/constants';
 
 const formatDateIndo = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '-';
@@ -1300,16 +1300,16 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             }
         }
         if (ppData) {
-            const ppStatusLabel = (ppData.status || '').replace(/_/g, ' ');
+            const ppMeta = formatProjectPlanningStatus(ppData.status);
             nodes.push({
                 type: 'PROJECT_PLANNING',
                 title: `Project Planning${suffix}`,
-                desc: ppStatusLabel || 'Tersedia',
+                desc: ppMeta.label,
                 icon: <ClipboardList className="w-5 h-5" />,
-                color: 'violet',
+                color: ppMeta.timelineColor,
                 data: ppData,
                 isActive: true,
-                isCompleted: ['COMPLETED', 'SELESAI'].includes(String(ppData.status || '').toUpperCase())
+                isCompleted: ['COMPLETED', 'SELESAI', 'APPROVED'].includes(String(ppData.status || '').toUpperCase())
             });
         }
 
@@ -1676,7 +1676,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             const tipeBangunan = data.is_ruko !== undefined && data.is_ruko !== null
                 ? `${data.is_ruko ? 'Ruko' : 'Non-Ruko'}${data.jumlah_lantai ? ` (${data.jumlah_lantai} Lantai)` : ''}`
                 : null;
-            const statusLabel = data.status ? String(data.status).replace(/_/g, ' ').toUpperCase() : '-';
+            const ppMeta = formatProjectPlanningStatus(data.status);
 
             return (
                 <div className="w-full h-full flex flex-col bg-slate-50/20">
@@ -1714,8 +1714,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                                         <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Status Pengajuan</th>
                                         <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
-                                            <span className="inline-flex px-3 py-1 text-xs font-bold rounded-full bg-violet-50 text-violet-700 border border-violet-200">
-                                                {statusLabel}
+                                            <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full border ${ppMeta.badgeClass}`}>
+                                                {ppMeta.label}
                                             </span>
                                         </td>
                                     </tr>
