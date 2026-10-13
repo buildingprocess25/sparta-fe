@@ -85,7 +85,7 @@ export default function DetailSBSpecialistTrialPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col pb-24">
       <TrialNavbar subtitle={`Worksheet Koefisien S&B: ${item.kode}`} />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-5">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-5">
         {/* Header Standar Peran S&B Specialist */}
         <TrialDetailHeader
           item={item}
@@ -128,7 +128,7 @@ export default function DetailSBSpecialistTrialPage() {
             }`}
           >
             <Calculator className="w-4 h-4" />
-            <span>Lembar Kerja Koefisien S&B</span>
+            <span>Koefisien</span>
           </button>
 
           <button
@@ -140,7 +140,7 @@ export default function DetailSBSpecialistTrialPage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Spesifikasi & Berkas Maker</span>
+            <span>Spesifikasi & Berkas</span>
           </button>
 
           <button
@@ -152,7 +152,7 @@ export default function DetailSBSpecialistTrialPage() {
             }`}
           >
             <History className="w-4 h-4" />
-            <span>Riwayat Jejak Rekam</span>
+            <span>Riwayat</span>
           </button>
         </div>
 
@@ -186,8 +186,8 @@ export default function DetailSBSpecialistTrialPage() {
             <span className="hidden sm:inline text-slate-400">•</span>
             <span className="text-slate-500">
               {isConfigurable
-                ? 'Gunakan tabel worksheet di atas untuk merinci koefisien dan mengajukan usulan harga.'
-                : 'Item telah selesai dikonfigurasi dan menunggu review Regional Manager.'}
+                ? 'Buat koefisien'
+                : 'menunggu review Regional Manager.'}
             </span>
           </div>
 

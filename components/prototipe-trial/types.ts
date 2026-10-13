@@ -152,7 +152,7 @@ export const TRIAL_STATUS_MAP: Record<TrialStatus, StatusMeta> = {
     dotColor: 'bg-amber-500',
   },
   TRIAL_PENDING_SB_CONFIG: {
-    label: 'Menunggu Harga S&B',
+    label: 'Menunggu S&B',
     badgeClass: 'bg-blue-50 text-blue-800 border-blue-300',
     dotColor: 'bg-blue-500',
   },
@@ -182,7 +182,7 @@ export const TRIAL_STATUS_MAP: Record<TrialStatus, StatusMeta> = {
     dotColor: 'bg-indigo-500',
   },
   TRIAL_EVALUASI_TIDAK_LANJUT: {
-    label: 'Tidak Lanjut (Bisa Aksi Ulang)',
+    label: 'Tidak Lanjut',
     badgeClass: 'bg-slate-100 text-slate-800 border-slate-400',
     dotColor: 'bg-slate-500',
   },
@@ -192,7 +192,7 @@ export const TRIAL_STATUS_MAP: Record<TrialStatus, StatusMeta> = {
     dotColor: 'bg-rose-500',
   },
   TRIAL_PROMOTED_MASTER: {
-    label: 'Resmi Master Harga',
+    label: 'Master Harga',
     badgeClass: 'bg-teal-50 text-teal-800 border-teal-400',
     dotColor: 'bg-teal-600',
   },

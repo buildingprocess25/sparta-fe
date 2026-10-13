@@ -444,13 +444,54 @@ export function getStoredTrialItems(): TrialItem[] {
   }
 }
 
+function sanitizeItemsForStorage(items: TrialItem[]): TrialItem[] {
+  return items.map((item) => {
+    let lampiranMakerUrl = item.lampiranMakerUrl;
+    if (lampiranMakerUrl && lampiranMakerUrl.startsWith('data:') && lampiranMakerUrl.length > 200) {
+      lampiranMakerUrl = '#';
+    }
+
+    const lampiranMakerList = item.lampiranMakerList?.map((file) => {
+      let url = file.url;
+      if (url && url.startsWith('data:') && url.length > 200) {
+        url = '#';
+      }
+      return { ...file, url };
+    });
+
+    return {
+      ...item,
+      lampiranMakerUrl,
+      lampiranMakerList,
+    };
+  });
+}
+
 export function saveStoredTrialItems(items: TrialItem[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    const sanitized = sanitizeItemsForStorage(items);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
     window.dispatchEvent(new Event(EVENT_NAME));
   } catch (err) {
-    console.error('Gagal menyimpan trial items ke localStorage:', err);
+    console.warn('Penyimpanan localStorage gagal, mencoba sanitasi berkas:', err);
+    try {
+      const minimal = items.map((it) => ({
+        ...it,
+        lampiranMakerUrl: undefined,
+        lampiranMakerList: it.lampiranMakerList?.map((f) => ({
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          type: f.type,
+          url: '#',
+        })),
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal));
+      window.dispatchEvent(new Event(EVENT_NAME));
+    } catch (fallbackErr) {
+      console.error('LocalStorage kuota benar-benar penuh:', fallbackErr);
+    }
   }
 }
 

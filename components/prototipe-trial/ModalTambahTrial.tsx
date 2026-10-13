@@ -708,34 +708,16 @@ export function ModalTambahTrial({
 
       const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
       const isImg = file.type.startsWith("image/");
+      const url = URL.createObjectURL(file);
 
-      if (isImg) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          setLampiranList((prev) => [
-            ...prev,
-            {
-              id: fileId,
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              url: reader.result as string,
-              isImage: true,
-            },
-          ]);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        const url = URL.createObjectURL(file);
-        newItems.push({
-          id: fileId,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          url,
-          isImage: false,
-        });
-      }
+      newItems.push({
+        id: fileId,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url,
+        isImage: isImg,
+      });
     });
 
     if (newItems.length > 0) {
@@ -1657,8 +1639,18 @@ export function ModalTambahTrial({
             </Button>
             <Button
               size="sm"
+              disabled={Boolean(kodeData.isDuplicate)}
               onClick={() => handleSubmit(false)}
-              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-5 shadow-xs cursor-pointer"
+              title={
+                kodeData.isDuplicate
+                  ? "Item serupa terdeteksi, ubah spesifikasi untuk melanjutkan"
+                  : undefined
+              }
+              className={`text-white text-xs font-bold px-5 shadow-xs transition-colors ${
+                kodeData.isDuplicate
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed hover:bg-slate-300 opacity-60"
+                  : "bg-red-600 hover:bg-red-700 cursor-pointer"
+              }`}
             >
               Kirim Pengajuan Trial
             </Button>

@@ -222,7 +222,7 @@ export default function DetailMakerTrialPage() {
         {/* 3. Kartu Spesifikasi Fisik & Inisiasi Trial */}
         <TrialSpesifikasiCard item={item} />
 
-        {/* 4. Kartu Riwayat Jejak Rekam (Audit Log) */}
+        {/* 4. Kartu Riwayat (Audit Log) */}
         <TrialAuditLogCard logs={item.historyLog} />
       </main>
 

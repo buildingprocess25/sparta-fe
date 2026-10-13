@@ -504,7 +504,7 @@ export default function RegionalManagerReviewPage() {
                       disabled={isSubmitting}
                       className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" /> Revisi ke BC
+                      <RotateCcw className="w-3.5 h-3.5" /> Revisi
                     </Button>
                     <Button
                       onClick={() => setActiveAction("approve_reguler")}

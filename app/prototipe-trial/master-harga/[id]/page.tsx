@@ -54,7 +54,7 @@ export default function DetailMasterHargaTrialPage() {
             href="/prototipe-trial/master-harga"
             className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition-colors"
           >
-            Kembali ke Katalog Master
+            Kembali
           </Link>
         </div>
       </div>
@@ -150,7 +150,7 @@ export default function DetailMasterHargaTrialPage() {
         {/* 2. Kartu Rincian Spesifikasi Baku */}
         <TrialSpesifikasiCard item={item} />
 
-        {/* 3. Kartu Riwayat Jejak Rekam Lengkap */}
+        {/* 3. Kartu Riwayat Lengkap */}
         <TrialAuditLogCard logs={item.historyLog} />
       </main>
 
@@ -172,7 +172,7 @@ export default function DetailMasterHargaTrialPage() {
               href="/prototipe-trial/master-harga"
               className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
             >
-              Kembali ke Katalog Master
+              Kembali
             </Link>
           </div>
         </div>

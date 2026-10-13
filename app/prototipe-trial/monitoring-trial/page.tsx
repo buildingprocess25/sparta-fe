@@ -13,7 +13,6 @@ import { TrialNavbar } from '@/components/prototipe-trial/TrialNavbar';
 import { useTrialStore } from '@/components/prototipe-trial/store';
 import { TRIAL_STATUS_MAP, getRemainingDays } from '@/components/prototipe-trial/types';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   ClockAlert,
   Search,
@@ -21,7 +20,6 @@ import {
   Clock,
   Calendar,
   PlayCircle,
-  FileCheck2,
 } from 'lucide-react';
 
 export default function MonitoringTrialAntreanPage() {
@@ -90,7 +88,7 @@ export default function MonitoringTrialAntreanPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <TrialNavbar subtitle="Monitoring Pelaksanaan Trial Aktif (Katalog SPK)" />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-6">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-6">
         {/* Header Hero Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-start gap-3.5">
@@ -102,22 +100,11 @@ export default function MonitoringTrialAntreanPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Katalog Trial Aktif di Cabang
                 </h1>
-                {aktifCount > 0 && (
-                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs">
-                    {aktifCount} Item Sedang Berjalan
-                  </Badge>
-                )}
               </div>
-              <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                Daftar material/jasa resmi yang telah terbit Dokumen Pelaksanaan Trial dan dapat ditransaksikan untuk SPK pekerjaan perbaikan di gerai Alfamart.
-              </p>
+              
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/80">
-            <FileCheck2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Dokumen pelaksanaan legalitas SPK dapat diunduh per item.</span>
-          </div>
         </div>
 
         {/* Tab & Pencarian */}

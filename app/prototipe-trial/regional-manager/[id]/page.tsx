@@ -2,13 +2,13 @@
 // app/prototipe-trial/regional-manager/[id]/page.tsx
 // Halaman Detail Otorisasi Khusus B&M Regional Manager Sparta
 // Fitur: Fase 1 (Approval Harga Trial & Terbit PDF) vs Fase 2 (Penetapan Master),
-// Rekap Kuorum Evaluasi 3 Tim, dan Modal Putusan Eksekutif
-// Bahasa: Lugas, Ringkas, Clean Architecture, Font: Geist (font-sans)
+// Rekap Kuorum Evaluasi 3 Tim, & Formulir Keputusan Inline Bebas Scroll
+// Desain: Anti-Slop Industrial Clean, Single Source of Action di Decision Card
 // =============================================================================
 
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TrialNavbar } from '@/components/prototipe-trial/TrialNavbar';
@@ -17,25 +17,13 @@ import { TrialTimelineBar } from '@/components/prototipe-trial/TrialTimelineBar'
 import { TrialKoefisienWorksheet } from '@/components/prototipe-trial/TrialKoefisienWorksheet';
 import { TrialSpesifikasiCard } from '@/components/prototipe-trial/TrialSpesifikasiCard';
 import { TrialAuditLogCard } from '@/components/prototipe-trial/TrialAuditLogCard';
+import { TrialDecisionCard } from '@/components/prototipe-trial/TrialDecisionCard';
 import { useTrialStore } from '@/components/prototipe-trial/store';
 import { calculateEvaluationQuorum } from '@/components/prototipe-trial/types';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  ShieldCheck,
-  RotateCcw,
   Sparkles,
-  XCircle,
   FileText,
   FileCheck2,
   Paperclip,
@@ -58,19 +46,16 @@ export default function DetailRegionalManagerTrialPage() {
 
   const [activeTab, setActiveTab] = useState<'analisis' | 'spek' | 'history'>('analisis');
 
-  // Modal State Fase 1
-  const [isApproveHargaOpen, setIsApproveHargaOpen] = useState(false);
-  const [isReviseHargaOpen, setIsReviseHargaOpen] = useState(false);
+  // State Formulir Keputusan Inline
+  const [decisionMode, setDecisionMode] = useState<'APPROVE' | 'REVISE'>('APPROVE');
   const [hargaApproveNote, setHargaApproveNote] = useState('Harga dan margin disetujui resmi. Terbitkan Dokumen Pelaksanaan Trial untuk operasional gerai.');
   const [hargaReviseNote, setHargaReviseNote] = useState('');
   const [hargaReviseError, setHargaReviseError] = useState('');
 
-  // Modal State Fase 2
-  const [isPromoteMasterOpen, setIsPromoteMasterOpen] = useState(false);
-  const [isRejectMasterOpen, setIsRejectMasterOpen] = useState(false);
   const [masterApproveNote, setMasterApproveNote] = useState('Berdasarkan kuorum evaluasi 3 tim dan uji coba lapangan, item ini resmi disahkan menjadi Master Harga.');
   const [masterRejectNote, setMasterRejectNote] = useState('');
   const [masterRejectError, setMasterRejectError] = useState('');
+  const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const item = useMemo(() => {
     return items.find((i) => i.id === itemId);
@@ -110,34 +95,32 @@ export default function DetailRegionalManagerTrialPage() {
   // Handlers Fase 1 (Harga)
   const handleConfirmApproveHarga = () => {
     approveRegMgrConfig(item.id, hargaApproveNote.trim());
-    setIsApproveHargaOpen(false);
     router.push('/prototipe-trial/regional-manager');
   };
 
   const handleConfirmReviseHarga = () => {
     if (!hargaReviseNote.trim()) {
       setHargaReviseError('Mohon tuliskan catatan revisi harga untuk tim S&B.');
+      noteTextareaRef.current?.focus();
       return;
     }
     reviseRegMgrConfig(item.id, hargaReviseNote.trim());
-    setIsReviseHargaOpen(false);
     router.push('/prototipe-trial/regional-manager');
   };
 
   // Handlers Fase 2 (Master)
   const handleConfirmPromoteMaster = () => {
     approveFinalMaster(item.id, masterApproveNote.trim());
-    setIsPromoteMasterOpen(false);
     router.push('/prototipe-trial/regional-manager');
   };
 
   const handleConfirmRejectMaster = () => {
     if (!masterRejectNote.trim()) {
       setMasterRejectError('Mohon tuliskan alasan penolakan penetapan master harga.');
+      noteTextareaRef.current?.focus();
       return;
     }
     rejectFinalMaster(item.id, masterRejectNote.trim());
-    setIsRejectMasterOpen(false);
     router.push('/prototipe-trial/regional-manager');
   };
 
@@ -151,80 +134,12 @@ export default function DetailRegionalManagerTrialPage() {
           item={item}
           backHref="/prototipe-trial/regional-manager"
           backLabel="Kembali ke Antrean Regional Manager"
-          actionButtons={
-            isPendingHarga ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => {
-                    setHargaReviseNote('');
-                    setHargaReviseError('');
-                    setIsReviseHargaOpen(true);
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="bg-white border-amber-300 text-amber-700 hover:bg-amber-50 text-xs font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Revisi ke S&B</span>
-                </Button>
-                <Button
-                  onClick={() => setIsApproveHargaOpen(true)}
-                  size="sm"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <FileCheck2 className="w-3.5 h-3.5" />
-                  <span>Setujui & Terbitkan PDF</span>
-                </Button>
-              </div>
-            ) : isPendingMaster ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => {
-                    setMasterRejectNote('');
-                    setMasterRejectError('');
-                    setIsRejectMasterOpen(true);
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="bg-white border-red-300 text-red-700 hover:bg-red-50 text-xs font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                  <span>Tolak Penetapan</span>
-                </Button>
-                <Button
-                  onClick={() => setIsPromoteMasterOpen(true)}
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Tetapkan ke Master</span>
-                </Button>
-              </div>
-            ) : null
-          }
         />
 
         {/* Timeline Visual Alur Sparta */}
         <TrialTimelineBar item={item} />
 
-        {/* 1. Banner Konteks Fase 1 (Harga) */}
-        {isPendingHarga && (
-          <div className="bg-indigo-50/70 border-2 border-indigo-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
-            <div className="p-2 bg-indigo-100 rounded-xl text-indigo-700 shrink-0">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-sm font-bold text-indigo-950">
-                Fase 1: Otorisasi Harga Trial & Penerbitan Dokumen Resmi Pelaksanaan
-              </h2>
-              <p className="text-xs text-indigo-900/80 leading-relaxed">
-                Tim S&B telah menghitung rincian koefisien dan margin. Menyetujui usulan ini akan menerbitkan Dokumen Pelaksanaan Trial (PDF) resmi dan mengaktifkan masa uji coba {item.durasiBulan} bulan ({item.durasiHari} hari) di cabang target.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* 2. Banner Konteks Fase 2 (Penetapan Master) */}
+        {/* Banner Konteks Fase 2 (Penetapan Master) */}
         {isPendingMaster && (
           <div className="bg-emerald-50/70 border-2 border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
             <div className="p-2 bg-emerald-100 rounded-xl text-emerald-700 shrink-0">
@@ -264,7 +179,7 @@ export default function DetailRegionalManagerTrialPage() {
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Spesifikasi & Berkas Maker</span>
+            <span>Spesifikasi & Berkas</span>
           </button>
 
           <button
@@ -275,7 +190,7 @@ export default function DetailRegionalManagerTrialPage() {
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>Riwayat Jejak Rekam</span>
+            <span>Riwayat</span>
           </button>
         </div>
 
@@ -393,9 +308,57 @@ export default function DetailRegionalManagerTrialPage() {
 
         {/* Konten Tab 3: History */}
         {activeTab === 'history' && <TrialAuditLogCard logs={item.historyLog} />}
+
+        {/* Formulir Keputusan & Catatan Inline (Khusus Status Menunggu Otorisasi) */}
+        {(isPendingHarga || isPendingMaster) && (
+          <TrialDecisionCard
+            id="keputusan-section"
+            roleBadge="B&M Regional Manager"
+            itemKode={item.kode}
+            activeMode={decisionMode}
+            onModeChange={(mode) => {
+              setDecisionMode(mode);
+              if (mode === 'REVISE') {
+                if (isPendingHarga) setHargaReviseError('');
+                if (isPendingMaster) setMasterRejectError('');
+              }
+            }}
+            approveTitle={isPendingHarga ? 'Setujui' : 'Tetapkan ke Master'}
+            approveDescription={
+              isPendingHarga
+                ? `Sistem akan otomatis menerbitkan Dokumen Pelaksanaan Trial untuk pelaksanaan trial operasional di cabang.`
+                : `Item ${item.kode} akan disahkan ke katalog Master Harga resmi.`
+            }
+            approveNote={isPendingHarga ? hargaApproveNote : masterApproveNote}
+            onApproveNoteChange={isPendingHarga ? setHargaApproveNote : setMasterApproveNote}
+            approveButtonText={isPendingHarga ? 'Setujui' : 'Sahkan ke Master Harga'}
+            onApproveSubmit={isPendingHarga ? handleConfirmApproveHarga : handleConfirmPromoteMaster}
+            reviseTitle={isPendingHarga ? 'Revisi' : 'Tolak Penetapan'}
+            reviseTone={isPendingHarga ? 'amber' : 'rose'}
+            reviseDescription={
+              isPendingHarga
+                ? 'Kembalikan ke S&B Specialist untuk penyesuaian koefisien bahan/upah atau margin rekanan.'
+                : 'Item tidak disahkan ke Master Harga. Namun sesuai kebijakan non-deadlock, Maker tetap memiliki hak untuk mengajukan kembali di masa mendatang.'
+            }
+            reviseNote={isPendingHarga ? hargaReviseNote : masterRejectNote}
+            onReviseNoteChange={(val) => {
+              if (isPendingHarga) {
+                setHargaReviseNote(val);
+                if (hargaReviseError) setHargaReviseError('');
+              } else {
+                setMasterRejectNote(val);
+                if (masterRejectError) setMasterRejectError('');
+              }
+            }}
+            reviseError={isPendingHarga ? hargaReviseError : masterRejectError}
+            reviseButtonText={isPendingHarga ? 'Kembalikan ke S&B' : 'Tolak Penetapan Master'}
+            onReviseSubmit={isPendingHarga ? handleConfirmReviseHarga : handleConfirmRejectMaster}
+            textareaRef={noteTextareaRef}
+          />
+        )}
       </main>
 
-      {/* Sticky Bottom Action Bar Khusus Regional Manager */}
+      {/* Sticky Bottom Bar Khusus Regional Manager */}
       <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 py-3.5 px-4 sm:px-8 shadow-lg">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-slate-600">
@@ -405,293 +368,23 @@ export default function DetailRegionalManagerTrialPage() {
             <span className="hidden sm:inline text-slate-400">•</span>
             <span className="text-slate-500">
               {isPendingHarga
-                ? 'Item menunggu persetujuan harga trial dan penerbitan dokumen resmi.'
+                ? 'Item menunggu otorisasi harga trial Anda pada formulir keputusan di atas.'
                 : isPendingMaster
-                ? 'Item menunggu keputusan akhir pengesahan menjadi Master Harga.'
-                : 'Item telah selesai diproses oleh Regional Manager.'}
+                ? 'Item menunggu keputusan akhir penetapan master pada formulir keputusan di atas.'
+                : 'Item telah selesai diproses.'}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <Link
               href="/prototipe-trial/regional-manager"
-              className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              className="px-3.5 py-2 text-xs font-semibold text-slate-800 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors border-0"
             >
               Kembali ke Antrean
             </Link>
-
-            {/* Aksi Fase 1 (Harga) */}
-            {isPendingHarga && (
-              <>
-                <Button
-                  onClick={() => {
-                    setHargaReviseNote('');
-                    setHargaReviseError('');
-                    setIsReviseHargaOpen(true);
-                  }}
-                  variant="outline"
-                  className="bg-white border-amber-300 text-amber-700 hover:bg-amber-50 text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Revisi Harga ke S&B</span>
-                </Button>
-
-                <Button
-                  onClick={() => setIsApproveHargaOpen(true)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <FileCheck2 className="w-3.5 h-3.5" />
-                  <span>Setujui & Terbitkan Dokumen</span>
-                </Button>
-              </>
-            )}
-
-            {/* Aksi Fase 2 (Master) */}
-            {isPendingMaster && (
-              <>
-                <Button
-                  onClick={() => {
-                    setMasterRejectNote('');
-                    setMasterRejectError('');
-                    setIsRejectMasterOpen(true);
-                  }}
-                  variant="outline"
-                  className="bg-white border-red-300 text-red-700 hover:bg-red-50 text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                  <span>Tolak Penetapan</span>
-                </Button>
-
-                <Button
-                  onClick={() => setIsPromoteMasterOpen(true)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Tetapkan ke Master Harga</span>
-                </Button>
-              </>
-            )}
           </div>
         </div>
       </footer>
-
-      {/* Modal Dialog Setujui Harga Trial (Fase 1) */}
-      <Dialog open={isApproveHargaOpen} onOpenChange={setIsApproveHargaOpen}>
-        <DialogContent className="max-w-md p-6 font-sans">
-          <DialogHeader>
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 border border-indigo-200">
-              <FileCheck2 className="w-5 h-5" />
-            </div>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Setujui Harga & Terbitkan Dokumen Trial
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Sistem akan otomatis menerbitkan <strong>Dokumen Pelaksanaan Trial (PDF)</strong> resmi dengan nomor SK dan mengaktifkan item <strong>{item.kode}</strong> untuk transaksi SPK cabang.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Catatan Otorisasi Regional Manager
-              </label>
-              <Textarea
-                value={hargaApproveNote}
-                onChange={(e) => setHargaApproveNote(e.target.value)}
-                className="text-xs min-h-[80px]"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsApproveHargaOpen(false)}
-              className="text-xs cursor-pointer"
-            >
-              Batal
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirmApproveHarga}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer"
-            >
-              Setujui & Terbitkan PDF
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Dialog Minta Revisi Harga ke S&B (Fase 1) */}
-      <Dialog open={isReviseHargaOpen} onOpenChange={setIsReviseHargaOpen}>
-        <DialogContent className="max-w-md p-6 font-sans">
-          <DialogHeader>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-2 border border-amber-200">
-              <RotateCcw className="w-5 h-5" />
-            </div>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Kembalikan ke S&B untuk Penyesuaian Harga
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Tuliskan arahan perbaikan koefisien atau margin untuk ditindaklanjuti oleh spesialis S&B.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Catatan Revisi Harga <span className="text-red-500">*</span>
-              </label>
-              <Textarea
-                value={hargaReviseNote}
-                onChange={(e) => {
-                  setHargaReviseNote(e.target.value);
-                  if (hargaReviseError) setHargaReviseError('');
-                }}
-                placeholder="Contoh: Koefisien material perekat terlalu tinggi, mohon turunkan margin rekanan ke 7%..."
-                className="text-xs min-h-[90px]"
-              />
-              {hargaReviseError && (
-                <p className="text-[11px] text-red-600 font-semibold mt-1">
-                  {hargaReviseError}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsReviseHargaOpen(false)}
-              className="text-xs cursor-pointer"
-            >
-              Batal
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirmReviseHarga}
-              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold cursor-pointer"
-            >
-              Kembalikan ke S&B
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Dialog Tetapkan ke Master Harga (Fase 2) */}
-      <Dialog open={isPromoteMasterOpen} onOpenChange={setIsPromoteMasterOpen}>
-        <DialogContent className="max-w-md p-6 font-sans">
-          <DialogHeader>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2 border border-emerald-200">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Tetapkan Menjadi Master Harga Resmi
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Item <strong>{item.kode}</strong> akan disahkan permanen ke katalog Master Harga resmi perusahaan dengan harga satuan <strong>Rp {item.hargaTrialFinal?.toLocaleString('id-ID')}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Catatan SK Penetapan Master
-              </label>
-              <Textarea
-                value={masterApproveNote}
-                onChange={(e) => setMasterApproveNote(e.target.value)}
-                className="text-xs min-h-[80px]"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsPromoteMasterOpen(false)}
-              className="text-xs cursor-pointer"
-            >
-              Batal
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirmPromoteMaster}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
-            >
-              Sahkan ke Master Harga
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Dialog Tolak Penetapan Master (Fase 2) */}
-      <Dialog open={isRejectMasterOpen} onOpenChange={setIsRejectMasterOpen}>
-        <DialogContent className="max-w-md p-6 font-sans">
-          <DialogHeader>
-            <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mb-2 border border-red-200">
-              <XCircle className="w-5 h-5" />
-            </div>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Tolak Penetapan Master Harga
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Item tidak disahkan ke Master Harga. Namun sesuai kebijakan non-deadlock, Maker tetap memiliki hak untuk mengajukan kembali di kemudian hari.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Alasan Penolakan <span className="text-red-500">*</span>
-              </label>
-              <Textarea
-                value={masterRejectNote}
-                onChange={(e) => {
-                  setMasterRejectNote(e.target.value);
-                  if (masterRejectError) setMasterRejectError('');
-                }}
-                placeholder="Tuliskan evaluasi manajerial penolakan..."
-                className="text-xs min-h-[90px]"
-              />
-              {masterRejectError && (
-                <p className="text-[11px] text-red-600 font-semibold mt-1">
-                  {masterRejectError}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsRejectMasterOpen(false)}
-              className="text-xs cursor-pointer"
-            >
-              Batal
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirmRejectMaster}
-              className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold cursor-pointer"
-            >
-              Tolak Penetapan Master
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

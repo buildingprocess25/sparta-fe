@@ -19,7 +19,6 @@ import {
   Search,
   ArrowRight,
   Clock,
-  Sparkles,
 } from 'lucide-react';
 
 export default function SBSpecialistAntreanPage() {
@@ -71,7 +70,7 @@ export default function SBSpecialistAntreanPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <TrialNavbar subtitle="Konfigurasi Koefisien & Harga Trial (S&B Specialist)" />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-6">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-6">
         {/* Header Hero Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-start gap-3.5">
@@ -85,7 +84,7 @@ export default function SBSpecialistAntreanPage() {
                 </h1>
                 {pendingCount > 0 && (
                   <Badge className="bg-sky-600 hover:bg-sky-700 text-white font-mono text-xs">
-                    {pendingCount} Perlu Dihitung
+                    {pendingCount}
                   </Badge>
                 )}
                 {revisiCount > 0 && (
@@ -95,15 +94,11 @@ export default function SBSpecialistAntreanPage() {
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                Rinci koefisien upah, material, dan upah bongkaran serta sesuaikan persentase margin untuk menetapkan HPS usulan trial ke Regional Manager.
+                Rinci koefisien upah, material, dan upah bongkaran serta sesuaikan persentase margin
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-sky-50/70 p-3 rounded-xl border border-sky-200/80">
-            <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
-            <span>Kalkulator HPS otomatis & koefisien dinamis dua arah.</span>
-          </div>
         </div>
 
         {/* Tab & Pencarian */}

@@ -124,7 +124,7 @@ export default function DetailMonitoringTrialPage() {
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Dokumen Pelaksanaan Trial (PDF)</span>
+            <span>Dokumen Pelaksanaan Trial</span>
           </button>
 
           <button
@@ -136,7 +136,7 @@ export default function DetailMonitoringTrialPage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Spesifikasi & Berkas Maker</span>
+            <span>Spesifikasi & Berkas</span>
           </button>
 
           <button
@@ -148,7 +148,7 @@ export default function DetailMonitoringTrialPage() {
             }`}
           >
             <History className="w-4 h-4" />
-            <span>Riwayat Jejak Rekam</span>
+            <span>Riwayat</span>
           </button>
         </div>
 

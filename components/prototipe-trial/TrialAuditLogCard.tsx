@@ -33,7 +33,7 @@ export function TrialAuditLogCard({ logs = [] }: TrialAuditLogCardProps) {
         };
       case 'REVISE':
         return {
-          label: 'Minta Revisi',
+          label: 'Revisi',
           icon: <RotateCcw className="w-3 h-3 text-amber-600" />,
           colorClass: 'bg-amber-50 text-amber-700 border-amber-200',
         };
@@ -76,7 +76,7 @@ export function TrialAuditLogCard({ logs = [] }: TrialAuditLogCardProps) {
         <div className="flex items-center gap-2">
           <History className="w-4 h-4 text-red-600" />
           <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Riwayat Jejak Rekam (Audit Log)
+            Riwayat
           </CardTitle>
         </div>
       </CardHeader>

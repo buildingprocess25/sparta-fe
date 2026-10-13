@@ -110,7 +110,7 @@ export default function DetailEvaluasiTimTrialPage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Spesifikasi & Berkas Maker</span>
+            <span>Spesifikasi & Berkas</span>
           </button>
 
           <button
@@ -122,7 +122,7 @@ export default function DetailEvaluasiTimTrialPage() {
             }`}
           >
             <History className="w-4 h-4" />
-            <span>Riwayat Jejak Rekam</span>
+            <span>Riwayat</span>
           </button>
         </div>
 

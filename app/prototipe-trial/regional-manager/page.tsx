@@ -14,13 +14,11 @@ import { TrialNavbar } from '@/components/prototipe-trial/TrialNavbar';
 import { useTrialStore } from '@/components/prototipe-trial/store';
 import { TRIAL_STATUS_MAP } from '@/components/prototipe-trial/types';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   ShieldCheck,
   Search,
   ArrowRight,
   Clock,
-  FileCheck2,
 } from 'lucide-react';
 
 export default function RegionalManagerAntreanPage() {
@@ -58,16 +56,11 @@ export default function RegionalManagerAntreanPage() {
   const hargaCount = items.filter((i) => i.status === 'TRIAL_PENDING_BM_REG_CONFIG').length;
   const masterCount = items.filter((i) => i.status === 'TRIAL_PENDING_FINAL_BM_REG').length;
 
-  const formatRupiah = (val?: number) => {
-    if (val === undefined || val === null) return 'Rp 0';
-    return `Rp ${val.toLocaleString('id-ID')}`;
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <TrialNavbar subtitle="Otorisasi Harga & Penetapan Master (B&M Regional Manager)" />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-6">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-6">
         {/* Header Hero Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-start gap-3.5">
@@ -79,27 +72,10 @@ export default function RegionalManagerAntreanPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Antrean B&M Regional Manager
                 </h1>
-                {hargaCount > 0 && (
-                  <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs">
-                    {hargaCount} Usulan Harga
-                  </Badge>
-                )}
-                {masterCount > 0 && (
-                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs">
-                    {masterCount} Kuorum Siap Master
-                  </Badge>
-                )}
               </div>
-              <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                Otorisasi penerbitan Dokumen Pelaksanaan Trial resmi (Fase 1) dan penetapan akhir kelulusan item trial menjadi Master Harga resmi (Fase 2).
-              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-indigo-50/70 p-3 rounded-xl border border-indigo-200/80">
-            <FileCheck2 className="w-4 h-4 text-indigo-600 shrink-0" />
-            <span>Penerbitan dokumen legalitas uji coba & SK Master Harga.</span>
-          </div>
         </div>
 
         {/* Tab & Pencarian */}
@@ -168,9 +144,6 @@ export default function RegionalManagerAntreanPage() {
                   <th className="py-3.5 px-4">Material & Spesifikasi</th>
                   <th className="py-3.5 px-4">Cabang</th>
                   <th className="py-3.5 px-4">Durasi Uji</th>
-                  <th className="py-3.5 px-4">Estimasi Maker</th>
-                  <th className="py-3.5 px-4">Usulan Harga S&B</th>
-                  <th className="py-3.5 px-4">Margin S&B</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Aksi</th>
                 </tr>
@@ -211,16 +184,7 @@ export default function RegionalManagerAntreanPage() {
                             <Clock className="w-3 h-3 text-slate-400" />
                             {item.durasiBulan} Bulan
                           </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-slate-500">
-                          {formatRupiah(item.estimasiHargaMaker)}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-indigo-950">
-                          {item.hargaTrialFinal ? formatRupiah(item.hargaTrialFinal) : '-'}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-semibold text-slate-700">
-                          {item.marginUpah ? `${item.marginUpah}%` : '-'}
-                        </td>
+                        </td>                        
                         <td className="py-3.5 px-4">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusMeta.badgeClass}`}
@@ -242,9 +206,9 @@ export default function RegionalManagerAntreanPage() {
                           >
                             <span>
                               {isPendingHarga
-                                ? 'Review Harga'
+                                ? 'Review'
                                 : isPendingMaster
-                                ? 'Review Master'
+                                ? 'Review'
                                 : 'Detail'}
                             </span>
                             <ArrowRight className="w-3 h-3" />

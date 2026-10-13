@@ -21,7 +21,6 @@ import {
   ArrowRight,
   Clock,
   Paperclip,
-  ShieldAlert,
 } from 'lucide-react';
 
 export default function PPManagerAntreanPage() {
