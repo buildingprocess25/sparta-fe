@@ -73,6 +73,7 @@ export function StatusBadge({ status, isTrial = false, className = "" }: StatusB
     // 4. Status Ditolak
     case 'DITOLAK':
     case 'DITOLAK_SB':
+    case 'DITOLAK_KONTRAKTOR':
     case 'RETURNED_TO_BC':
       return (
         <span className={cn(baseClasses, "bg-rose-600", className)}>
@@ -116,6 +117,13 @@ export function StatusBadge({ status, isTrial = false, className = "" }: StatusB
       return (
         <span className={cn(baseClasses, "bg-amber-600", className)}>
           Menunggu Kontraktor
+        </span>
+      );
+
+    case 'USULAN_KONTRAKTOR':
+      return (
+        <span className={cn(baseClasses, "bg-orange-600", className)}>
+          Usulan Kontraktor
         </span>
       );
 

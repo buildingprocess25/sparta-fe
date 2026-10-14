@@ -43,6 +43,7 @@ import {
 import { PengajuanTimelineBar } from "./PengajuanTimelineBar";
 
 export interface FormItemTrialProps {
+  isOpen?: boolean;
   renderSurvey?: () => React.ReactNode;
   onClose: () => void;
   onSubmit: (item: PengajuanHargaItem) => void;
@@ -50,6 +51,8 @@ export interface FormItemTrialProps {
   existingItems?: PengajuanHargaItem[];
   itemToEdit?: PengajuanHargaItem | null;
 }
+
+export type TambahItemTrialModalProps = FormItemTrialProps;
 
 const INITIAL_SATUAN_TEBAL = ["mm", "cm", "m"];
 const INITIAL_SATUAN_TOLERANSI = ["mm", "cm", "%"];

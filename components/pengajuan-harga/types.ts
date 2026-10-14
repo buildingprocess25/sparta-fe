@@ -102,6 +102,8 @@ export interface PengajuanHargaItem {
     | 'PENDING_SB_SPECIALIST'
     | 'PENDING_REGIONAL_MGR'
     | 'PENDING_KONTRAKTOR'
+    | 'USULAN_KONTRAKTOR'
+    | 'DITOLAK_KONTRAKTOR'
     | 'RETURNED_TO_BC'
     | 'RELEASED'
     | 'DISETUJUI_MASTERING'
@@ -138,6 +140,7 @@ export interface PengajuanHargaItem {
   koefisienUpahBongkaranItems?: KoefisienDetailItem[];
   marginUpah?: number; // Margin persentase internal S&B untuk komponen upah (%) - default 8%
   marginMaterial?: number; // Margin persentase internal S&B untuk komponen material (%) - default 8%
+  marginBongkaran?: number; // Margin persentase internal S&B untuk komponen bongkaran (%) - default 8%
   
   // Usulan Kontraktor
   usulanHargaKontraktor?: number;

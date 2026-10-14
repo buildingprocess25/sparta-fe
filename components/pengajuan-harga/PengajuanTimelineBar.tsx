@@ -86,6 +86,8 @@ export function PengajuanTimelineBar({
               "PENDING_SB_SPECIALIST",
               "PENDING_REGIONAL_MGR",
               "PENDING_KONTRAKTOR",
+              "USULAN_KONTRAKTOR",
+              "DITOLAK_KONTRAKTOR",
             ].includes(st)
           ? "completed"
           : st === "PENDING_VALIDASI_SB" || st === "DIAJUKAN" || st === "DRAFT"
@@ -104,6 +106,8 @@ export function PengajuanTimelineBar({
               "PENDING_SB_SPECIALIST",
               "PENDING_REGIONAL_MGR",
               "PENDING_KONTRAKTOR",
+              "USULAN_KONTRAKTOR",
+              "DITOLAK_KONTRAKTOR",
             ].includes(st)
           ? "completed"
           : isRevisiBC
@@ -121,6 +125,8 @@ export function PengajuanTimelineBar({
               "PENDING_SB_SPECIALIST",
               "PENDING_REGIONAL_MGR",
               "PENDING_KONTRAKTOR",
+              "USULAN_KONTRAKTOR",
+              "DITOLAK_KONTRAKTOR",
             ].includes(st)
           ? "completed"
           : st === "PENDING_BM_MGR"
@@ -132,9 +138,9 @@ export function PengajuanTimelineBar({
         label: "Review S&B",
         state: isDone
           ? "completed"
-          : ["PENDING_REGIONAL_MGR", "PENDING_KONTRAKTOR"].includes(st)
+          : ["PENDING_REGIONAL_MGR", "PENDING_KONTRAKTOR", "DITOLAK_KONTRAKTOR"].includes(st)
           ? "completed"
-          : st === "PENDING_SB_SPECIALIST"
+          : st === "PENDING_SB_SPECIALIST" || st === "USULAN_KONTRAKTOR"
           ? "current"
           : "pending",
       },
@@ -143,7 +149,7 @@ export function PengajuanTimelineBar({
         label: "Review B&M Regional Manager",
         state: isDone
           ? "completed"
-          : st === "PENDING_KONTRAKTOR"
+          : st === "PENDING_KONTRAKTOR" || st === "USULAN_KONTRAKTOR" || st === "DITOLAK_KONTRAKTOR"
           ? "completed"
           : st === "PENDING_REGIONAL_MGR"
           ? "current"
@@ -154,6 +160,10 @@ export function PengajuanTimelineBar({
         label: "Review Kontraktor",
         state: isDone
           ? "completed"
+          : st === "DITOLAK_KONTRAKTOR"
+          ? "rejected"
+          : st === "USULAN_KONTRAKTOR"
+          ? "revision"
           : st === "PENDING_KONTRAKTOR"
           ? "current"
           : "pending",
@@ -161,7 +171,7 @@ export function PengajuanTimelineBar({
       {
         id: "step-8",
         label: "Selesai",
-        state: isDone ? "completed" : "pending",
+        state: isDone ? "completed" : st === "DITOLAK_KONTRAKTOR" ? "rejected" : "pending",
       },
     ];
   } else if (flowType === "pengajuan_trial") {

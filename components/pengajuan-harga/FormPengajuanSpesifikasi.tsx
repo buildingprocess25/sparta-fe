@@ -30,6 +30,7 @@ import {
 import { Sparkles, Copy, Check, RotateCcw } from "lucide-react";
 
 export interface FormPengajuanSpesifikasiProps {
+  isOpen?: boolean;
   renderSurvey?: () => React.ReactNode;
   onClose: () => void;
   onSubmit: (item: PengajuanHargaItem) => void;
@@ -37,6 +38,8 @@ export interface FormPengajuanSpesifikasiProps {
   existingItems?: PengajuanHargaItem[];
   itemToEdit?: PengajuanHargaItem | null;
 }
+
+export type TambahPengajuanModalProps = FormPengajuanSpesifikasiProps;
 
 const INITIAL_MATERIAL_OPTIONS = [
   "Keramik",

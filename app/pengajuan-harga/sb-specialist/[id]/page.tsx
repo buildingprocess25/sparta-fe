@@ -31,6 +31,7 @@ import {
 } from "@/components/pengajuan-harga/store";
 import { useGlobalAlert } from "@/context/GlobalAlertContext";
 import { RincianKalkulasiKoefisien } from "@/components/pengajuan-harga/RincianKalkulasiKoefisien";
+import { ReviewNegosiasiKontraktorCard } from "@/components/pengajuan-harga/ReviewNegosiasiKontraktorCard";
 import { DetailSpesifikasi } from "@/components/pengajuan-harga/DetailSpesifikasi";
 import { PengajuanTimelineBar } from "@/components/pengajuan-harga/PengajuanTimelineBar";
 import { RincianSurvei3TokoCard } from "@/components/pengajuan-harga/RincianSurvei3TokoCard";
@@ -48,6 +49,24 @@ export default function SBSpecialistDetailPage() {
 
   const [item, setItem] = useState<PengajuanHargaItem | null>(null);
   const [catatan, setCatatan] = useState("");
+  const [liveMarginUpah, setLiveMarginUpah] = useState<number>(8);
+  const [liveMarginMaterial, setLiveMarginMaterial] = useState<number>(8);
+  const [liveMarginBongkaran, setLiveMarginBongkaran] = useState<number>(8);
+
+  const handleMarginChange = React.useCallback(
+    (upah: number, mat: number, bongkaran: number) => {
+      setLiveMarginUpah(upah);
+      setLiveMarginMaterial(mat);
+      setLiveMarginBongkaran(bongkaran);
+    },
+    []
+  );
+
+  const handleApplyRecommendedMargin = React.useCallback((recMargin: number) => {
+    setLiveMarginUpah(recMargin);
+    setLiveMarginMaterial(recMargin);
+    setLiveMarginBongkaran(recMargin);
+  }, []);
 
   const formatRupiah = (val?: number) => {
     if (val === undefined || val === null || isNaN(val)) return "Rp 0";
@@ -85,6 +104,9 @@ export default function SBSpecialistDetailPage() {
     const found = allItems.find((i) => i.id === itemId);
     if (found) {
       setItem(found);
+      setLiveMarginUpah(found.marginUpah ?? 8);
+      setLiveMarginMaterial(found.marginMaterial ?? 8);
+      setLiveMarginBongkaran(found.marginBongkaran ?? found.marginUpah ?? 8);
     }
   }, [itemId]);
 
@@ -264,9 +286,11 @@ export default function SBSpecialistDetailPage() {
   // Save Koefisien Callback dari Komponen Independen
   const handleSaveKoefisien = (data: {
     upahItems: KoefisienDetailItem[];
+    koefisienUpahBongkaranItems?: KoefisienDetailItem[];
     materialItems: KoefisienDetailItem[];
     marginUpah: number;
     marginMaterial: number;
+    marginBongkaran?: number;
   }) => {
     if (!item) return;
 
@@ -290,7 +314,13 @@ export default function SBSpecialistDetailPage() {
             : "Tidak ada";
 
         let nextStatus = i.status;
-        if (i.isTrial) {
+        let actionCatatan = `Koefisien teknis AHSP disimpan (Margin Upah: ${data.marginUpah}%, Margin Material: ${data.marginMaterial}%). Status berubah menjadi Siap Survei untuk Building Coordinator. [Upah: ${summaryUpah}] | [Material: ${summaryMat}]`;
+
+        if (i.status === "PENDING_SB_SPECIALIST" || i.status === "USULAN_KONTRAKTOR") {
+          // Alur A: status langsung kembali ke Kontraktor
+          nextStatus = "PENDING_KONTRAKTOR";
+          actionCatatan = `Penyesuaian margin negosiasi harga selesai (Margin Upah: ${data.marginUpah}%, Margin Material: ${data.marginMaterial}%, Margin Bongkaran: ${data.marginBongkaran ?? data.marginUpah}%). Harga penawaran baru dikirimkan kembali ke Kontraktor.`;
+        } else if (i.isTrial) {
           if (i.status === "TRIAL_REVISI") nextStatus = "TRIAL_PENDING_REGIONAL_MGR";
         } else {
           // Hanya ubah ke SIAP_SURVEI jika statusnya baru disetujui spesifikasinya
@@ -302,15 +332,17 @@ export default function SBSpecialistDetailPage() {
           status: nextStatus,
           koefisienUpahItems: data.upahItems,
           koefisienMaterialItems: data.materialItems,
+          koefisienUpahBongkaranItems: data.koefisienUpahBongkaranItems,
           marginUpah: data.marginUpah,
           marginMaterial: data.marginMaterial,
+          marginBongkaran: data.marginBongkaran,
           historyLog: [
             ...(i.historyLog || []),
             {
               role: "S&B Specialist" as const,
               action: "MASTERING" as const,
               tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan: `Koefisien teknis AHSP disimpan (Margin Upah: ${data.marginUpah}%, Margin Material: ${data.marginMaterial}%). Status berubah menjadi Siap Survei untuk Building Coordinator. [Upah: ${summaryUpah}] | [Material: ${summaryMat}]`,
+              catatan: actionCatatan,
             },
           ],
         };
@@ -319,28 +351,23 @@ export default function SBSpecialistDetailPage() {
     });
 
     saveStoredPengajuan(updated);
-    setItem((prev) =>
-      prev
-        ? {
-            ...prev,
-            status: prev.isTrial
-              ? prev.status === "TRIAL_REVISI"
-                ? "TRIAL_PENDING_REGIONAL_MGR"
-                : prev.status
-              : ("SIAP_SURVEI" as const),
-            koefisienUpahItems: data.upahItems,
-            koefisienMaterialItems: data.materialItems,
-            marginUpah: data.marginUpah,
-            marginMaterial: data.marginMaterial,
-          }
-        : null,
-    );
+    const updatedItem = updated.find((i) => i.id === item.id) || null;
+    setItem(updatedItem);
 
-    showAlert({
-      title: "Koefisien Berhasil Disimpan",
-      message: `Koefisien berhasil disimpan. Item siap untuk survei harga oleh Building Coordinator.`,
-      type: "success",
-    });
+    if (item.status === "PENDING_SB_SPECIALIST" || item.status === "USULAN_KONTRAKTOR") {
+      showAlert({
+        title: "Berhasil",
+        message: "Margin berhasil disesuaikan dan harga penawaran baru telah dikirimkan kembali ke Kontraktor.",
+        type: "success",
+      });
+      router.push("/pengajuan-harga/sb-specialist");
+    } else {
+      showAlert({
+        title: "Koefisien Berhasil Disimpan",
+        message: `Koefisien berhasil disimpan. Item siap untuk survei harga oleh Building Coordinator.`,
+        type: "success",
+      });
+    }
   };
 
   if (!item) {
@@ -401,6 +428,13 @@ export default function SBSpecialistDetailPage() {
                     Status: Validasi Harga Survei
                   </Badge>
                 );
+              case "USULAN_KONTRAKTOR":
+                return (
+                  <Badge className="bg-orange-50 text-orange-800 border-orange-200 text-xs px-2.5 py-0.5">
+                    <RotateCcw className="w-3.5 h-3.5 mr-1 text-orange-600" />
+                    Status: Usulan Kontraktor
+                  </Badge>
+                );
               case "DISETUJUI":
               case "SIAP_SURVEI":
                 return (
@@ -439,25 +473,6 @@ export default function SBSpecialistDetailPage() {
         {/* Timeline Bar Pengajuan */}
         <PengajuanTimelineBar item={item} />
 
-        {/* Notifikasi Usulan Kontraktor (Bila ada negosiasi / penolakan harga dari Kontraktor) */}
-        {item.usulanHargaKontraktor !== undefined && (
-          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
-            <div className="mt-0.5">
-              <RotateCcw className="w-5 h-5 text-rose-600" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-rose-900">Kontraktor Mengusulkan Revisi Harga</h3>
-              <p className="text-xs text-rose-700 leading-relaxed max-w-3xl">
-                Kontraktor (Layer 4) menolak kesepakatan harga standar dan mengusulkan harga akhir sebesar <strong className="font-mono text-rose-900 text-[13px]">{formatRupiah(item.usulanHargaKontraktor)}</strong>. 
-                {item.usulanMarginKontraktor !== undefined && (
-                  <span> Ekuivalen dengan total <strong>Margin Keseluruhan {item.usulanMarginKontraktor}%</strong> (termasuk Upah & Material).</span>
-                )}
-                <br className="mt-1" />
-                Silakan sesuaikan konfigurasi <strong>Margin Upah (%)</strong> dan <strong>Margin Material (%)</strong> di bagian bawah untuk menyepakati atau mendekati harga usulan kontraktor, lalu <strong>Simpan dan Teruskan</strong> kembali ke persetujuan.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Card Ringkasan Spesifikasi Item */}
         <DetailSpesifikasi
@@ -825,13 +840,33 @@ export default function SBSpecialistDetailPage() {
           </div>
         )}
 
+        {/* JIKA STATUS USULAN_KONTRAKTOR ATAU ADA USULAN KONTRAKTOR: TAMPILKAN KARTU REVIEW NEGOSIASI KONTRAKTOR */}
+        {(item.status === "USULAN_KONTRAKTOR" || item.usulanHargaKontraktor !== undefined) && (
+          <ReviewNegosiasiKontraktorCard
+            item={item}
+            currentMarginUpah={liveMarginUpah}
+            currentMarginMaterial={liveMarginMaterial}
+            currentMarginBongkaran={liveMarginBongkaran}
+            onApplyRecommendedMargin={handleApplyRecommendedMargin}
+          />
+        )}
+
         {/* RINCIAN KALKULASI KOEFISIEN (KOMPONEN INDEPENDEN) */}
-        {(item.status === "DISETUJUI" || item.status === "SIAP_SURVEI" || item.status === "PENDING_SB_SPECIALIST" || item.status === "APPROVED_ACTIVE" || item.status === "RELEASED") && (
+        {(item.status === "DISETUJUI" ||
+          item.status === "SIAP_SURVEI" ||
+          item.status === "PENDING_SB_SPECIALIST" ||
+          item.status === "USULAN_KONTRAKTOR" ||
+          item.status === "APPROVED_ACTIVE" ||
+          item.status === "RELEASED") && (
           <RincianKalkulasiKoefisien
             item={item}
+            initialMarginUpah={liveMarginUpah}
+            initialMarginMaterial={liveMarginMaterial}
+            initialMarginBongkaran={liveMarginBongkaran}
+            onMarginChange={handleMarginChange}
             onSave={handleSaveKoefisien}
             onBack={() => router.push("/pengajuan-harga/sb-specialist")}
-            isReadOnly={item.status === "PENDING_SB_SPECIALIST"}
+            isReadOnly={item.status === "APPROVED_ACTIVE" || item.status === "RELEASED"}
           />
         )}
       </main>

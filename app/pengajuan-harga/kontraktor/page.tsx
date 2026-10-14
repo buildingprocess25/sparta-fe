@@ -147,8 +147,8 @@ export default function KontraktorPage() {
               <span className="text-lg font-bold text-amber-700">{pendingItems.length}</span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-center min-w-[100px]">
-              <span className="text-[11px] text-slate-500 font-medium block">Disepakati</span>
-              <span className="text-lg font-bold text-emerald-700">{disepakatiItems.length}</span>
+              <span className="text-[11px] text-slate-500 font-medium block">Riwayat Keputusan</span>
+              <span className="text-lg font-bold text-slate-800">{disepakatiItems.length}</span>
             </div>
           </div>
         </div>
@@ -186,13 +186,13 @@ export default function KontraktorPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Harga Disepakati</span>
+              <BadgeCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Riwayat Keputusan</span>
               <Badge
                 variant="secondary"
                 className={`text-[10px] px-1.5 py-0.2 ${
                   activeTab === 'disepakati'
-                    ? 'bg-emerald-100 text-emerald-900 font-bold'
+                    ? 'bg-blue-100 text-blue-900 font-bold'
                     : 'bg-slate-300 text-slate-700'
                 }`}
               >
@@ -221,19 +221,19 @@ export default function KontraktorPage() {
             showHarga={true}
             title={selectedCabang === 'all' ? "Daftar Pengajuan Menunggu Konfirmasi Kontraktor (Semua Cabang)" : `Daftar Pengajuan Menunggu Konfirmasi Kontraktor - Cabang ${selectedCabang}`}
             onResetFilter={() => setSearch('')}
-            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=kontraktor`}
+            getDetailHref={(item) => `/pengajuan-harga/kontraktor/${item.id}`}
           />
         )}
 
-        {/* Tab 2: Harga Disepakati */}
+        {/* Tab 2: Riwayat Keputusan */}
         {activeTab === 'disepakati' && (
           <PengajuanHargaTable
             items={disepakatiItems}
             showStatus={true}
             showHarga={true}
-            title={selectedCabang === 'all' ? "Daftar Harga Satuan Telah Disepakati (Semua Cabang)" : `Daftar Harga Satuan Telah Disepakati - Cabang ${selectedCabang}`}
+            title={selectedCabang === 'all' ? "Daftar Riwayat Keputusan Kontraktor (Semua Cabang)" : `Daftar Riwayat Keputusan Kontraktor - Cabang ${selectedCabang}`}
             onResetFilter={() => setSearch('')}
-            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=kontraktor`}
+            getDetailHref={(item) => `/pengajuan-harga/kontraktor/${item.id}`}
           />
         )}
       </main>

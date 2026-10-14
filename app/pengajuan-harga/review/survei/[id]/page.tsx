@@ -36,10 +36,10 @@ import { RingkasanBiayaMaterial } from '@/components/pengajuan-harga/RingkasanBi
 import { RincianKalkulasiKoefisien } from '@/components/pengajuan-harga/RincianKalkulasiKoefisien';
 import { PengajuanTimelineBar } from '@/components/pengajuan-harga/PengajuanTimelineBar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
-import { FormPengajuanSpesifikasi } from '@/components/pengajuan-harga/TambahPengajuanModal';
-import { FormItemTrial } from '@/components/pengajuan-harga/TambahItemTrialModal';
 import { Pencil } from 'lucide-react';
 import { Suspense } from 'react';
+import { TambahPengajuanModal } from '@/components/pengajuan-harga/TambahPengajuanModal';
+import { TambahItemTrialModal } from '@/components/pengajuan-harga/TambahItemTrialModal';
 
 function ReviewSurveiContent() {
   const params = useParams();
@@ -63,7 +63,7 @@ function ReviewSurveiContent() {
   const [usulanHarga, setUsulanHarga] = useState<number | undefined>(undefined);
 
   // Edit Specification
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const formatRupiah = (val?: number) => {
     if (!val || isNaN(val)) return 'Rp 0';
@@ -298,7 +298,7 @@ function ReviewSurveiContent() {
 
           return {
             ...i,
-            status: 'PENDING_SB_SPECIALIST' as const,
+            status: 'USULAN_KONTRAKTOR' as const,
             catatanReview: catatan.trim(),
             usulanHargaKontraktor: usulanHarga,
             usulanMarginKontraktor: usulanHarga ? calculatedMargin : undefined,

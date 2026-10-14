@@ -207,12 +207,15 @@ export interface RincianKalkulasiKoefisienProps {
   initialMaterialItems?: KoefisienDetailItem[];
   initialMarginUpah?: number;
   initialMarginMaterial?: number;
+  initialMarginBongkaran?: number;
+  onMarginChange?: (marginUpah: number, marginMaterial: number, marginBongkaran: number) => void;
   onSave: (data: {
     upahItems: KoefisienDetailItem[];
     koefisienUpahBongkaranItems?: KoefisienDetailItem[];
     materialItems: KoefisienDetailItem[];
     marginUpah: number;
     marginMaterial: number;
+    marginBongkaran?: number;
   }) => void;
   onBack?: () => void;
   userRole?: string;
@@ -226,6 +229,8 @@ export function RincianKalkulasiKoefisien({
   initialMaterialItems,
   initialMarginUpah,
   initialMarginMaterial,
+  initialMarginBongkaran,
+  onMarginChange,
   onSave,
   onBack,
   userRole = "S&B Specialist",
@@ -257,12 +262,88 @@ export function RincianKalkulasiKoefisien({
   );
 
   // State 1 Margin Terpusat per Komponen (Default 8%)
-  const [marginUpah, setMarginUpah] = useState<number>(
+  const [marginUpah, setMarginUpah] = useState<number | string>(
     initialMarginUpah ?? item.marginUpah ?? 8,
   );
-  const [marginMaterial, setMarginMaterial] = useState<number>(
+  const [marginMaterial, setMarginMaterial] = useState<number | string>(
     initialMarginMaterial ?? item.marginMaterial ?? 8,
   );
+  const [marginBongkaran, setMarginBongkaran] = useState<number | string>(
+    initialMarginBongkaran ?? item.marginBongkaran ?? item.marginUpah ?? 8,
+  );
+
+  useEffect(() => {
+    if (initialMarginUpah !== undefined) {
+      setMarginUpah(initialMarginUpah);
+    }
+  }, [initialMarginUpah]);
+
+  useEffect(() => {
+    if (initialMarginMaterial !== undefined) {
+      setMarginMaterial(initialMarginMaterial);
+    }
+  }, [initialMarginMaterial]);
+
+  useEffect(() => {
+    if (initialMarginBongkaran !== undefined) {
+      setMarginBongkaran(initialMarginBongkaran);
+    }
+  }, [initialMarginBongkaran]);
+
+  const parseMarginNumber = (val: number | string): number => {
+    if (typeof val === "number") return isNaN(val) ? 0 : val;
+    const normalized = val.replace(",", ".");
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const handleUpdateMarginUpah = (val: string) => {
+    const cleaned = val.replace(/[^0-9.,]/g, "");
+    setMarginUpah(cleaned);
+    const num = parseMarginNumber(cleaned);
+    const numMat = parseMarginNumber(marginMaterial);
+    const numBong = parseMarginNumber(marginBongkaran);
+    onMarginChange?.(num, numMat, numBong);
+  };
+
+  const handleBlurMarginUpah = () => {
+    if (typeof marginUpah === "string") {
+      const num = parseMarginNumber(marginUpah);
+      setMarginUpah(num);
+    }
+  };
+
+  const handleUpdateMarginMaterial = (val: string) => {
+    const cleaned = val.replace(/[^0-9.,]/g, "");
+    setMarginMaterial(cleaned);
+    const num = parseMarginNumber(cleaned);
+    const numUpah = parseMarginNumber(marginUpah);
+    const numBong = parseMarginNumber(marginBongkaran);
+    onMarginChange?.(numUpah, num, numBong);
+  };
+
+  const handleBlurMarginMaterial = () => {
+    if (typeof marginMaterial === "string") {
+      const num = parseMarginNumber(marginMaterial);
+      setMarginMaterial(num);
+    }
+  };
+
+  const handleUpdateMarginBongkaran = (val: string) => {
+    const cleaned = val.replace(/[^0-9.,]/g, "");
+    setMarginBongkaran(cleaned);
+    const num = parseMarginNumber(cleaned);
+    const numUpah = parseMarginNumber(marginUpah);
+    const numMat = parseMarginNumber(marginMaterial);
+    onMarginChange?.(numUpah, numMat, num);
+  };
+
+  const handleBlurMarginBongkaran = () => {
+    if (typeof marginBongkaran === "string") {
+      const num = parseMarginNumber(marginBongkaran);
+      setMarginBongkaran(num);
+    }
+  };
 
   // State Form Tambah Upah Inline
   const [isAddingUpah, setIsAddingUpah] = useState(false);
@@ -312,7 +393,8 @@ export function RincianKalkulasiKoefisien({
 
   // Nilai Margin Upah (Rp)
   const nominalMarginUpah = useMemo(() => {
-    return Math.round((totalUpahDasar * (marginUpah || 0)) / 100);
+    const num = parseMarginNumber(marginUpah);
+    return Math.round((totalUpahDasar * num) / 100);
   }, [totalUpahDasar, marginUpah]);
 
   // Total Upah Akhir (Dasar + Margin)
@@ -328,8 +410,9 @@ export function RincianKalkulasiKoefisien({
   }, [upahBongkaranItems]);
 
   const nominalMarginUpahBongkaran = useMemo(() => {
-    return Math.round((totalUpahBongkaranDasar * (marginUpah || 0)) / 100);
-  }, [totalUpahBongkaranDasar, marginUpah]);
+    const num = parseMarginNumber(marginBongkaran);
+    return Math.round((totalUpahBongkaranDasar * num) / 100);
+  }, [totalUpahBongkaranDasar, marginBongkaran]);
 
   const totalUpahBongkaranAkhir = useMemo(() => {
     return totalUpahBongkaranDasar + nominalMarginUpahBongkaran;
@@ -447,8 +530,9 @@ export function RincianKalkulasiKoefisien({
       upahItems,
       koefisienUpahBongkaranItems: upahBongkaranItems,
       materialItems,
-      marginUpah,
-      marginMaterial,
+      marginUpah: parseMarginNumber(marginUpah),
+      marginMaterial: parseMarginNumber(marginMaterial),
+      marginBongkaran: parseMarginNumber(marginBongkaran),
     });
   };
 
@@ -516,16 +600,15 @@ export function RincianKalkulasiKoefisien({
                 <span className="text-[11px] font-semibold text-amber-900">
                   Margin Upah:
                 </span>
-                <div className="relative w-14">
+                <div className="relative w-20">
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={marginUpah}
-                    onChange={(e) =>
-                      setMarginUpah(
-                        e.target.value === "" ? 0 : Number(e.target.value),
-                      )
-                    }
-                    className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    onChange={(e) => handleUpdateMarginUpah(e.target.value)}
+                    onBlur={handleBlurMarginUpah}
+                    placeholder="0"
+                    className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4.5 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
                   />
                   <span className="absolute right-1 top-0.5 text-[10px] text-amber-600 font-bold">
                     %
@@ -759,7 +842,7 @@ export function RincianKalkulasiKoefisien({
                 <>
                   <span>+</span>
                   <span>
-                    Margin Upah ({marginUpah}%):{" "}
+                    Margin Upah ({typeof marginUpah === "number" ? Number(marginUpah.toFixed(2)) : marginUpah}%):{" "}
                     <strong className="text-amber-700">
                       {formatRupiah(nominalMarginUpah)}
                     </strong>
@@ -799,16 +882,15 @@ export function RincianKalkulasiKoefisien({
                 <span className="text-[11px] font-semibold text-amber-900">
                   Margin Material:
                 </span>
-                <div className="relative w-14">
+                <div className="relative w-20">
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={marginMaterial}
-                    onChange={(e) =>
-                      setMarginMaterial(
-                        e.target.value === "" ? 0 : Number(e.target.value),
-                      )
-                    }
-                    className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    onChange={(e) => handleUpdateMarginMaterial(e.target.value)}
+                    onBlur={handleBlurMarginMaterial}
+                    placeholder="0"
+                    className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4.5 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
                   />
                   <span className="absolute right-1 top-0.5 text-[10px] text-amber-600 font-bold">
                     %
@@ -997,14 +1079,42 @@ export function RincianKalkulasiKoefisien({
               </h3>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {/* Input Margin Bongkaran (Hanya S&B Specialist) */}
+              {userRole === "S&B Specialist" && (
+                <div className="flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded">
+                  <span className="text-[11px] font-semibold text-amber-900">
+                    Margin Bongkaran:
+                  </span>
+                  <div className="relative w-20">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={marginBongkaran}
+                      onChange={(e) => handleUpdateMarginBongkaran(e.target.value)}
+                      onBlur={handleBlurMarginBongkaran}
+                      placeholder="0"
+                      className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4.5 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                    />
+                    <span className="absolute right-1 top-0.5 text-[10px] text-amber-600 font-bold">
+                      %
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Total Upah Bongkaran Akhir */}
+              <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200">
+                Total Bongkaran: {formatRupiah(totalUpahBongkaranAkhir)}
+              </span>
+
               {!isReadOnly && (
                 <button
                   type="button"
                   onClick={() => setIsAddingUpahBongkaran(true)}
-                  className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium hover:underline cursor-pointer"
+                  className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-1 rounded flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Tambah Komponen Bongkaran
+                  Tambah
                 </button>
               )}
             </div>
@@ -1208,7 +1318,9 @@ export function RincianKalkulasiKoefisien({
                   <>
                     <div className="text-gray-300 font-light text-lg px-2">+</div>
                     <div className="flex flex-col min-w-max">
-                      <span className="text-slate-500 mb-1">Nilai Margin Upah (Rp)</span>
+                      <span className="text-slate-500 mb-1">
+                        Nilai Margin Bongkaran ({typeof marginBongkaran === "number" ? Number(marginBongkaran.toFixed(2)) : marginBongkaran}%) (Rp)
+                      </span>
                       <strong className="text-amber-700">
                         {formatRupiah(nominalMarginUpahBongkaran)}
                       </strong>
@@ -1234,7 +1346,9 @@ export function RincianKalkulasiKoefisien({
           ========================================================================= */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pt-2 border-t border-gray-200">
         <span className="text-xs text-gray-500 italic">
-          {item.isTrial
+          {item.status === "PENDING_SB_SPECIALIST"
+            ? "Margin yang disimpan akan otomatis memperbarui harga penawaran dan dikirimkan langsung ke Kontraktor."
+            : item.isTrial
             ? "Koefisien & margin akan disimpan sebagai acuan perhitungan item trial."
             : "Koefisien akan menjadi acuan survei harga 3 toko oleh Building Coordinator."}
         </span>
@@ -1255,7 +1369,9 @@ export function RincianKalkulasiKoefisien({
           >
             <Save className="w-4 h-4" />
             <span>
-              {item.isTrial
+              {item.status === "PENDING_SB_SPECIALIST"
+                ? "Simpan & Kirim Ulang ke Kontraktor"
+                : item.isTrial
                 ? "Simpan"
                 : "Simpan"}
             </span>

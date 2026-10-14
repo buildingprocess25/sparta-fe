@@ -212,10 +212,12 @@ export default function SBSpecialistPage() {
       });
   }, [specItems, search, statusFilter]);
 
-  // ================= TAB 2: APPROVAL HARGA SURVEI (ALUR 2 LAYER 2) =================
+  // ================= TAB 2: APPROVAL HARGA SURVEI & USULAN KONTRAKTOR =================
   const pendingLayer2Items = useMemo(() => {
     return items.filter((item) => {
-      const isPending = item.status === "PENDING_SB_SPECIALIST";
+      const isPending =
+        item.status === "PENDING_SB_SPECIALIST" ||
+        item.status === "USULAN_KONTRAKTOR";
       if (!isPending) return false;
 
       if (search.trim()) {
@@ -552,9 +554,13 @@ export default function SBSpecialistPage() {
             items={pendingLayer2Items}
             showStatus={true}
             showHarga={true}
-            title="Daftar Pengajuan Harga Survei Menunggu Persetujuan Layer 2"
+            title="Daftar Pengajuan Harga Survei &amp; Usulan Kontraktor Menunggu Review S&amp;B"
             onResetFilter={handleResetFilter}
-            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=sb-specialist`}
+            getDetailHref={(item) =>
+              item.status === "USULAN_KONTRAKTOR"
+                ? `/pengajuan-harga/sb-specialist/${item.id}`
+                : `/pengajuan-harga/review/survei/${item.id}?from=sb-specialist`
+            }
           />
         )}
 
