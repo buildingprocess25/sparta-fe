@@ -125,7 +125,7 @@ export function ReviewNegosiasiKontraktorCard({
   const totalNomMarginLama = nomMarginUpahLama + nomMarginMaterialLama + nomMarginBongkaranLama;
 
   const subtotalUpahLama = upahDasar + nomMarginUpahLama;
-  const subtotalMaterialLama = materialDasar + nomMarginMaterialLama;
+  const subtotalMaterialLama = hargaRataRataSurvei + nomMarginMaterialLama;
   const subtotalBongkaranLama = bongkaranDasar + nomMarginBongkaranLama;
   const totalHargaSpartaLama = subtotalUpahLama + subtotalMaterialLama + subtotalBongkaranLama;
 
@@ -171,7 +171,7 @@ export function ReviewNegosiasiKontraktorCard({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-800">
-                Review Negosiasi Harga dari Kontraktor
+                Review Harga dari Kontraktor
               </h2>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-600 text-white">
                 Usulan Kontraktor
@@ -408,7 +408,7 @@ export function ReviewNegosiasiKontraktorCard({
                   </div>
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono">
-                  {formatRupiah(materialDasar)}
+                  {formatRupiah(hargaRataRataSurvei)}
                 </td>
                 <td className="py-2.5 px-3 text-right">
                   <span className="font-semibold text-slate-700">{marginMaterialLama}%</span>{" "}

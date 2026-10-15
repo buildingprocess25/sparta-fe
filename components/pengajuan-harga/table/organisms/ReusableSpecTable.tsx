@@ -117,7 +117,7 @@ export function ReusableSpecTable({
 
               {showHarga && (
                 <th className="text-left px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                  Harga
+                  Estimasi Harga
                 </th>
               )}
 

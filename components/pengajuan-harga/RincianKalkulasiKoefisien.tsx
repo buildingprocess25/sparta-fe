@@ -1406,7 +1406,7 @@ export function RincianKalkulasiKoefisien({
             <Save className="w-4 h-4" />
             <span>
               {item.status === "PENDING_SB_SPECIALIST" || item.status === "USULAN_KONTRAKTOR"
-                ? "Simpan & Kirim Ulang ke Kontraktor"
+                ? "Simpan"
                 : item.isTrial
                 ? "Simpan"
                 : "Simpan"}

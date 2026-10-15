@@ -854,7 +854,6 @@ export default function SBSpecialistDetailPage() {
         {/* RINCIAN KALKULASI KOEFISIEN (KOMPONEN INDEPENDEN) */}
         {(item.status === "DISETUJUI" ||
           item.status === "SIAP_SURVEI" ||
-          item.status === "PENDING_SB_SPECIALIST" ||
           item.status === "USULAN_KONTRAKTOR" ||
           item.status === "APPROVED_ACTIVE" ||
           item.status === "RELEASED") && (
