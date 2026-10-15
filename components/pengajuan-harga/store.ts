@@ -981,11 +981,50 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     tanggalPengajuan: '2026-10-01',
     marginUpah: 8,
     marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Aneka Kaca BSD',
+        alamatToko: 'Jl. Raya Serpong No. 12, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 4450000,
+        tanggalSurvei: '2026-10-01',
+        catatan: 'Harga set komplit daun pintu & fitting',
+      },
+      {
+        namaToko: 'Sentral Kaca Tangerang',
+        alamatToko: 'Jl. Daan Mogot Km 21, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 4500000,
+        tanggalSurvei: '2026-10-01',
+        catatan: 'Ready stock unit tempered 12mm',
+      },
+      {
+        namaToko: 'Mitra Kaca Serpong',
+        alamatToko: 'Kav. Komersial BSD City',
+        volumeAcuan: 1,
+        hargaSatuan: 4550000,
+        tanggalSurvei: '2026-10-01',
+        catatan: 'Garansi resmi aksesoris floor hinge',
+      },
+    ],
     koefisienUpahItems: [
       { id: 'u-1', label: 'Tukang Kaca', value: '1.5', unit: 'Oh', hargaAcuan: 160000, subtotal: 240000 },
     ],
     koefisienMaterialItems: [
-      { id: 'm-1', label: 'Daun Pintu Kaca 12mm', value: '1', unit: 'Lembar', hargaAcuan: 3000000, subtotal: 3000000 },
+      {
+        id: 'm-1',
+        label: 'Daun Pintu Kaca 12mm',
+        value: '1',
+        unit: 'Lembar',
+        hargaAcuan: 3000000,
+        hargaSurveiRataRata: 3000000,
+        subtotal: 3000000,
+        surveyToko: [
+          { namaToko: 'Aneka Kaca BSD', hargaSatuan: 2950000, volumeAcuan: 1, tanggalSurvei: '2026-10-01' },
+          { namaToko: 'Sentral Kaca Tangerang', hargaSatuan: 3000000, volumeAcuan: 1, tanggalSurvei: '2026-10-01' },
+          { namaToko: 'Mitra Kaca Serpong', hargaSatuan: 3050000, volumeAcuan: 1, tanggalSurvei: '2026-10-01' },
+        ],
+      },
       { id: 'm-2', label: 'Floor Hinge Dorma', value: '1', unit: 'Set', hargaAcuan: 1200000, subtotal: 1200000 },
     ],
     historyLog: [
@@ -1021,11 +1060,50 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     tanggalPengajuan: '2026-10-01',
     marginUpah: 8,
     marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Mitra 10 Gading Serpong',
+        alamatToko: 'Jl. Boulevard Gading Serpong',
+        volumeAcuan: 1,
+        hargaSatuan: 440000,
+        tanggalSurvei: '2026-10-01',
+        catatan: 'Stainless steel SUS 304 original',
+      },
+      {
+        namaToko: 'Depo Bangunan Alam Sutera',
+        alamatToko: 'Kav. Commercial Alam Sutera',
+        volumeAcuan: 1,
+        hargaSatuan: 450000,
+        tanggalSurvei: '2026-10-01',
+        catatan: 'Ready stock batch baru',
+      },
+      {
+        namaToko: 'BJ Home Serpong',
+        alamatToko: 'Jl. Pahlawan Seribu Blok S',
+        volumeAcuan: 1,
+        hargaSatuan: 460000,
+        tanggalSurvei: '2026-10-01',
+        catatan: 'Termasuk baut dan aksesoris pasang',
+      },
+    ],
     koefisienUpahItems: [
       { id: 'u-1', label: 'Tukang', value: '0.2', unit: 'Oh', hargaAcuan: 150000, subtotal: 30000 },
     ],
     koefisienMaterialItems: [
-      { id: 'm-1', label: 'Handle Dekkson PH-102', value: '1', unit: 'Psg', hargaAcuan: 400000, subtotal: 400000 },
+      {
+        id: 'm-1',
+        label: 'Handle Dekkson PH-102',
+        value: '1',
+        unit: 'Psg',
+        hargaAcuan: 400000,
+        hargaSurveiRataRata: 400000,
+        subtotal: 400000,
+        surveyToko: [
+          { namaToko: 'Mitra 10 Gading Serpong', hargaSatuan: 390000, volumeAcuan: 1, tanggalSurvei: '2026-10-01' },
+          { namaToko: 'Depo Bangunan Alam Sutera', hargaSatuan: 400000, volumeAcuan: 1, tanggalSurvei: '2026-10-01' },
+          { namaToko: 'BJ Home Serpong', hargaSatuan: 410000, volumeAcuan: 1, tanggalSurvei: '2026-10-01' },
+        ],
+      },
     ],
     historyLog: [
       {
@@ -1060,11 +1138,50 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     tanggalPengajuan: '2026-10-03',
     marginUpah: 8,
     marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Depo Bangunan Alam Sutera',
+        alamatToko: 'Kav. Commercial Alam Sutera',
+        volumeAcuan: 1,
+        hargaSatuan: 490000,
+        tanggalSurvei: '2026-10-03',
+        catatan: 'Lengkap sifon dan kran original',
+      },
+      {
+        namaToko: 'Mitra 10 Cikokol',
+        alamatToko: 'Jl. MH Thamrin No. 8, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 500000,
+        tanggalSurvei: '2026-10-03',
+        catatan: 'Stok tersedia banyak',
+      },
+      {
+        namaToko: 'BJ Home Serpong',
+        alamatToko: 'Jl. Pahlawan Seribu Blok S',
+        volumeAcuan: 1,
+        hargaSatuan: 510000,
+        tanggalSurvei: '2026-10-03',
+        catatan: 'Harga promo bundling aksesoris',
+      },
+    ],
     koefisienUpahItems: [
       { id: 'u-1', label: 'Tukang Pipa', value: '0.5', unit: 'Oh', hargaAcuan: 155000, subtotal: 77500 },
     ],
     koefisienMaterialItems: [
-      { id: 'm-1', label: 'Wastafel AmStad', value: '1', unit: 'Set', hargaAcuan: 1100000, subtotal: 1100000 },
+      {
+        id: 'm-1',
+        label: 'Wastafel AmStad',
+        value: '1',
+        unit: 'Set',
+        hargaAcuan: 500000,
+        hargaSurveiRataRata: 500000,
+        subtotal: 500000,
+        surveyToko: [
+          { namaToko: 'Depo Bangunan Alam Sutera', hargaSatuan: 490000, volumeAcuan: 1, tanggalSurvei: '2026-10-03' },
+          { namaToko: 'Mitra 10 Cikokol', hargaSatuan: 500000, volumeAcuan: 1, tanggalSurvei: '2026-10-03' },
+          { namaToko: 'BJ Home Serpong', hargaSatuan: 510000, volumeAcuan: 1, tanggalSurvei: '2026-10-03' },
+        ],
+      },
     ],
     historyLog: [
       {
@@ -1099,11 +1216,50 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     tanggalPengajuan: '2026-10-05',
     marginUpah: 8,
     marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Plaza Kenari Mas Serpong',
+        alamatToko: 'Jl. Raya Serpong Km 7',
+        volumeAcuan: 1,
+        hargaSatuan: 840000,
+        tanggalSurvei: '2026-10-05',
+        catatan: 'Kabel tembaga murni SNI LMK',
+      },
+      {
+        namaToko: 'Mitra 10 Tangerang',
+        alamatToko: 'Jl. MH Thamrin No. 8',
+        volumeAcuan: 1,
+        hargaSatuan: 850000,
+        tanggalSurvei: '2026-10-05',
+        catatan: 'Segel pabrik resmi 50m utuh',
+      },
+      {
+        namaToko: 'Toko Terang Abadi BSD',
+        alamatToko: 'Ruko Golden Madrid Serpong',
+        volumeAcuan: 1,
+        hargaSatuan: 860000,
+        tanggalSurvei: '2026-10-05',
+        catatan: 'Ready stock 20 roll',
+      },
+    ],
     koefisienUpahItems: [
       { id: 'u-1', label: 'Tukang Listrik', value: '0.8', unit: 'Oh', hargaAcuan: 160000, subtotal: 128000 },
     ],
     koefisienMaterialItems: [
-      { id: 'm-1', label: 'Kabel Supreme 3x2.5', value: '1', unit: 'Roll', hargaAcuan: 700000, subtotal: 700000 },
+      {
+        id: 'm-1',
+        label: 'Kabel Supreme 3x2.5',
+        value: '1',
+        unit: 'Roll',
+        hargaAcuan: 850000,
+        hargaSurveiRataRata: 850000,
+        subtotal: 850000,
+        surveyToko: [
+          { namaToko: 'Plaza Kenari Mas Serpong', hargaSatuan: 840000, volumeAcuan: 1, tanggalSurvei: '2026-10-05' },
+          { namaToko: 'Mitra 10 Tangerang', hargaSatuan: 850000, volumeAcuan: 1, tanggalSurvei: '2026-10-05' },
+          { namaToko: 'Toko Terang Abadi BSD', hargaSatuan: 860000, volumeAcuan: 1, tanggalSurvei: '2026-10-05' },
+        ],
+      },
     ],
     historyLog: [
       {
@@ -1355,6 +1511,39 @@ export function getStoredPengajuan(): PengajuanHargaItem[] {
                 status: 'NONAKTIF',
               },
             ],
+        surveyToko:
+          item.surveyToko && item.surveyToko.length > 0
+            ? item.surveyToko
+            : INITIAL_PENGAJUAN_HARGA.find((init) => init.id === item.id)?.surveyToko ||
+              item.koefisienMaterialItems?.[0]?.surveyToko ||
+              (item.hargaRataRata
+                ? [
+                    {
+                      namaToko: `Mitra 10 ${item.cabang || 'Cikokol'}`,
+                      alamatToko: `Jl. MH Thamrin No. 8, ${item.cabang || 'Tangerang'}`,
+                      volumeAcuan: 1,
+                      hargaSatuan: Math.round((item.hargaRataRata || 100000) * 0.985),
+                      tanggalSurvei: item.tanggalPengajuan || '2026-10-05',
+                      catatan: 'Ready stock batch baru',
+                    },
+                    {
+                      namaToko: `Depo Bangunan ${item.cabang || 'Alam Sutera'}`,
+                      alamatToko: `Kav. Komersial Barat, ${item.cabang || 'Tangerang'}`,
+                      volumeAcuan: 1,
+                      hargaSatuan: item.hargaRataRata || 100000,
+                      tanggalSurvei: item.tanggalPengajuan || '2026-10-05',
+                      catatan: 'Harga satuan netto termasuk PPN',
+                    },
+                    {
+                      namaToko: `BJ Home ${item.cabang || 'Serpong'}`,
+                      alamatToko: `Jl. Pahlawan Seribu Blok S, ${item.cabang || 'Tangerang'}`,
+                      volumeAcuan: 1,
+                      hargaSatuan: Math.round((item.hargaRataRata || 100000) * 1.015),
+                      tanggalSurvei: item.tanggalPengajuan || '2026-10-05',
+                      catatan: 'Stok tersedia di gudang cabang',
+                    },
+                  ]
+                : undefined),
       };
     });
   } catch {

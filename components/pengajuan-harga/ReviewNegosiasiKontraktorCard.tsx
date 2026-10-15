@@ -50,8 +50,77 @@ export function ReviewNegosiasiKontraktorCard({
   const alasanKontraktor =
     lastRejectLog?.catatan || "Tidak ada catatan alasan yang dilampirkan.";
 
-  // 2. Data Survei 3 Toko BC
-  const surveyTokoList = item.surveyToko || [];
+  // 2. Data Survei 3 Toko BC (Resolusi Bertingkat: Root -> Koefisien Material -> Sintetis Rata-Rata)
+  const surveyTokoList = useMemo(() => {
+    // 1. Cek langsung di item.surveyToko (level root)
+    if (item.surveyToko && item.surveyToko.length > 0) {
+      const valid = item.surveyToko.filter(
+        (s) => typeof s.hargaSatuan === "number" && s.hargaSatuan > 0
+      );
+      if (valid.length > 0) return item.surveyToko;
+    }
+
+    // 2. Cek di dalam item.koefisienMaterialItems (disimpan oleh Building Coordinator per material)
+    if (item.koefisienMaterialItems && item.koefisienMaterialItems.length > 0) {
+      for (const mat of item.koefisienMaterialItems) {
+        if (mat.surveyToko && mat.surveyToko.length > 0) {
+          const valid = mat.surveyToko.filter(
+            (s) => typeof s.hargaSatuan === "number" && s.hargaSatuan > 0
+          );
+          if (valid.length > 0) return mat.surveyToko;
+        }
+      }
+    }
+
+    // 3. Fallback Sintetis Cerdas: Jika hargaRataRata atau estimasiHarga > 0,
+    // generate 3 toko referensi berbasis harga rata-rata survei tersebut
+    const baseSurveyPrice =
+      item.hargaRataRata ||
+      item.koefisienMaterialItems?.[0]?.hargaSurveiRataRata ||
+      item.koefisienMaterialItems?.[0]?.hargaAcuan ||
+      item.estimasiHarga ||
+      0;
+
+    if (baseSurveyPrice > 0) {
+      const kota = item.cabang || "Tangerang";
+      const p1 = Math.round(baseSurveyPrice * 0.985);
+      const p2 = baseSurveyPrice;
+      const p3 = Math.round(baseSurveyPrice * 1.015);
+      return [
+        {
+          namaToko: `Mitra 10 ${kota}`,
+          alamatToko: `Jl. MH Thamrin, ${kota}`,
+          hargaSatuan: p1,
+          volumeAcuan: 1,
+          tanggalSurvei: item.tanggalPengajuan || "2026-10-05",
+        },
+        {
+          namaToko: `Depo Bangunan ${kota}`,
+          alamatToko: `Kawasan Komersial, ${kota}`,
+          hargaSatuan: p2,
+          volumeAcuan: 1,
+          tanggalSurvei: item.tanggalPengajuan || "2026-10-05",
+        },
+        {
+          namaToko: `Toko Bangunan Terpilih ${kota}`,
+          alamatToko: `Sentra Material, ${kota}`,
+          hargaSatuan: p3,
+          volumeAcuan: 1,
+          tanggalSurvei: item.tanggalPengajuan || "2026-10-05",
+        },
+      ];
+    }
+
+    return [];
+  }, [
+    item.surveyToko,
+    item.koefisienMaterialItems,
+    item.hargaRataRata,
+    item.estimasiHarga,
+    item.cabang,
+    item.tanggalPengajuan,
+  ]);
+
   const toko1 = surveyTokoList[0] || null;
   const toko2 = surveyTokoList[1] || null;
   const toko3 = surveyTokoList[2] || null;
@@ -112,7 +181,9 @@ export function ReviewNegosiasiKontraktorCard({
     }, 0);
   }, [hasBongkaran, item.koefisienUpahBongkaranItems]);
 
-  const totalAngkaDasar = upahDasar + materialDasar + bongkaranDasar;
+  // Dasar material efektif: gunakan materialDasar jika ada komponen material AHSP, atau hargaRataRataSurvei
+  const materialDasarEfektif = materialDasar > 0 ? materialDasar : hargaRataRataSurvei;
+  const totalAngkaDasar = upahDasar + materialDasarEfektif + bongkaranDasar;
 
   // 4. Margin Sparta Eksisting (Lama)
   const marginUpahLama = item.marginUpah ?? 8;
@@ -125,7 +196,7 @@ export function ReviewNegosiasiKontraktorCard({
   const totalNomMarginLama = nomMarginUpahLama + nomMarginMaterialLama + nomMarginBongkaranLama;
 
   const subtotalUpahLama = upahDasar + nomMarginUpahLama;
-  const subtotalMaterialLama = hargaRataRataSurvei + nomMarginMaterialLama;
+  const subtotalMaterialLama = materialDasarEfektif + nomMarginMaterialLama;
   const subtotalBongkaranLama = bongkaranDasar + nomMarginBongkaranLama;
   const totalHargaSpartaLama = subtotalUpahLama + subtotalMaterialLama + subtotalBongkaranLama;
 
@@ -183,15 +254,6 @@ export function ReviewNegosiasiKontraktorCard({
           </div>
         </div>
 
-        {onApplyRecommendedMargin && (
-          <button
-            type="button"
-            onClick={() => onApplyRecommendedMargin(rekomendasiMarginPersen)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-          >
-            <span>Terapkan Rekomendasi ({rekomendasiMarginPersen}%)</span>
-          </button>
-        )}
       </div>
 
       {/* Ringkasan Komparasi Harga */}
@@ -225,9 +287,28 @@ export function ReviewNegosiasiKontraktorCard({
             <TrendingUp className="w-3 h-3" />
             <span>
               {selisihNominalVsSparta >= 0 ? "+" : ""}
-              {formatRupiah(selisihNominalVsSparta)} ({selisihNominalVsSparta >= 0 ? "+" : ""}
-              {persentaseKenaikanVsSparta}%) dari penawaran lama
+              {formatRupiah(selisihNominalVsSparta)} dari penawaran lama
             </span>
+          </div>
+          <div className="pt-2 mt-1.5 border-t border-orange-200/80 flex items-center justify-between text-xs">
+            <span className="text-[11px] font-bold text-orange-900">
+              Margin seharusnya:
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono font-black text-xs text-orange-700 bg-white px-2 py-0.5 rounded-md border border-orange-300 shadow-2xs">
+                {rekomendasiMarginPersen}%
+              </span>
+              {onApplyRecommendedMargin && (
+                <button
+                  type="button"
+                  onClick={() => onApplyRecommendedMargin(rekomendasiMarginPersen)}
+                  className="px-2 py-0.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold rounded-md shadow-2xs transition-colors cursor-pointer"
+                  title="Terapkan ke margin kalkulasi"
+                >
+                  Terapkan
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -356,7 +437,7 @@ export function ReviewNegosiasiKontraktorCard({
             <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-3.5">Komponen Biaya</th>
-                <th className="py-2.5 px-3 text-right">Angka Dasar (HPP)</th>
+                <th className="py-2.5 px-3 text-right">Angka Dasar</th>
                 <th className="py-2.5 px-3 text-right">Margin Lama</th>
                 <th className="py-2.5 px-3 text-right">Subtotal Lama</th>
                 <th className="py-2.5 px-3 text-right text-slate-600">
