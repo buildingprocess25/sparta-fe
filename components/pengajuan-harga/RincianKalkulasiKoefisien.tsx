@@ -547,6 +547,17 @@ export function RincianKalkulasiKoefisien({
           </h2>
         </div>
         
+        {/* Banner Khusus Mode Negosiasi Usulan Kontraktor */}
+        {item.status === "USULAN_KONTRAKTOR" && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2 flex items-start gap-2.5 text-xs text-amber-900">
+            <div className="w-5 h-5 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+              <Percent className="w-3 h-3 text-amber-700" />
+            </div>
+            <div>
+              <span className="font-bold">Anda hanya dapat menyesuaikan persentase margin</span>{" "}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* =========================================================================
@@ -789,6 +800,7 @@ export function RincianKalkulasiKoefisien({
                         <input
                           type="text"
                           value={formatCurrencyInput(u.hargaAcuan)}
+                          disabled={isReadOnly}
                           onChange={(e) =>
                             handleUpahHargaChange(
                               u.id,
@@ -796,7 +808,11 @@ export function RincianKalkulasiKoefisien({
                             )
                           }
                           placeholder="0"
-                          className="border border-gray-200 rounded px-2 py-1 w-full text-xs text-slate-800 font-mono focus:border-blue-500 outline-none"
+                          className={`border rounded px-2 py-1 w-full text-xs font-mono outline-none ${
+                            isReadOnly
+                              ? "bg-slate-50 border-gray-200 text-slate-600 cursor-not-allowed"
+                              : "border-gray-200 text-slate-800 bg-white focus:border-blue-500"
+                          }`}
                         />
                       </div>
                       <div>
@@ -807,11 +823,16 @@ export function RincianKalkulasiKoefisien({
                           type="number"
                           step="0.0001"
                           value={u.value}
+                          disabled={isReadOnly}
                           onChange={(e) =>
                             handleUpahChange(u.id, e.target.value)
                           }
                           placeholder="0.0000"
-                          className="border border-gray-200 rounded px-2 py-1 w-full text-xs text-slate-800 font-mono focus:border-blue-500 outline-none"
+                          className={`border rounded px-2 py-1 w-full text-xs font-mono outline-none ${
+                            isReadOnly
+                              ? "bg-slate-50 border-gray-200 text-slate-600 cursor-not-allowed"
+                              : "border-gray-200 text-slate-800 bg-white focus:border-blue-500"
+                          }`}
                         />
                       </div>
                     </div>
@@ -1045,11 +1066,16 @@ export function RincianKalkulasiKoefisien({
                       type="number"
                       step="0.0001"
                       value={m.value}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         handleMaterialChange(m.id, e.target.value)
                       }
                       placeholder="0.0000"
-                      className="border border-gray-200 rounded px-2 py-1 w-full text-xs text-slate-800 font-mono focus:border-emerald-500 outline-none"
+                      className={`border rounded px-2 py-1 w-full text-xs font-mono outline-none ${
+                        isReadOnly
+                          ? "bg-slate-50 border-gray-200 text-slate-600 cursor-not-allowed"
+                          : "border-gray-200 text-slate-800 bg-white focus:border-emerald-500"
+                      }`}
                     />
                   </div>
                 </div>
@@ -1268,10 +1294,15 @@ export function RincianKalkulasiKoefisien({
                             type="number"
                             step="0.0001"
                             value={u.value}
+                            disabled={isReadOnly}
                             onChange={(e) =>
                               handleUpahBongkaranChange(u.id, e.target.value)
                             }
-                            className="border border-gray-200 rounded px-2 py-1 w-full text-xs text-slate-800 font-mono focus:border-amber-500 outline-none"
+                            className={`border rounded px-2 py-1 w-full text-xs font-mono outline-none ${
+                              isReadOnly
+                                ? "bg-slate-50 border-gray-200 text-slate-600 cursor-not-allowed"
+                                : "border-gray-200 text-slate-800 bg-white focus:border-amber-500"
+                            }`}
                           />
                         </div>
                         <div>
@@ -1281,6 +1312,7 @@ export function RincianKalkulasiKoefisien({
                           <input
                             type="text"
                             value={formatCurrencyInput(u.hargaAcuan)}
+                            disabled={isReadOnly}
                             onChange={(e) =>
                               handleUpahBongkaranHargaChange(
                                 u.id,
@@ -1288,7 +1320,11 @@ export function RincianKalkulasiKoefisien({
                               )
                             }
                             placeholder="0"
-                            className="border border-gray-200 rounded px-2 py-1 w-full text-xs text-slate-800 font-mono focus:border-amber-500 outline-none"
+                            className={`border rounded px-2 py-1 w-full text-xs font-mono outline-none ${
+                              isReadOnly
+                                ? "bg-slate-50 border-gray-200 text-slate-600 cursor-not-allowed"
+                                : "border-gray-200 text-slate-800 bg-white focus:border-amber-500"
+                            }`}
                           />
                         </div>
                       </div>
@@ -1346,7 +1382,7 @@ export function RincianKalkulasiKoefisien({
           ========================================================================= */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pt-2 border-t border-gray-200">
         <span className="text-xs text-gray-500 italic">
-          {item.status === "PENDING_SB_SPECIALIST"
+          {item.status === "PENDING_SB_SPECIALIST" || item.status === "USULAN_KONTRAKTOR"
             ? "Margin yang disimpan akan otomatis memperbarui harga penawaran dan dikirimkan langsung ke Kontraktor."
             : item.isTrial
             ? "Koefisien & margin akan disimpan sebagai acuan perhitungan item trial."
@@ -1369,7 +1405,7 @@ export function RincianKalkulasiKoefisien({
           >
             <Save className="w-4 h-4" />
             <span>
-              {item.status === "PENDING_SB_SPECIALIST"
+              {item.status === "PENDING_SB_SPECIALIST" || item.status === "USULAN_KONTRAKTOR"
                 ? "Simpan & Kirim Ulang ke Kontraktor"
                 : item.isTrial
                 ? "Simpan"

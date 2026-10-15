@@ -12,6 +12,10 @@ import {
   RotateCcw,
   AlertCircle,
   XCircle,
+  Hammer,
+  Package,
+  Trash2,
+  Coins,
 } from 'lucide-react';
 import {
   PengajuanHargaItem,
@@ -80,35 +84,65 @@ export default function KontraktorReviewPage() {
     return Math.round(upah + bongkaran + material);
   }, [item]);
 
-  // Hitung Harga Penawaran Akhir (Dengan Margin)
-  const hargaPenawaranAkhir = React.useMemo(() => {
-    if (!item) return 0;
+  // Hitung Ringkasan Harga Akhir per Komponen (Upah, Material, Bongkaran) & Total
+  const ringkasanHarga = React.useMemo(() => {
+    if (!item) {
+      return { upahAkhir: 0, materialAkhir: 0, bongkaranAkhir: 0, totalAkhir: 0, hasBongkaran: false };
+    }
+
+    const hasBongkaran = Boolean(
+      item.isTermasukBongkaran &&
+      item.koefisienUpahBongkaranItems &&
+      item.koefisienUpahBongkaranItems.length > 0
+    );
 
     if (!item.koefisienUpahItems?.length && !item.koefisienMaterialItems?.length) {
       const marginMaterial = item.marginMaterial || 0;
       const base = item.estimasiHarga || item.hargaRataRata || 0;
-      return Math.round(base + (base * marginMaterial / 100));
+      const total = Math.round(base + (base * marginMaterial / 100));
+      return {
+        upahAkhir: 0,
+        materialAkhir: total,
+        bongkaranAkhir: 0,
+        totalAkhir: total,
+        hasBongkaran: false,
+      };
     }
 
     const marginUpah = item.marginUpah || 0;
     const marginMaterial = item.marginMaterial || 0;
     const marginBongkaran = item.marginBongkaran ?? item.marginUpah ?? 0;
 
-    const upah = (item.koefisienUpahItems || []).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)), 0);
-    const bongkaran = item.isTermasukBongkaran 
-      ? (item.koefisienUpahBongkaranItems || []).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)), 0)
+    const upah = (item.koefisienUpahItems || []).reduce(
+      (acc, curr) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)),
+      0
+    );
+    const bongkaran = hasBongkaran
+      ? (item.koefisienUpahBongkaranItems || []).reduce(
+          (acc, curr) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)),
+          0
+        )
       : 0;
     const material = (item.koefisienMaterialItems || []).reduce((acc, curr) => {
       const avg = curr.hargaSurveiRataRata || (curr.hargaAcuan || 0);
       return acc + ((Number(curr.value) || 0) * avg);
     }, 0);
 
-    const upahAkhir = upah + (upah * marginUpah / 100);
-    const bongkaranAkhir = bongkaran + (bongkaran * marginBongkaran / 100);
-    const materialAkhir = material + (material * marginMaterial / 100);
+    const upahAkhir = Math.round(upah + (upah * marginUpah / 100));
+    const bongkaranAkhir = Math.round(bongkaran + (bongkaran * marginBongkaran / 100));
+    const materialAkhir = Math.round(material + (material * marginMaterial / 100));
+    const totalAkhir = Math.round(upahAkhir + bongkaranAkhir + materialAkhir);
 
-    return Math.round(upahAkhir + bongkaranAkhir + materialAkhir);
+    return {
+      upahAkhir,
+      materialAkhir,
+      bongkaranAkhir,
+      totalAkhir,
+      hasBongkaran,
+    };
   }, [item]);
+
+  const hargaPenawaranAkhir = ringkasanHarga.totalAkhir;
 
   // Aturan SPARTA: Kontraktor hanya bisa sekali menolak harga (1x kesempatan negosiasi)
   const hasRejectedOnce = React.useMemo(() => {
@@ -189,7 +223,7 @@ export default function KontraktorReviewPage() {
       if (hasRejectedOnce) {
         showAlert({ 
           title: 'Penolakan Final Berhasil', 
-          message: 'Penawaran harga ditolak secara final. Status pengajuan diperbarui menjadi Ditolak.', 
+          message: 'Harga ditolak secara final. Status pengajuan diperbarui menjadi Ditolak.', 
           type: 'warning' 
         });
       } else {
@@ -220,16 +254,84 @@ export default function KontraktorReviewPage() {
         
 
         {/* Ringkasan Harga Akhir untuk Kontraktor */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-2">
-         
-          <div className="pt-3 pb-1">
-            <div className="inline-flex flex-col sm:flex-row sm:items-center justify-center gap-2 sm:gap-3 bg-blue-50/50 border border-blue-100 rounded-xl px-5 py-4 w-full sm:w-auto">
-              <span className="text-slate-500 font-semibold text-sm">Harga:</span>
-              <div className="flex items-end gap-1.5">
-                <span className="text-2xl font-black font-mono text-blue-700 tracking-tight">
-                  {formatRupiah(hargaPenawaranAkhir)}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-blue-600" />
+                Ringkasan Penawaran Harga Satuan
+              </h2>
+              <p className="text-xs text-slate-500">
+                Nilai penawaran per satuan pekerjaan 
+              </p>
+            </div>
+          </div>
+
+          {/* Grid Ringkasan Subtotal Komponen (Tanpa rincian mikro) */}
+          <div className={`grid grid-cols-1 ${ringkasanHarga.hasBongkaran ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
+            {/* 1. Komponen Upah */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-600">Komponen Upah</span>
+                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                  <Hammer className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div>
+                <span className="text-lg font-bold font-mono text-slate-900 block">
+                  {formatRupiah(ringkasanHarga.upahAkhir)}
                 </span>
-                <span className="text-sm font-bold text-slate-400 pb-1">/ {item.satuan}</span>
+                <span className="text-[10px] text-slate-400">Tenaga kerja</span>
+              </div>
+            </div>
+
+            {/* 2. Komponen Material & Alat */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-600">Komponen Material &amp; Alat</span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Package className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div>
+                <span className="text-lg font-bold font-mono text-slate-900 block">
+                  {formatRupiah(ringkasanHarga.materialAkhir)}
+                </span>
+                <span className="text-[10px] text-slate-400">Pengadaan bahan &amp; alat</span>
+              </div>
+            </div>
+
+            {/* 3. Komponen Bongkaran (Jika ada) */}
+            {ringkasanHarga.hasBongkaran && (
+              <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-600">Komponen Bongkaran</span>
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-lg font-bold font-mono text-slate-900 block">
+                    {formatRupiah(ringkasanHarga.bongkaranAkhir)}
+                  </span>
+                  <span className="text-[10px] text-slate-400">Pekerjaan bongkaran</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Total Harga Penawaran Akhir */}
+          <div className="pt-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50/70 border border-blue-200 rounded-xl px-5 py-3.5">
+              <div>
+                <span className="text-xs font-bold text-blue-900 uppercase tracking-wide block">Total Harga Akhir</span>
+                <span className="text-[11px] text-blue-700">Akumulasi seluruh komponen</span>
+              </div>
+              <div className="flex items-baseline gap-1.5 self-end sm:self-auto">
+                <span className="text-2xl font-black font-mono text-blue-700 tracking-tight">
+                  {formatRupiah(ringkasanHarga.totalAkhir)}
+                </span>
+                <span className="text-sm font-bold text-blue-500 font-sans">/ {item.satuan || 'satuan'}</span>
               </div>
             </div>
           </div>
@@ -242,9 +344,9 @@ export default function KontraktorReviewPage() {
               <XCircle className="w-4 h-4" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-rose-900">Penawaran Ditolak oleh Kontraktor</h3>
+              <h3 className="text-sm font-bold text-rose-900">Harga Ditolak oleh Kontraktor</h3>
               <p className="text-xs text-rose-700 leading-relaxed">
-                Harga penawaran ini telah Anda tolak secara final. Perusahaan Anda tidak ditugaskan pada paket pekerjaan ini.
+                Harga ini telah Anda tolak secara final. Perusahaan Anda tidak ditugaskan pada paket pekerjaan ini.
               </p>
             </div>
           </div>
@@ -255,14 +357,14 @@ export default function KontraktorReviewPage() {
             {hasRejectedOnce && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-900 leading-relaxed">
-                  <span className="font-bold">Penyesuaian Negosiasi S&amp;B:</span> Harga penawaran ini telah disesuaikan kembali oleh tim S&amp;B Specialist berdasarkan pertimbangan usulan Anda sebelumnya. Kesempatan mengajukan usulan harga baru telah digunakan (maksimal 1x). Anda dapat menyepakati harga ini, atau menolak penawaran secara final dengan konsekuensi dikeluarkan dari paket pekerjaan ini.
+                <div className="text-sm font-semibold text-amber-900 leading-relaxed">
+                  <span className="font-bold">Penyesuaian S&amp;B:</span> Harga ini telah disesuaikan kembali oleh tim S&amp;B Specialist berdasarkan pertimbangan usulan Anda sebelumnya. Kesempatan mengajukan usulan harga baru telah digunakan (maksimal 1x). Anda dapat menyepakati harga ini, atau menolak penawaran secara final dengan konsekuensi dikeluarkan dari paket pekerjaan ini.
                 </div>
               </div>
             )}
 
             <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                 Keputusan Kontraktor
               </label>
               <div className="flex flex-col sm:flex-row gap-3">
@@ -299,7 +401,7 @@ export default function KontraktorReviewPage() {
                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${activeAction === 'TOLAK' ? 'border-rose-600' : 'border-slate-300'}`}>
                     {activeAction === 'TOLAK' && <div className="w-2 h-2 rounded-full bg-rose-600" />}
                   </div>
-                  {hasRejectedOnce ? 'Tolak Penawaran' : 'Ajukan Harga Baru'}
+                  {hasRejectedOnce ? 'Tolak Harga' : 'Ajukan Harga Baru'}
                 </Button>
               </div>
             </div>
@@ -307,13 +409,13 @@ export default function KontraktorReviewPage() {
             {activeAction === 'TOLAK' && (
               <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-xl space-y-4">
                 {hasRejectedOnce ? (
-                  <div className="p-3 bg-rose-100/70 border border-rose-200 rounded-lg text-xs text-rose-900 leading-relaxed space-y-1">
+                  <div className="p-3 bg-rose-100/70 border border-rose-200 rounded-lg text-sm text-rose-900 leading-relaxed space-y-1">
                     <div className="font-bold flex items-center gap-1.5 text-rose-950">
                       <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
                       Konsekuensi Penolakan
                     </div>
                     <p>
-                      Batas kesempatan pengajuan usulan harga baru hanya 1 kali. Jika Anda menolak penawaran ini, penolakan bersifat final dan Anda tidak akan ditugaskan / dikeluarkan dari pekerjaan ini.
+                      Batas kesempatan pengajuan usulan harga baru hanya 1 kali. Jika Anda menolak harga ini, penolakan bersifat final dan Anda tidak akan ditugaskan / dikeluarkan dari pekerjaan ini.
                     </p>
                   </div>
                 ) : (

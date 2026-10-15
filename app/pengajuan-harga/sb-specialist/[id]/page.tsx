@@ -866,7 +866,7 @@ export default function SBSpecialistDetailPage() {
             onMarginChange={handleMarginChange}
             onSave={handleSaveKoefisien}
             onBack={() => router.push("/pengajuan-harga/sb-specialist")}
-            isReadOnly={item.status === "APPROVED_ACTIVE" || item.status === "RELEASED"}
+            isReadOnly={item.status === "USULAN_KONTRAKTOR"}
           />
         )}
       </main>
