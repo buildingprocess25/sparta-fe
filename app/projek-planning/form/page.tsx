@@ -16,6 +16,8 @@ import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardLi
 import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList, fetchRABDetail } from "@/lib/api";
 import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches, getAccessibleBranchesForUser, getSessionBranchCoverage, getParentBranch } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
+import { PhotoOversizeDialog } from "@/components/projek-planning/PhotoOversizeDialog";
+import { compressImageToJpeg, formatFileSize } from "@/lib/client-image-compressor";
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
 
@@ -295,6 +297,70 @@ function FormProjekPlanningInner() {
   const [fotoExistingUrls, setFotoExistingUrls] = useState<{ [key: number]: string }>({});
   const [activeFotoTab, setActiveFotoTab] = useState<number>(1);
 
+  // Oversize Photo Dialog & Compressing State
+  const [oversizeModal, setOversizeModal] = useState<{
+    open: boolean;
+    pointId: number | null;
+    pointLabel: string;
+    file: File | null;
+    isCompressing: boolean;
+  }>({
+    open: false,
+    pointId: null,
+    pointLabel: "",
+    file: null,
+    isCompressing: false,
+  });
+  const [compressingPoints, setCompressingPoints] = useState<{ [key: number]: boolean }>({});
+  const [submitStage, setSubmitStage] = useState<"IDLE" | "PREPARING" | "UPLOADING">("IDLE");
+
+  const handlePhotoFileSelect = (pointId: number, pointLabel: string, file: File | null) => {
+    if (!file) return;
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    if (file.size > MAX_SIZE) {
+      setOversizeModal({
+        open: true,
+        pointId,
+        pointLabel,
+        file,
+        isCompressing: false,
+      });
+      return;
+    }
+    setFotoFiles(prev => ({ ...prev, [pointId]: file }));
+  };
+
+  const handleCompressOversizePhoto = async () => {
+    const { file, pointId } = oversizeModal;
+    if (!file || pointId === null) return;
+
+    setOversizeModal(prev => ({ ...prev, isCompressing: true }));
+    setCompressingPoints(prev => ({ ...prev, [pointId]: true }));
+
+    try {
+      const compressed = await compressImageToJpeg(file, { maxDimension: 1920, quality: 0.8 });
+      setFotoFiles(prev => ({ ...prev, [pointId]: compressed }));
+      setOversizeModal({
+        open: false,
+        pointId: null,
+        pointLabel: "",
+        file: null,
+        isCompressing: false,
+      });
+    } catch (err) {
+      console.error("Gagal kompresi canvas:", err);
+      setAlertMsg({
+        title: "Gagal Kompresi",
+        desc: "Gagal mengompres foto secara otomatis di browser. Silakan kompres manual atau pilih file lain.",
+        type: "error",
+      });
+      setAlertOpen(true);
+      setOversizeModal(prev => ({ ...prev, isCompressing: false }));
+    } finally {
+      setCompressingPoints(prev => ({ ...prev, [pointId]: false }));
+    }
+  };
+
   // Camera modal state
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraTargetId, setCameraTargetId] = useState<number | null>(null);
@@ -417,6 +483,18 @@ function FormProjekPlanningInner() {
     if (selectedFiles.length > MAX_FILES_PER_FIELD) {
       setAlertMsg({ title: "Maksimal 2 File", desc: "Setiap kolom upload hanya bisa berisi maksimal 2 file. File selebihnya tidak ikut dipilih.", type: "error" });
       setAlertOpen(true);
+    }
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    const oversized = files.find(f => f.size > MAX_SIZE);
+    if (oversized) {
+      setAlertMsg({
+        title: "Ukuran File Melebihi 10 MB",
+        desc: `File "${oversized.name}" (${formatFileSize(oversized.size)}) melebihi batas maksimal 10 MB. Silakan kompres atau pilih file lain.`,
+        type: "error"
+      });
+      setAlertOpen(true);
+      e.target.value = "";
+      return;
     }
     setter(files);
     if (files.length > 0) clearLink();
@@ -606,6 +684,7 @@ function FormProjekPlanningInner() {
       }
     }
     setSubmitting(true);
+    setSubmitStage("PREPARING");
     try {
       let finalIdToko = 0;
       let finalCabang = manualCabangNama || manualCabang;
@@ -667,6 +746,7 @@ function FormProjekPlanningInner() {
         if (file) validFotoFiles[Number(key)] = file;
       });
 
+      setSubmitStage("UPLOADING");
       let res;
       if (resubmitId) {
         res = await resubmitProjekPlanning(Number(resubmitId), payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
@@ -685,8 +765,10 @@ function FormProjekPlanningInner() {
     } catch (err: any) {
       setAlertMsg({ title: "Gagal", desc: err.message || "Terjadi kesalahan", type: "error" });
       setAlertOpen(true);
+    } finally {
+      setSubmitting(false);
+      setSubmitStage("IDLE");
     }
-    setSubmitting(false);
   };
 
   const SectionTitle = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
@@ -1638,12 +1720,13 @@ function FormProjekPlanningInner() {
                       {PHOTO_POINTS[activeFotoTab]?.map((point) => {
                         const isSelected = !!fotoFiles[point.id];
                         const isExisting = !!fotoExistingUrls[point.id] && !isSelected;
+                        const isCompressing = !!compressingPoints[point.id];
 
                         return (
                           <div
                             key={point.id}
                             className={`relative flex flex-col p-4 rounded-xl border-2 transition-all duration-200 ${isSelected
-                              ? "border-green-400 bg-green-50/30"
+                              ? "border-emerald-400 bg-emerald-50/40 shadow-xs"
                               : isExisting
                                 ? "border-blue-300 bg-blue-50/30"
                                 : "border-dashed border-slate-300 bg-slate-50 hover:border-red-300 hover:bg-red-50/20"
@@ -1654,7 +1737,7 @@ function FormProjekPlanningInner() {
                                 <span className="text-red-500 mr-1.5">{point.id}.</span>
                                 {point.label}
                               </Label>
-                              {isSelected && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-green-500 bg-white rounded-full" />}
+                              {isSelected && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-emerald-600 bg-white rounded-full shadow-xs" />}
                               {isExisting && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-blue-500 bg-white rounded-full" />}
                             </div>
 
@@ -1673,21 +1756,29 @@ function FormProjekPlanningInner() {
                               <div className="flex gap-2">
                                 {/* File Gallery */}
                                 <label
-                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 select-none
-                                    ${isSelected
-                                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 select-none ${
+                                    isCompressing
+                                      ? "opacity-50 pointer-events-none border-slate-200 bg-slate-100"
+                                      : isSelected
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                       : "border-slate-200 bg-white text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50"
-                                    }`}
+                                  }`}
                                 >
-                                  <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
-                                  Galeri
+                                  {isCompressing ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                                  ) : (
+                                    <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
+                                  )}
+                                  {isCompressing ? "Proses..." : "Galeri"}
                                   <input
                                     type="file"
                                     accept="image/*"
                                     className="hidden"
+                                    disabled={isCompressing}
                                     onChange={(e) => {
                                       const file = e.target.files?.[0] || null;
-                                      setFotoFiles(prev => ({ ...prev, [point.id]: file }));
+                                      handlePhotoFileSelect(point.id, point.label, file);
+                                      e.target.value = "";
                                     }}
                                   />
                                 </label>
@@ -1695,22 +1786,38 @@ function FormProjekPlanningInner() {
                                 {/* Camera Button — opens getUserMedia modal */}
                                 <button
                                   type="button"
+                                  disabled={isCompressing}
                                   onClick={() => openCamera(point.id)}
-                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200
-                                    ${isSelected
-                                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 ${
+                                    isCompressing
+                                      ? "opacity-50 pointer-events-none border-slate-200 bg-slate-100"
+                                      : isSelected
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                       : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"
-                                    }`}
+                                  }`}
                                 >
                                   <Camera className="w-3.5 h-3.5 flex-shrink-0" />
                                   Kamera
                                 </button>
                               </div>
-                              {isSelected && fotoFiles[point.id] && (
-                                <p className="text-[10px] text-green-700 font-semibold truncate px-1 flex items-center gap-1.5 bg-green-100/50 py-1 rounded">
-                                  <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
-                                  {fotoFiles[point.id]!.name}
+
+                              {isCompressing && (
+                                <p className="text-[10px] text-amber-700 font-semibold truncate px-2 flex items-center gap-1.5 bg-amber-50 border border-amber-200 py-1 rounded">
+                                  <Loader2 className="w-3 h-3 animate-spin flex-shrink-0 text-amber-600" />
+                                  Mengompres foto di browser...
                                 </p>
+                              )}
+
+                              {!isCompressing && isSelected && fotoFiles[point.id] && (
+                                <div className="flex items-center justify-between gap-1 text-[10px] text-emerald-800 font-semibold bg-emerald-100/70 border border-emerald-200/80 py-1 px-2 rounded-lg">
+                                  <span className="truncate flex items-center gap-1.5 min-w-0">
+                                    <FileImage className="w-3.5 h-3.5 flex-shrink-0 text-emerald-600" />
+                                    <span className="truncate">{fotoFiles[point.id]!.name}</span>
+                                  </span>
+                                  <span className="flex-shrink-0 bg-white/90 px-1.5 py-0.5 rounded text-[9px] text-emerald-900 font-bold border border-emerald-200 shadow-2xs">
+                                    {formatFileSize(fotoFiles[point.id]!.size)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1722,9 +1829,26 @@ function FormProjekPlanningInner() {
               )}
 
               {/* Submit */}
-              <Button type="submit" disabled={submitting} className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm gap-2 mt-4">
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {submitting ? "Mengirim..." : "Kirim Pengajuan FPD"}
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm gap-2 mt-4 shadow-md transition-all"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>
+                      {submitStage === "PREPARING"
+                        ? "Menyiapkan & memvalidasi berkas..."
+                        : "Mengunggah data & foto ke server..."}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Kirim Pengajuan FPD</span>
+                  </>
+                )}
               </Button>
             </form>
           </CardContent>
@@ -1813,6 +1937,25 @@ function FormProjekPlanningInner() {
           </div>
         </div>
       )}
+
+      <PhotoOversizeDialog
+        open={oversizeModal.open}
+        onOpenChange={(open) => setOversizeModal(prev => ({ ...prev, open }))}
+        pointId={oversizeModal.pointId}
+        pointLabel={oversizeModal.pointLabel}
+        file={oversizeModal.file}
+        onCompressNow={handleCompressOversizePhoto}
+        onPickAnother={() => {
+          setOversizeModal({
+            open: false,
+            pointId: null,
+            pointLabel: "",
+            file: null,
+            isCompressing: false,
+          });
+        }}
+        isCompressing={oversizeModal.isCompressing}
+      />
 
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
         <AlertDialogContent className="rounded-2xl max-w-sm">
