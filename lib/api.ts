@@ -5470,17 +5470,26 @@ export type ProjectPlanningInterventionPayload = {
 
 const compressFileIfNeeded = async (file: File): Promise<File> => {
     if (!file.type.startsWith("image/")) return file;
+    // Jika file sudah berukuran kecil (<= 2MB), jangan lakukan kompresi ulang agar cepat
+    if (file.size <= 2 * 1024 * 1024) return file;
+
     try {
         const imageCompression = (await import("browser-image-compression")).default;
         const options = {
-            maxSizeMB: 1,
+            maxSizeMB: 1.5,
             maxWidthOrHeight: 1920,
             useWebWorker: true,
         };
-        const compressedBlob = await imageCompression(file, options);
+        // Beri batas waktu kompresi maksimal 8 detik per file agar tidak menggantung selamanya
+        const compressPromise = imageCompression(file, options);
+        const timeoutPromise = new Promise<File>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout kompresi")), 8000)
+        );
+
+        const compressedBlob = await Promise.race([compressPromise, timeoutPromise]) as Blob;
         return new File([compressedBlob], file.name, { type: file.type });
     } catch (error) {
-        console.error("Gagal mengompres gambar:", error);
+        console.warn("[Kompresi] Melewati kompresi file:", file.name, error);
         return file;
     }
 };
@@ -5495,14 +5504,15 @@ const compressFilesIfNeeded = async (fileOrFiles?: File | File[]): Promise<File 
 
 const compressPhotoDictIfNeeded = async (fotoFiles?: { [key: number]: File }): Promise<{ [key: number]: File } | undefined> => {
     if (!fotoFiles) return fotoFiles;
-    const result: { [key: number]: File } = {};
-    for (const key of Object.keys(fotoFiles)) {
-        const numKey = Number(key);
-        if (fotoFiles[numKey]) {
-            result[numKey] = await compressFileIfNeeded(fotoFiles[numKey]);
-        }
-    }
-    return result;
+    const entries = Object.entries(fotoFiles);
+    // Jalankan kompresi paralel menggunakan Promise.all (bukan sekuensial)
+    const compressedEntries = await Promise.all(
+        entries.map(async ([key, file]) => {
+            const compressed = await compressFileIfNeeded(file);
+            return [Number(key), compressed] as const;
+        })
+    );
+    return Object.fromEntries(compressedEntries);
 };
 
 /** Submit FPD baru (Coordinator/Cabang). */
@@ -5562,7 +5572,17 @@ export const submitProjekPlanning = async (
         headers,
         body,
     });
-    const result = await res.json();
+    let result: any;
+    try {
+        result = await res.json();
+    } catch {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 524 || rawText.includes("524") || rawText.includes("A timeout occurred")) {
+            throw new Error("Server timeout (Cloudflare 524). Koneksi upload cabang atau pemrosesan server membutuhkan waktu lebih dari 100 detik.");
+        }
+        throw new Error(`Server error (${res.status}): Server mengembalikan respons tidak valid.`);
+    }
+
     if (res.status === 409) throw new Error(result.message || "Project planning aktif sudah ada untuk toko ini.");
     if (res.status === 422) {
         const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
@@ -5630,7 +5650,17 @@ export const resubmitProjekPlanning = async (
         headers,
         body,
     });
-    const result = await res.json();
+    let result: any;
+    try {
+        result = await res.json();
+    } catch {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 524 || rawText.includes("524") || rawText.includes("A timeout occurred")) {
+            throw new Error("Server timeout (Cloudflare 524). Koneksi upload cabang atau pemrosesan server membutuhkan waktu lebih dari 100 detik.");
+        }
+        throw new Error(`Server error (${res.status}): Server mengembalikan respons tidak valid.`);
+    }
+
     if (res.status === 409) throw new Error(result.message || "Hanya DRAFT yang bisa di-resubmit.");
     if (res.status === 422) {
         const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
