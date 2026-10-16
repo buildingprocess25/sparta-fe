@@ -21,6 +21,7 @@ import {
   Upload,
   Download,
   ArrowRightLeft,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -238,7 +239,7 @@ export default function DashboardNavigation({
             <span className="flex-1">Pusat Dashboard</span>
             <ChevronDown className="h-3.5 w-3.5 text-white transition-transform group-open/nav-dash:rotate-180" />
           </summary>
-          
+
           <div className="flex flex-col gap-1.5 p-2 bg-slate-50/50 border-t border-red-100">
             <Link
               href="/dashboard?view=monitoring"
@@ -387,25 +388,19 @@ export default function DashboardNavigation({
 
               <div className="space-y-4">
                 <p className="text-slate-600 text-sm leading-relaxed">
-                  Seluruh transaksi Penawaran Final Kontraktor kini telah dipindahkan ke aplikasi <strong>BNM</strong>. Untuk revisi Penawaran/RAB silahkan akses melalui notifikasi.
+                  Seluruh transaksi pembuatan dan pengajuan Penawaran Final Kontraktor kini telah dialihkan ke aplikasi <strong>BNM</strong>.
                 </p>
 
-                <div className="rounded-xl border border-red-100 bg-red-50/50 p-4">
-                  <p className="text-xs font-semibold text-red-900 uppercase tracking-wider mb-3">Jadwal Sosialisasi & Panduan</p>
-
-                  <div className="flex items-center gap-4 bg-white rounded-lg p-3 shadow-sm border border-red-100">
-                    <div className="flex flex-col items-center justify-center bg-red-600 rounded-md text-white min-w-[52px] py-1.5 px-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider opacity-90">Sep</span>
-                      <span className="text-xl font-black leading-none my-0.5">30</span>
-                      <span className="text-[9px] font-medium opacity-80">2026</span>
+                <div className="rounded-xl border border-red-100 bg-red-50/60 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 mt-0.5">
+                      <Bell className="h-4 w-4" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 text-slate-900 font-bold text-sm">
-                        <span>Rabu</span>
-                        <span className="w-1 h-1 rounded-full bg-slate-300" />
-                        <span>13.30 WIB</span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1 font-medium">Link meeting akan diinformasikan lebih lanjut</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-red-900 uppercase tracking-wider">Akses Revisi Penawaran</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        Untuk proses revisi Penawaran/RAB yang sudah berjalan, silakan akses langsung melalui <strong>Lonceng Notifikasi</strong> di bagian atas.
+                      </p>
                     </div>
                   </div>
                 </div>
