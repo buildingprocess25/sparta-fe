@@ -16,14 +16,20 @@ import {
   Package,
   Trash2,
   Coins,
+  Clock,
+  Building2,
+  User,
 } from 'lucide-react';
 import {
   PengajuanHargaItem,
   ApprovalLog,
+  VotingKontraktorItem,
 } from '@/components/pengajuan-harga/types';
 import {
   getStoredPengajuan,
   saveStoredPengajuan,
+  submitVoteKontraktor,
+  DAFTAR_KONTRAKTOR_REKANAN_DEFAULT,
 } from '@/components/pengajuan-harga/store';
 import { DetailSpesifikasi } from '@/components/pengajuan-harga/DetailSpesifikasi';
 import { PengajuanTimelineBar } from '@/components/pengajuan-harga/PengajuanTimelineBar';
@@ -39,6 +45,9 @@ export default function KontraktorReviewPage() {
   const [item, setItem] = useState<PengajuanHargaItem | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Akun Rekanan Kontraktor yang Sedang Aktif (Simulasi Multi-Rekanan)
+  const [selectedKontraktorId, setSelectedKontraktorId] = useState<string>('kontraktor-1');
+
   // State Review / Keputusan
   const [activeAction, setActiveAction] = useState<'SEPAKATI' | 'TOLAK' | null>(null);
   const [catatan, setCatatan] = useState('');
@@ -46,6 +55,10 @@ export default function KontraktorReviewPage() {
   const [usulanHarga, setUsulanHarga] = useState<string>('');
   const [usulanHargaError, setUsulanHargaError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Countdown timer batas waktu konfirmasi 3x24 jam
+  const [sisaWaktuText, setSisaWaktuText] = useState<string>('3x24 Jam');
+  const [isExpired, setIsExpired] = useState<boolean>(false);
 
   const formatRupiah = (val?: number) => {
     if (!val || isNaN(val)) return 'Rp 0';
@@ -144,13 +157,100 @@ export default function KontraktorReviewPage() {
 
   const hargaPenawaranAkhir = ringkasanHarga.totalAkhir;
 
-  // Aturan SPARTA: Kontraktor hanya bisa sekali menolak harga (1x kesempatan negosiasi)
-  const hasRejectedOnce = React.useMemo(() => {
-    if (!item) return false;
-    return (item.historyLog || []).some(
-      (log) => log.role === 'Kontraktor' && log.action === 'REJECT'
+  // 1. Cek apakah pengajuan ini berada di Putaran 2 (S&B Specialist telah merespon/menyesuaikan margin setelah ada usulan kontraktor)
+  const isPutaran2 = React.useMemo(() => {
+    if (!item?.historyLog?.length) return false;
+    let adaKontraktorReject = false;
+    for (const log of item.historyLog) {
+      if (log.role === 'Kontraktor' && log.action === 'REJECT') {
+        adaKontraktorReject = true;
+      }
+      if (
+        adaKontraktorReject &&
+        log.role === 'S&B Specialist' &&
+        (log.action === 'MASTERING' ||
+          log.action === 'APPROVE' ||
+          log.catatan?.toLowerCase().includes('penyesuaian') ||
+          log.catatan?.toLowerCase().includes('negosiasi'))
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }, [item?.historyLog]);
+
+  // Daftar 3 Rekanan Kontraktor (Dari votingKontraktor di item atau default)
+  const daftarRekanan = React.useMemo(() => {
+    if (item?.votingKontraktor?.daftarKontraktor?.length) {
+      return item.votingKontraktor.daftarKontraktor;
+    }
+    return DAFTAR_KONTRAKTOR_REKANAN_DEFAULT.map((k) => ({
+      ...k,
+      statusVote: 'MENUNGGU' as const,
+    }));
+  }, [item?.votingKontraktor]);
+
+  // Rekanan yang Sedang Aktif
+  const activeRekanan = React.useMemo(() => {
+    return (
+      daftarRekanan.find((k) => k.kontraktorId === selectedKontraktorId) ||
+      daftarRekanan[0]
     );
-  }, [item]);
+  }, [daftarRekanan, selectedKontraktorId]);
+
+  // Status Vote Akun Aktif
+  const hasActiveRekananVoted =
+    activeRekanan.statusVote === 'SETUJU' || activeRekanan.statusVote === 'TOLAK';
+
+  // 2. Batas kesempatan pengajuan usulan harga baru (1x) untuk rekanan aktif
+  // ATURAN SPARTA:
+  // - Di Putaran 1 (sebelum ada revisi harga dari S&B), rekanan yang BELUM merespon memiliki hak penuh mengajukan usulan harga baru (batas belum terhitung).
+  // - Batas 1x kesempatan HANYA terhitung habis jika item sudah memasuki Putaran 2 (hasil penyesuaian S&B setelah negosiasi).
+  const activeRekananRejectedOnce = React.useMemo(() => {
+    if (!isPutaran2) return false;
+    return Boolean(
+      activeRekanan.hasRejectedOnce ||
+      (item?.historyLog || []).some(
+        (log) =>
+          log.role === 'Kontraktor' &&
+          log.action === 'REJECT' &&
+          log.catatan?.includes(activeRekanan.namaPerusahaan)
+      ) ||
+      isPutaran2
+    );
+  }, [isPutaran2, activeRekanan, item?.historyLog]);
+
+  // Alias hasRejectedOnce agar merujuk ke status spesifik rekanan aktif (bukan sembarang rekanan global)
+  const hasRejectedOnce = activeRekananRejectedOnce;
+
+  // Countdown timer batas waktu konfirmasi 3x24 jam
+  useEffect(() => {
+    const deadlineStr = item?.votingKontraktor?.deadlineVoting;
+    if (!deadlineStr) {
+      setSisaWaktuText('3x24 Jam (72 Jam)');
+      return;
+    }
+
+    const hitungSisa = () => {
+      const now = new Date().getTime();
+      const deadline = new Date(deadlineStr).getTime();
+      const diff = deadline - now;
+
+      if (diff <= 0) {
+        setSisaWaktuText('Batas Waktu Berakhir (72 Jam)');
+        setIsExpired(true);
+      } else {
+        const jam = Math.floor(diff / (1000 * 60 * 60));
+        const menit = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setSisaWaktuText(`${jam} Jam ${menit} Menit Tersisa`);
+        setIsExpired(false);
+      }
+    };
+
+    hitungSisa();
+    const interval = setInterval(hitungSisa, 60000);
+    return () => clearInterval(interval);
+  }, [item?.votingKontraktor?.deadlineVoting]);
 
   const usulanMargin = React.useMemo(() => {
     if (!usulanHarga || !totalHargaDasar) return 0;
@@ -162,14 +262,14 @@ export default function KontraktorReviewPage() {
   const handleSubmit = () => {
     if (!item) return;
     if (activeAction === 'TOLAK') {
-      if (!hasRejectedOnce) {
+      if (!activeRekananRejectedOnce) {
         // Putaran 1: Nego (wajib usulan harga dan alasan)
         if (!usulanHarga || Number(usulanHarga) <= 0) {
           setUsulanHargaError('Usulan Harga wajib diisi dengan valid.');
           return;
         }
         if (!catatan.trim()) { 
-          setCatatanError('Catatan / Alasan tolak wajib diisi.'); 
+          setCatatanError('Catatan / Alasan usulan harga wajib diisi.'); 
           return; 
         }
       } else {
@@ -182,67 +282,46 @@ export default function KontraktorReviewPage() {
     }
 
     setIsSubmitting(true);
-    const updated = getStoredPengajuan().map((i) => {
-      if (i.id === item.id) {
-        const isReject = activeAction === 'TOLAK';
-        // Putaran 1: status USULAN_KONTRAKTOR (bisa dinego lagi oleh S&B)
-        // Putaran 2: status DITOLAK_KONTRAKTOR (penolakan final & lepas proyek)
-        let finalStatus: PengajuanHargaItem['status'] = 'RELEASED';
-        if (isReject) {
-          finalStatus = hasRejectedOnce ? 'DITOLAK_KONTRAKTOR' : 'USULAN_KONTRAKTOR';
-        }
-        const logAction = (isReject ? 'REJECT' : 'APPROVE') as ApprovalLog['action'];
-        const finalCatatan = isReject 
-          ? (hasRejectedOnce
-              ? `Penolakan final oleh Kontraktor (keluar dari proyek): ${catatan.trim()}`
-              : catatan.trim())
-          : (catatan.trim() || 'Harga disepakati oleh Kontraktor (Layer 4). Harga resmi dirilis.');
-
-        return {
-          ...i,
-          status: finalStatus,
-          usulanHargaKontraktor: isReject && !hasRejectedOnce ? Number(usulanHarga) : i.usulanHargaKontraktor,
-          usulanMarginKontraktor: isReject && !hasRejectedOnce ? usulanMargin : i.usulanMarginKontraktor,
-          historyLog: [
-            ...(i.historyLog || []),
-            {
-              role: 'Kontraktor' as const,
-              action: logAction,
-              tanggal: new Date().toISOString().slice(0, 16).replace('T', ' '),
-              catatan: finalCatatan,
-            },
-          ],
-        };
-      }
-      return i;
+    const updated = submitVoteKontraktor(item.id, activeRekanan.kontraktorId, {
+      action: activeAction === 'SEPAKATI' ? 'SETUJU' : 'TOLAK',
+      usulanHarga: Number(usulanHarga),
+      usulanMargin,
+      catatan,
     });
 
-    saveStoredPengajuan(updated);
-    
-    if (activeAction === 'TOLAK') {
-      if (hasRejectedOnce) {
+    if (updated) {
+      setItem(updated);
+      setIsSubmitting(false);
+
+      if (updated.status === 'RELEASED') {
         showAlert({ 
-          title: 'Penolakan Final Berhasil', 
-          message: 'Harga ditolak secara final. Status pengajuan diperbarui menjadi Ditolak.', 
+          title: 'Kuorum 50%+1 Terpenuhi!', 
+          message: `Penawaran harga resmi disepakati dan dirilis ke Master Harga. Terima kasih atas partisipasi ${activeRekanan.namaPerusahaan}.`, 
+          type: 'success' 
+        });
+      } else if (updated.status === 'USULAN_KONTRAKTOR') {
+        showAlert({ 
+          title: 'Usulan Harga Terkirim', 
+          message: `Usulan harga dari ${activeRekanan.namaPerusahaan} telah diteruskan ke tim S&B Specialist.`, 
           type: 'warning' 
         });
       } else {
         showAlert({ 
-          title: 'Usulan Terkirim', 
-          message: 'Harga ditolak dan usulan harga baru telah diteruskan ke S&B Specialist.', 
-          type: 'warning' 
+          title: 'Persetujuan Berhasil Dicatat', 
+          message: `Persetujuan dari ${activeRekanan.namaPerusahaan} telah dicatat. Menunggu konfirmasi rekanan lainnya.`, 
+          type: 'success' 
         });
       }
+      router.push('/pengajuan-harga/kontraktor');
     } else {
-      showAlert({ title: 'Berhasil', message: 'Harga satuan berhasil disepakati.', type: 'success' });
+      setIsSubmitting(false);
     }
-    router.push('/pengajuan-harga/kontraktor');
   };
 
   if (loading) return <div className="min-h-screen flex justify-center items-center">Memuat...</div>;
   if (!item) return <div className="min-h-screen flex justify-center items-center">Data tidak ditemukan</div>;
 
-  const isPending = item.status === 'PENDING_KONTRAKTOR';
+  const isPending = item.status === 'PENDING_KONTRAKTOR' || item.status === 'USULAN_KONTRAKTOR';
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
@@ -250,6 +329,89 @@ export default function KontraktorReviewPage() {
 
       <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-5">
         <PengajuanTimelineBar item={item} />
+
+        {/* PANEL SWITCHER AKUN REKANAN & SLA BATAS WAKTU (SIMULASI DEMO KONTRAKTOR) */}
+        <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-2xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+                <Building2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-800">
+                  Simulasi Akun Rekanan Kontraktor (Demo SPARTA)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Pilih entitas rekanan untuk menguji voting suara (Kuorum 50% + 1)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
+              <Clock className={`w-3.5 h-3.5 ${isExpired ? 'text-rose-500' : 'text-amber-600'}`} />
+              <div className="text-right">
+                <span className="text-[9px] text-slate-400 block font-medium leading-none">Batas Konfirmasi (3x24 Jam)</span>
+                <span className={`text-xs font-bold font-mono ${isExpired ? 'text-rose-600' : 'text-slate-700'}`}>
+                  {sisaWaktuText}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Switcher 3 Rekanan */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {daftarRekanan.map((k) => {
+              const isSelected = selectedKontraktorId === k.kontraktorId;
+              const hasVoted = k.statusVote === 'SETUJU' || k.statusVote === 'TOLAK';
+
+              return (
+                <button
+                  key={k.kontraktorId}
+                  type="button"
+                  onClick={() => {
+                    setSelectedKontraktorId(k.kontraktorId);
+                    setActiveAction(null);
+                    setUsulanHarga('');
+                    setCatatan('');
+                    setUsulanHargaError('');
+                    setCatatanError('');
+                  }}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    isSelected
+                      ? 'bg-blue-50/80 border-blue-500 shadow-xs ring-1 ring-blue-400'
+                      : 'bg-white border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Rekanan {k.kontraktorId.replace('kontraktor-', '#')}
+                    </span>
+                    {k.statusVote === 'SETUJU' ? (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                        <CheckCircle2 className="w-2.5 h-2.5" /> Setuju
+                      </span>
+                    ) : k.statusVote === 'TOLAK' ? (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800">
+                        <RotateCcw className="w-2.5 h-2.5" /> Usulan
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-slate-100 text-slate-600">
+                        Belum Respon
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-bold text-xs text-slate-800 truncate" title={k.namaPerusahaan}>
+                    {k.namaPerusahaan}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    PIC: {k.picName}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <DetailSpesifikasi item={item} showDeskripsi={true} />
         
 
@@ -259,11 +421,8 @@ export default function KontraktorReviewPage() {
             <div>
               <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                 <Coins className="w-4 h-4 text-blue-600" />
-                Ringkasan Penawaran Harga Satuan
+                Ringkasan Harga Satuan
               </h2>
-              <p className="text-xs text-slate-500">
-                Nilai penawaran per satuan pekerjaan 
-              </p>
             </div>
           </div>
 
@@ -337,7 +496,45 @@ export default function KontraktorReviewPage() {
           </div>
         </div>
 
-        {/* Banner Jika Status DITOLAK_KONTRAKTOR */}
+        {/* Banner Jika Akun Ini Sudah Memberikan Respon */}
+        {hasActiveRekananVoted && (
+          <div className={`rounded-2xl p-4.5 border flex items-start gap-3 shadow-2xs ${
+            activeRekanan.statusVote === 'SETUJU'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-amber-50 border-amber-200 text-amber-900'
+          }`}>
+            <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${
+              activeRekanan.statusVote === 'SETUJU'
+                ? 'bg-emerald-100 border-emerald-200 text-emerald-700'
+                : 'bg-amber-100 border-amber-200 text-amber-700'
+            }`}>
+              {activeRekanan.statusVote === 'SETUJU' ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <RotateCcw className="w-4 h-4" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold">
+                {activeRekanan.statusVote === 'SETUJU'
+                  ? `Persetujuan Tercatat (${activeRekanan.namaPerusahaan})`
+                  : `Usulan Harga Tercatat (${activeRekanan.namaPerusahaan})`}
+              </h3>
+              <p className="text-xs leading-relaxed">
+                {activeRekanan.statusVote === 'SETUJU'
+                  ? `Perusahaan Anda telah menyetujui penawaran harga satuan ini pada ${activeRekanan.tanggalRespon || 'baru saja'}. Respon Anda telah tersimpan secara resmi.`
+                  : `Perusahaan Anda telah mengajukan usulan penyesuaian harga sebesar ${formatRupiah(activeRekanan.usulanHarga)} (Margin: ${activeRekanan.usulanMargin}%) pada ${activeRekanan.tanggalRespon || 'baru saja'}. Usulan sedang ditinjau oleh tim S&B Specialist.`}
+              </p>
+              {activeRekanan.catatan && (
+                <p className="text-xs italic bg-white/70 p-2.5 rounded-lg border border-current/20 mt-1">
+                  &ldquo;{activeRekanan.catatan}&rdquo;
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Banner Jika Status DITOLAK_KONTRAKTOR Final */}
         {item.status === 'DITOLAK_KONTRAKTOR' && (
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
             <div className="w-8 h-8 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
@@ -352,9 +549,9 @@ export default function KontraktorReviewPage() {
           </div>
         )}
 
-        {isPending && (
+        {isPending && !hasActiveRekananVoted && (
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-5">
-            {hasRejectedOnce && (
+            {activeRekananRejectedOnce && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div className="text-sm font-semibold text-amber-900 leading-relaxed">
@@ -365,7 +562,7 @@ export default function KontraktorReviewPage() {
 
             <div className="space-y-3">
               <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                Keputusan Kontraktor
+                Keputusan dari {activeRekanan.namaPerusahaan}
               </label>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
@@ -401,7 +598,7 @@ export default function KontraktorReviewPage() {
                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${activeAction === 'TOLAK' ? 'border-rose-600' : 'border-slate-300'}`}>
                     {activeAction === 'TOLAK' && <div className="w-2 h-2 rounded-full bg-rose-600" />}
                   </div>
-                  {hasRejectedOnce ? 'Tolak Harga' : 'Ajukan Harga Baru'}
+                  {activeRekananRejectedOnce ? 'Tolak Harga' : 'Ajukan Harga Baru'}
                 </Button>
               </div>
             </div>
@@ -487,7 +684,7 @@ export default function KontraktorReviewPage() {
                 >
                   {activeAction === 'TOLAK' ? <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
                   {activeAction === 'TOLAK' 
-                    ? (hasRejectedOnce ? 'Konfirmasi Tolak' : 'Kirim Usulan') 
+                    ? (activeRekananRejectedOnce ? 'Konfirmasi Tolak' : 'Kirim Usulan') 
                     : 'Konfirmasi'}
                 </Button>
               )}

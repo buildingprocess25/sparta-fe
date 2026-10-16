@@ -9,7 +9,49 @@ import {
   TrialHargaItem,
   MasterTokoItem,
   HargaCabangItem,
+  VotingKontraktorItem,
+  VotingKontraktorState,
 } from './types';
+
+// Daftar 3 Rekanan Kontraktor Default untuk Kuorum Voting (50% + 1)
+export const DAFTAR_KONTRAKTOR_REKANAN_DEFAULT: Omit<VotingKontraktorItem, 'statusVote'>[] = [
+  {
+    kontraktorId: 'kontraktor-1',
+    namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+    picName: 'Ir. Budi Santoso',
+  },
+  {
+    kontraktorId: 'kontraktor-2',
+    namaPerusahaan: 'PT Sinar Surya Perkasa',
+    picName: 'Hendra Wijaya',
+  },
+  {
+    kontraktorId: 'kontraktor-3',
+    namaPerusahaan: 'CV Graha Cipta Sarana',
+    picName: 'Agus Setiawan',
+  },
+];
+
+export function makeInitialVotingKontraktor(
+  tanggalApprovalRM?: string,
+  existingVoting?: VotingKontraktorState
+): VotingKontraktorState {
+  if (existingVoting && existingVoting.daftarKontraktor?.length > 0) {
+    return existingVoting;
+  }
+
+  // Batas waktu: 3 x 24 jam (72 jam)
+  const baseDate = tanggalApprovalRM ? new Date(tanggalApprovalRM) : new Date();
+  const deadline = new Date(baseDate.getTime() + 72 * 60 * 60 * 1000);
+
+  return {
+    deadlineVoting: deadline.toISOString(),
+    daftarKontraktor: DAFTAR_KONTRAKTOR_REKANAN_DEFAULT.map((k) => ({
+      ...k,
+      statusVote: 'MENUNGGU',
+    })),
+  };
+}
 
 const STORAGE_KEYS = {
   REQUEST_PENETAPAN: 'sparta_request_penetapan_v1',
@@ -978,6 +1020,7 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     hargaRataRata: 4500000,
     satuan: 'unit',
     status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
     tanggalPengajuan: '2026-10-01',
     marginUpah: 8,
     marginMaterial: 8,
@@ -1035,6 +1078,29 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
         catatan: 'Disetujui. Menunggu konfirmasi kesanggupan harga dari Kontraktor.',
       }
     ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T10:00:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
   },
   {
     id: 'item-kontraktor-2',
@@ -1057,6 +1123,7 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     hargaRataRata: 450000,
     satuan: 'pasang',
     status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
     tanggalPengajuan: '2026-10-01',
     marginUpah: 8,
     marginMaterial: 8,
@@ -1113,6 +1180,29 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
         catatan: 'Disetujui untuk di-publish ke Kontraktor.',
       }
     ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T10:05:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
   },
   {
     id: 'item-kontraktor-3',
@@ -1135,6 +1225,7 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     hargaRataRata: 500000,
     satuan: 'unit',
     status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
     tanggalPengajuan: '2026-10-03',
     marginUpah: 8,
     marginMaterial: 8,
@@ -1191,6 +1282,29 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
         catatan: 'Ok.',
       }
     ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T14:00:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
   },
   {
     id: 'item-kontraktor-4',
@@ -1213,6 +1327,7 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
     hargaRataRata: 850000,
     satuan: 'roll',
     status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
     tanggalPengajuan: '2026-10-05',
     marginUpah: 8,
     marginMaterial: 8,
@@ -1269,6 +1384,881 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
         catatan: 'Diteruskan ke Kontraktor.',
       }
     ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T09:15:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-5',
+    kode: 'SIP-029',
+    kodeMaster: 'SIP-029-A-KlosetDuduk',
+    item: 'Kloset Duduk Eco-Washer',
+    ukuran: 'Rough-in 500mm',
+    merk: 'TOTO',
+    warna: 'Putih',
+    tipe: 'CW421J / TC505SW',
+    tebal: '',
+    permukaan: 'Vitreous China Glazed',
+    kategori: 'Pekerjaan Plumbing & Sanitasi',
+    implementasi: 'Sanitasi Toilet Gerai',
+    lokasi: 'Area Toilet Pelanggan & Karyawan',
+    toleransi: '±5mm',
+    informasiTambahan: 'Dilengkapi Eco-Washer dan dual flush hemat air',
+    deskripsiOtomatis: 'Kloset Duduk Eco-Washer Rough-in 500mm TOTO Putih CW421J / TC505SW Area Toilet Pelanggan & Karyawan (Sanitasi Toilet Gerai)',
+    estimasiHarga: 2806500,
+    hargaRataRata: 2806500,
+    satuan: 'unit',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
+    tanggalPengajuan: '2026-10-07',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Mitra 10 Cikokol',
+        alamatToko: 'Jl. MH Thamrin No. 8, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 2400000,
+        tanggalSurvei: '2026-10-07',
+        catatan: 'Paket komplit unit kloset dan tutup soft-close',
+      },
+      {
+        namaToko: 'Depo Bangunan Alam Sutera',
+        alamatToko: 'Kav. Commercial Alam Sutera',
+        volumeAcuan: 1,
+        hargaSatuan: 2450000,
+        tanggalSurvei: '2026-10-07',
+        catatan: 'Original TOTO garansi resmi mekanikal 5 tahun',
+      },
+      {
+        namaToko: 'BJ Home Serpong',
+        alamatToko: 'Jl. Pahlawan Seribu Blok S, BSD',
+        volumeAcuan: 1,
+        hargaSatuan: 2500000,
+        tanggalSurvei: '2026-10-07',
+        catatan: 'Ready stock 15 unit di toko',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Pipa', value: '0.8', unit: 'Oh', hargaAcuan: 155000, subtotal: 124000 },
+      { id: 'u-2', label: 'Pekerja', value: '0.5', unit: 'Oh', hargaAcuan: 125000, subtotal: 62500 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Kloset Duduk TOTO CW421J',
+        value: '1',
+        unit: 'Unit',
+        hargaAcuan: 2450000,
+        hargaSurveiRataRata: 2450000,
+        subtotal: 2450000,
+        surveyToko: [
+          { namaToko: 'Mitra 10 Cikokol', hargaSatuan: 2400000, volumeAcuan: 1, tanggalSurvei: '2026-10-07' },
+          { namaToko: 'Depo Bangunan Alam Sutera', hargaSatuan: 2450000, volumeAcuan: 1, tanggalSurvei: '2026-10-07' },
+          { namaToko: 'BJ Home Serpong', hargaSatuan: 2500000, volumeAcuan: 1, tanggalSurvei: '2026-10-07' },
+        ],
+      },
+      { id: 'm-2', label: 'Stop Kran & Fleksibel TOTO', value: '1', unit: 'Set', hargaAcuan: 125000, subtotal: 125000 },
+      { id: 'm-3', label: 'Seal Gasket Anti-Bocor', value: '1', unit: 'Pcs', hargaAcuan: 45000, subtotal: 45000 },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-07 14:00',
+        catatan: 'Disetujui. Silakan diajukan ke kontraktor rekanan cabang Cikokol.',
+      }
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T14:00:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-6',
+    kode: 'SIP-030',
+    kodeMaster: 'SIP-030-A-LampuBatten36W',
+    item: 'Lampu LED Batten Seamless 36W',
+    ukuran: '120 cm',
+    merk: 'Philips',
+    warna: 'Cool Daylight 6500K',
+    tipe: 'BN126C CoreLine',
+    tebal: 'Slim Batten',
+    permukaan: 'Opal Polycarbonate',
+    kategori: 'Pekerjaan Elektrikal',
+    implementasi: 'Penerangan Sales Area',
+    lokasi: 'Area Sales Utama',
+    toleransi: 'Luminous Flux 3600 lm',
+    informasiTambahan: 'Konektor trunking continuous row tanpa bayangan antar lampu',
+    deskripsiOtomatis: 'Lampu LED Batten Seamless 36W 120 cm Philips Cool Daylight BN126C Area Sales Utama (Penerangan Sales Area)',
+    estimasiHarga: 189000,
+    hargaRataRata: 189000,
+    satuan: 'unit',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
+    tanggalPengajuan: '2026-10-07',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Plaza Kenari Mas Serpong',
+        alamatToko: 'Jl. Raya Serpong Km 7',
+        volumeAcuan: 1,
+        hargaSatuan: 160000,
+        tanggalSurvei: '2026-10-07',
+        catatan: 'Lampu LED komplit housing seamless trunking',
+      },
+      {
+        namaToko: 'Mitra 10 Tangerang',
+        alamatToko: 'Jl. MH Thamrin No. 8, Cikokol',
+        volumeAcuan: 1,
+        hargaSatuan: 165000,
+        tanggalSurvei: '2026-10-07',
+        catatan: 'Original Philips Lighting garansi resmi 2 tahun',
+      },
+      {
+        namaToko: 'Toko Terang Abadi BSD',
+        alamatToko: 'Ruko Golden Madrid Serpong',
+        volumeAcuan: 1,
+        hargaSatuan: 170000,
+        tanggalSurvei: '2026-10-07',
+        catatan: 'Ready stock 50 unit',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Listrik', value: '0.15', unit: 'Oh', hargaAcuan: 160000, subtotal: 240000 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Lampu Philips BN126C 36W',
+        value: '1',
+        unit: 'Unit',
+        hargaAcuan: 165000,
+        hargaSurveiRataRata: 165000,
+        subtotal: 165000,
+        surveyToko: [
+          { namaToko: 'Plaza Kenari Mas Serpong', hargaSatuan: 160000, volumeAcuan: 1, tanggalSurvei: '2026-10-07' },
+          { namaToko: 'Mitra 10 Tangerang', hargaSatuan: 165000, volumeAcuan: 1, tanggalSurvei: '2026-10-07' },
+          { namaToko: 'Toko Terang Abadi BSD', hargaSatuan: 170000, volumeAcuan: 1, tanggalSurvei: '2026-10-07' },
+        ],
+      },
+      { id: 'm-2', label: 'Klem Gantungan & Sekrup Fischer', value: '1', unit: 'Set', hargaAcuan: 12000, subtotal: 12000 },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-07 15:30',
+        catatan: 'Disetujui. Spesifikasi pencahayaan memenuhi standar 300 lux gerai.',
+      }
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T15:30:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-7',
+    kode: 'SIP-031',
+    kodeMaster: 'SIP-031-A-GypsumWR',
+    item: 'Plafon Gypsum Water Resistant 9mm',
+    ukuran: '120x240 cm',
+    merk: 'Jayaboard',
+    warna: 'Hijau (Water Resistant)',
+    tipe: 'Wetstop 9mm',
+    tebal: '9mm',
+    permukaan: 'Smooth Paper Faced',
+    kategori: 'Pekerjaan Plafon & Partisi',
+    implementasi: 'Plafon Tahan Lembap',
+    lokasi: 'Area Toilet & Gudang Belakang',
+    toleransi: '±0.2mm',
+    informasiTambahan: 'Rangka hollow galvalum 40x40 & 20x40 tebal 0.35mm',
+    deskripsiOtomatis: 'Plafon Gypsum Water Resistant 9mm 120x240 cm Jayaboard Hijau Wetstop 9mm Area Toilet & Gudang Belakang (Plafon Tahan Lembap)',
+    estimasiHarga: 95000,
+    hargaRataRata: 95000,
+    satuan: 'm2',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
+    tanggalPengajuan: '2026-10-08',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Depo Bangunan Alam Sutera',
+        alamatToko: 'Kav. Commercial Alam Sutera',
+        volumeAcuan: 1,
+        hargaSatuan: 92000,
+        tanggalSurvei: '2026-10-08',
+        catatan: 'Papan gypsum Jayaboard Wetstop tahan lembap',
+      },
+      {
+        namaToko: 'Mitra 10 Cikokol',
+        alamatToko: 'Jl. MH Thamrin No. 8, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 95000,
+        tanggalSurvei: '2026-10-08',
+        catatan: 'Harga satuan lembar standar proyek retail',
+      },
+      {
+        namaToko: 'BJ Home Serpong',
+        alamatToko: 'Jl. Pahlawan Seribu Blok S, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 98000,
+        tanggalSurvei: '2026-10-08',
+        catatan: 'Stok ready di gudang BSD',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Plafon', value: '0.20', unit: 'Oh', hargaAcuan: 175000, subtotal: 35000 },
+      { id: 'u-2', label: 'Pekerja', value: '0.10', unit: 'Oh', hargaAcuan: 125000, subtotal: 12500 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Gypsum Jayaboard Wetstop 9mm',
+        value: '0.364',
+        unit: 'Lbr',
+        hargaAcuan: 95000,
+        hargaSurveiRataRata: 95000,
+        subtotal: 34580,
+        surveyToko: [
+          { namaToko: 'Depo Bangunan Alam Sutera', hargaSatuan: 92000, volumeAcuan: 1, tanggalSurvei: '2026-10-08' },
+          { namaToko: 'Mitra 10 Cikokol', hargaSatuan: 95000, volumeAcuan: 1, tanggalSurvei: '2026-10-08' },
+          { namaToko: 'BJ Home Serpong', hargaSatuan: 98000, volumeAcuan: 1, tanggalSurvei: '2026-10-08' },
+        ],
+      },
+      { id: 'm-2', label: 'Rangka Hollow Galvalum 0.35', value: '3.5', unit: 'M', hargaAcuan: 8500, subtotal: 29750 },
+      { id: 'm-3', label: 'Cornice Compound & Paper Tape', value: '0.3', unit: 'Kg', hargaAcuan: 5000, subtotal: 1500 },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-08 09:00',
+        catatan: 'Disetujui untuk penggantian plafon area lembap.',
+      },
+      {
+        role: 'Kontraktor',
+        action: 'APPROVE',
+        tanggal: '2026-10-08 11:20',
+        catatan: 'PT Sinar Surya Perkasa: Harga material gypsum Jayaboard dan rangka hollow sesuai acuan proyek Alfamart.',
+      },
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T09:00:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'SETUJU',
+          tanggalRespon: '2026-10-08 11:20',
+          catatan: 'Harga material gypsum Jayaboard dan rangka hollow sesuai acuan proyek Alfamart.',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-8',
+    kode: 'SIP-032',
+    kodeMaster: 'SIP-032-A-ExhaustFan',
+    item: 'Exhaust Fan Dinding 12 Inch',
+    ukuran: '30 cm (12 Inch)',
+    merk: 'Panasonic',
+    warna: 'Putih Gading',
+    tipe: 'FV-30RUN5',
+    tebal: '',
+    permukaan: 'ABS Plastic High Impact',
+    kategori: 'Pekerjaan Mekanikal & Ventilasi',
+    implementasi: 'Sirkulasi Udara Ruang Belakang',
+    lokasi: 'Area Gudang & Back Office',
+    toleransi: 'Air Volume 1150 CMH',
+    informasiTambahan: 'Dilengkapi automatic shutter penutup belakang anti tikus/hujan',
+    deskripsiOtomatis: 'Exhaust Fan Dinding 12 Inch 30 cm Panasonic Putih FV-30RUN5 Area Gudang & Back Office (Sirkulasi Udara Ruang Belakang)',
+    estimasiHarga: 550000,
+    hargaRataRata: 550000,
+    satuan: 'unit',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
+    tanggalPengajuan: '2026-10-08',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Plaza Kenari Mas Serpong',
+        alamatToko: 'Jl. Raya Serpong Km 7',
+        volumeAcuan: 1,
+        hargaSatuan: 475000,
+        tanggalSurvei: '2026-10-08',
+        catatan: 'Original Panasonic motor heavy duty',
+      },
+      {
+        namaToko: 'Mitra 10 Cikokol',
+        alamatToko: 'Jl. MH Thamrin No. 8, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 485000,
+        tanggalSurvei: '2026-10-08',
+        catatan: 'Garansi resmi pabrik Panasonic 3 tahun motor',
+      },
+      {
+        namaToko: 'Toko Terang Abadi BSD',
+        alamatToko: 'Ruko Golden Madrid Serpong',
+        volumeAcuan: 1,
+        hargaSatuan: 495000,
+        tanggalSurvei: '2026-10-08',
+        catatan: 'Stok ready 8 unit',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Listrik', value: '0.30', unit: 'Oh', hargaAcuan: 160000, subtotal: 48000 },
+      { id: 'u-2', label: 'Pekerja', value: '0.15', unit: 'Oh', hargaAcuan: 125000, subtotal: 18750 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Exhaust Fan Panasonic FV-30RUN5',
+        value: '1',
+        unit: 'Unit',
+        hargaAcuan: 485000,
+        hargaSurveiRataRata: 485000,
+        subtotal: 485000,
+        surveyToko: [
+          { namaToko: 'Plaza Kenari Mas Serpong', hargaSatuan: 475000, volumeAcuan: 1, tanggalSurvei: '2026-10-08' },
+          { namaToko: 'Mitra 10 Cikokol', hargaSatuan: 485000, volumeAcuan: 1, tanggalSurvei: '2026-10-08' },
+          { namaToko: 'Toko Terang Abadi BSD', hargaSatuan: 495000, volumeAcuan: 1, tanggalSurvei: '2026-10-08' },
+        ],
+      },
+      { id: 'm-2', label: 'Stop Kontak Outbow Panasonic', value: '1', unit: 'Set', hargaAcuan: 38000, subtotal: 38000 },
+      { id: 'm-3', label: 'Kabel NYM 2x1.5mm & Steker', value: '3', unit: 'M', hargaAcuan: 9000, subtotal: 27000 },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-08 13:45',
+        catatan: 'Disetujui. Standar ventilasi gudang dan ruang panel.',
+      }
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T13:45:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-9',
+    kode: 'SIP-033',
+    kodeMaster: 'SIP-033-A-KeramikHeavyDuty',
+    item: 'Keramik Lantai Anti-Slip 40x40 cm',
+    ukuran: '40x40 cm',
+    merk: 'Roman',
+    warna: 'Dark Grey',
+    tipe: 'dCastello G440803',
+    tebal: '9.5mm',
+    permukaan: 'Struktur Kasar Matt Anti-Slip',
+    kategori: 'Pekerjaan Keramik',
+    implementasi: 'Lantai Luar & Teras',
+    lokasi: 'Area Teras Depan & Selasar Toko',
+    toleransi: '±0.2mm',
+    informasiTambahan: 'Standar ketahanan beban traffic tinggi & tidak licin saat hujan',
+    deskripsiOtomatis: 'Keramik Lantai Anti-Slip 40x40 cm Roman Dark Grey dCastello G440803 Area Teras Depan & Selasar Toko (Lantai Luar & Teras)',
+    estimasiHarga: 135000,
+    hargaRataRata: 135000,
+    satuan: 'm2',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
+    tanggalPengajuan: '2026-10-09',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Mitra 10 Cikokol',
+        alamatToko: 'Jl. MH Thamrin No. 8, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 132000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Keramik Roman kw 1 motif batu alam matt',
+      },
+      {
+        namaToko: 'Depo Bangunan Alam Sutera',
+        alamatToko: 'Kav. Commercial Alam Sutera',
+        volumeAcuan: 1,
+        hargaSatuan: 135000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Ready stock 120 dus',
+      },
+      {
+        namaToko: 'BJ Home Serpong',
+        alamatToko: 'Jl. Pahlawan Seribu Blok S, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 138000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Kemasan original dos per meter persegi',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Keramik', value: '0.35', unit: 'Oh', hargaAcuan: 175000, subtotal: 61250 },
+      { id: 'u-2', label: 'Pekerja', value: '0.20', unit: 'Oh', hargaAcuan: 125000, subtotal: 25000 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Keramik Roman 40x40 dCastello',
+        value: '1.05',
+        unit: 'Dus',
+        hargaAcuan: 135000,
+        hargaSurveiRataRata: 135000,
+        subtotal: 141750,
+        surveyToko: [
+          { namaToko: 'Mitra 10 Cikokol', hargaSatuan: 132000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'Depo Bangunan Alam Sutera', hargaSatuan: 135000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'BJ Home Serpong', hargaSatuan: 138000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+        ],
+      },
+      { id: 'm-2', label: 'Semen Instan Tile Adhesive', value: '0.12', unit: 'Sak', hargaAcuan: 95000, subtotal: 11400 },
+      { id: 'm-3', label: 'Semen Grout AM 53', value: '0.5', unit: 'Kg', hargaAcuan: 18000, subtotal: 9000 },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-09 10:00',
+        catatan: 'Disetujui. Standar keramik teras anti licin.',
+      },
+      {
+        role: 'Kontraktor',
+        action: 'REJECT',
+        tanggal: '2026-10-09 13:40',
+        catatan: 'CV Graha Cipta Sarana: Area teras luar rawan tampias hujan sehingga memerlukan aditif semen tile adhesive ekstra tahan basah dan upah kemiringan air lebih cermat. Usulan Rp 155.000/m2.',
+      },
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T10:00:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'TOLAK',
+          usulanHarga: 155000,
+          usulanMargin: 17.5,
+          tanggalRespon: '2026-10-09 13:40',
+          catatan: 'Area teras luar rawan tampias hujan sehingga memerlukan aditif semen tile adhesive ekstra tahan basah dan upah kemiringan air lebih cermat. Usulan Rp 155.000/m2.',
+          hasRejectedOnce: true,
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-10',
+    kode: 'SIP-034',
+    kodeMaster: 'SIP-034-A-RollingDoor',
+    item: 'Rolling Door One Sheet Full Perforated',
+    ukuran: 'Lebar 300 x Tinggi 280 cm',
+    merk: 'Sanjaya Door',
+    warna: 'Putih Powder Coating',
+    tipe: 'One Sheet 0.55mm',
+    tebal: '0.55mm',
+    permukaan: 'Powder Coated Full Perforated',
+    kategori: 'Pekerjaan Pintu & Pengaman',
+    implementasi: 'Pengaman Toko Malam Hari',
+    lokasi: 'Area Fasad Depan Gerai',
+    toleransi: '±2mm',
+    informasiTambahan: 'Lengkap dengan box gulung, rel samping peredam suara nylon, dan kunci silinder double',
+    deskripsiOtomatis: 'Rolling Door One Sheet Full Perforated 300x280 cm Sanjaya Putih One Sheet 0.55mm Area Fasad Depan Gerai (Pengaman Toko Malam Hari)',
+    estimasiHarga: 5800000,
+    hargaRataRata: 5800000,
+    satuan: 'unit',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Cikokol',
+    tanggalPengajuan: '2026-10-09',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Sentral Pintu Tangerang',
+        alamatToko: 'Jl. Daan Mogot Km 22, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 5700000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'One sheet tebal 0.55mm anti karat',
+      },
+      {
+        namaToko: 'Mitra Rolling Door BSD',
+        alamatToko: 'Kawasan Industri Taman Tekno BSD',
+        volumeAcuan: 1,
+        hargaSatuan: 5800000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Lengkap komponen rel nylon silent dan spring baja',
+      },
+      {
+        namaToko: 'Aneka Door Serpong',
+        alamatToko: 'Jl. Raya Serpong No. 88, Tangerang',
+        volumeAcuan: 1,
+        hargaSatuan: 5900000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Garansi pemasangan & kelancaran gulungan 1 tahun',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Besi Khusus', value: '2.0', unit: 'Oh', hargaAcuan: 180000, subtotal: 360000 },
+      { id: 'u-2', label: 'Pekerja', value: '1.0', unit: 'Oh', hargaAcuan: 125000, subtotal: 125000 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Daun Rolling Door Perforated 300x280',
+        value: '1',
+        unit: 'Unit',
+        hargaAcuan: 4600000,
+        hargaSurveiRataRata: 4600000,
+        subtotal: 4600000,
+        surveyToko: [
+          { namaToko: 'Sentral Pintu Tangerang', hargaSatuan: 4500000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'Mitra Rolling Door BSD', hargaSatuan: 4600000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'Aneka Door Serpong', hargaSatuan: 4700000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+        ],
+      },
+      { id: 'm-2', label: 'Rel Guide Rail + Karet Peredam', value: '2', unit: 'Btg', hargaAcuan: 350000, subtotal: 700000 },
+      { id: 'm-3', label: 'Spring Box Gulung & Dudukan As', value: '1', unit: 'Set', hargaAcuan: 500000, subtotal: 500000 },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-09 11:30',
+        catatan: 'Disetujui. Standarisasi keamanan pintu toko malam hari.',
+      }
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T11:30:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-11',
+    kode: 'SIP-035',
+    kodeMaster: 'SIP-035-A-CatWeathershield',
+    item: 'Cat Dinding Eksterior Weathershield',
+    ukuran: 'Pail 20 Liter',
+    merk: 'Dulux',
+    warna: 'Brilliant White',
+    tipe: 'Weathershield Powerflex',
+    tebal: '',
+    permukaan: 'Matt Sheen',
+    kategori: 'Pekerjaan Pengecatan',
+    implementasi: 'Dinding Luar Fasad Toko',
+    lokasi: 'Area Fasad Eksterior',
+    toleransi: '',
+    informasiTambahan: 'Tahan cuaca ekstrem, anti lumut & jamur garansi 8 tahun',
+    deskripsiOtomatis: 'Cat Dinding Eksterior Weathershield Pail 20 Liter Dulux Brilliant White Weathershield Powerflex Area Fasad Eksterior (Dinding Luar Fasad Toko)',
+    estimasiHarga: 2350000,
+    hargaRataRata: 2350000,
+    satuan: 'pail',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Balaraja',
+    tanggalPengajuan: '2026-10-09',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Mitra 10 Balaraja',
+        alamatToko: 'Jl. Raya Serang Km 24, Balaraja',
+        volumeAcuan: 1,
+        hargaSatuan: 2320000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Ready stock batch baru',
+      },
+      {
+        namaToko: 'Depo Bangunan Cikupa',
+        alamatToko: 'Jl. Raya Pemda Tigaraksa, Cikupa',
+        volumeAcuan: 1,
+        hargaSatuan: 2350000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Kemasan original pail 20L',
+      },
+      {
+        namaToko: 'TB Makmur Balaraja',
+        alamatToko: 'Pasar Sentiong Balaraja',
+        volumeAcuan: 1,
+        hargaSatuan: 2380000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Stok tersedia 15 pail',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Cat', value: '1.5', unit: 'Oh', hargaAcuan: 200000, subtotal: 300000 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Cat Dulux Weathershield 20L',
+        value: '1',
+        unit: 'Pail',
+        hargaAcuan: 2350000,
+        hargaSurveiRataRata: 2350000,
+        subtotal: 2350000,
+        surveyToko: [
+          { namaToko: 'Mitra 10 Balaraja', hargaSatuan: 2320000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'Depo Bangunan Cikupa', hargaSatuan: 2350000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'TB Makmur Balaraja', hargaSatuan: 2380000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+        ],
+      },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-09 14:00',
+        catatan: 'Disetujui. Standar cat eksterior cabang Balaraja.',
+      }
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T14:00:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
+  },
+  {
+    id: 'item-kontraktor-12',
+    kode: 'SIP-036',
+    kodeMaster: 'SIP-036-A-KacaMati10mm',
+    item: 'Kaca Mati Tempered 10mm Clear Fasad',
+    ukuran: '150x240 cm',
+    merk: 'Asahimas',
+    warna: 'Clear Transparan',
+    tipe: 'Tempered 10mm',
+    tebal: '10mm',
+    permukaan: 'Polished Flat',
+    kategori: 'Pekerjaan Kaca',
+    implementasi: 'Kaca Display Depan Toko',
+    lokasi: 'Area Fasad Depan Gerai',
+    toleransi: '±1mm',
+    informasiTambahan: 'Lengkap dengan seal silikon netral weatherseal Dow Corning',
+    deskripsiOtomatis: 'Kaca Mati Tempered 10mm Clear Fasad 150x240 cm Asahimas Clear Tempered 10mm Area Fasad Depan Gerai (Kaca Display Depan Toko)',
+    estimasiHarga: 1850000,
+    hargaRataRata: 1850000,
+    satuan: 'lembar',
+    status: 'PENDING_KONTRAKTOR',
+    cabang: 'Balaraja',
+    tanggalPengajuan: '2026-10-09',
+    marginUpah: 8,
+    marginMaterial: 8,
+    surveyToko: [
+      {
+        namaToko: 'Sentral Kaca Balaraja',
+        alamatToko: 'Jl. Raya Serang Km 25, Balaraja',
+        volumeAcuan: 1,
+        hargaSatuan: 1820000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Tempered 10mm gosok mesin rapi',
+      },
+      {
+        namaToko: 'Mitra Kaca Cikupa',
+        alamatToko: 'Jl. Raya Serang Km 18, Cikupa',
+        volumeAcuan: 1,
+        hargaSatuan: 1850000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Ready stock lembaran display',
+      },
+      {
+        namaToko: 'Asahi Glass Serang',
+        alamatToko: 'Jl. Jenderal Sudirman No. 45, Serang',
+        volumeAcuan: 1,
+        hargaSatuan: 1880000,
+        tanggalSurvei: '2026-10-09',
+        catatan: 'Sertifikasi Asahimas tempered resmi',
+      },
+    ],
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Tukang Kaca', value: '1.2', unit: 'Oh', hargaAcuan: 160000, subtotal: 192000 },
+    ],
+    koefisienMaterialItems: [
+      {
+        id: 'm-1',
+        label: 'Kaca Tempered 10mm 150x240',
+        value: '1',
+        unit: 'Lembar',
+        hargaAcuan: 1850000,
+        hargaSurveiRataRata: 1850000,
+        subtotal: 1850000,
+        surveyToko: [
+          { namaToko: 'Sentral Kaca Balaraja', hargaSatuan: 1820000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'Mitra Kaca Cikupa', hargaSatuan: 1850000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+          { namaToko: 'Asahi Glass Serang', hargaSatuan: 1880000, volumeAcuan: 1, tanggalSurvei: '2026-10-09' },
+        ],
+      },
+      { id: 'm-2', label: 'Sealant Silikon Dow Corning', value: '2', unit: 'Tube', hargaAcuan: 45000, subtotal: 90000 },
+    ],
+    historyLog: [
+      {
+        role: 'Regional Manager',
+        action: 'APPROVE',
+        tanggal: '2026-10-09 15:00',
+        catatan: 'Disetujui. Standar kaca fasad etalase toko.',
+      }
+    ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-20T15:00:00.000Z',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'MENUNGGU',
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
   },
   {
     id: 'item-usulan-kontraktor-1',
@@ -1385,7 +2375,47 @@ export const INITIAL_PENGAJUAN_HARGA: PengajuanHargaItem[] = [
         tanggal: '2026-10-06 15:30',
         catatan: 'Harga pasar Jotun naik dan upah aplikasi 2 lapis cat butuh penyesuaian margin minimal 16%. Kami usulkan harga Rp 2.150.000 / pail.',
       },
+      {
+        role: 'Kontraktor',
+        action: 'REJECT',
+        tanggal: '2026-10-06 16:15',
+        catatan: 'PT Sinar Surya Perkasa: Spesifikasi Jotun Majestic membutuhkan pengerjaan cat dasar alkali dan plamir ekstra halus. Usulan Rp 2.200.000 / pail.',
+      },
     ],
+    votingKontraktor: {
+      deadlineVoting: '2026-10-09T11:00:00.000Z',
+      selectedKontraktorIdForNego: 'kontraktor-1',
+      daftarKontraktor: [
+        {
+          kontraktorId: 'kontraktor-1',
+          namaPerusahaan: 'PT Mahakarya Konstruksi Mandiri',
+          picName: 'Ir. Budi Santoso',
+          statusVote: 'TOLAK',
+          usulanHarga: 2150000,
+          usulanMargin: 16.22,
+          catatan: 'Harga pasar Jotun naik dan upah aplikasi 2 lapis cat butuh penyesuaian margin minimal 16%. Kami usulkan harga Rp 2.150.000 / pail.',
+          tanggalRespon: '2026-10-06 15:30',
+          hasRejectedOnce: true,
+        },
+        {
+          kontraktorId: 'kontraktor-2',
+          namaPerusahaan: 'PT Sinar Surya Perkasa',
+          picName: 'Hendra Wijaya',
+          statusVote: 'TOLAK',
+          usulanHarga: 2200000,
+          usulanMargin: 18.92,
+          catatan: 'Spesifikasi Jotun Majestic membutuhkan pengerjaan cat dasar alkali dan plamir ekstra halus.',
+          tanggalRespon: '2026-10-06 16:15',
+          hasRejectedOnce: true,
+        },
+        {
+          kontraktorId: 'kontraktor-3',
+          namaPerusahaan: 'CV Graha Cipta Sarana',
+          picName: 'Agus Setiawan',
+          statusVote: 'MENUNGGU',
+        },
+      ],
+    },
   }
 ];
 
@@ -1440,6 +2470,18 @@ export function getStoredPengajuan(): PengajuanHargaItem[] {
       'item-10': 'Cikokol',
       'item-11': 'Parung',
       'item-12': 'Bogor',
+      'item-kontraktor-1': 'Cikokol',
+      'item-kontraktor-2': 'Cikokol',
+      'item-kontraktor-3': 'Cikokol',
+      'item-kontraktor-4': 'Cikokol',
+      'item-kontraktor-5': 'Cikokol',
+      'item-kontraktor-6': 'Cikokol',
+      'item-kontraktor-7': 'Cikokol',
+      'item-kontraktor-8': 'Cikokol',
+      'item-kontraktor-9': 'Cikokol',
+      'item-kontraktor-10': 'Cikokol',
+      'item-kontraktor-11': 'Balaraja',
+      'item-kontraktor-12': 'Balaraja',
       'item-usulan-kontraktor-1': 'Cikokol',
       'item-trial-pending-1': 'Cikokol',
       'item-trial-revisi-1': 'Balaraja',
@@ -1447,7 +2489,13 @@ export function getStoredPengajuan(): PengajuanHargaItem[] {
       'item-trial-promosi-1': 'Bekasi',
       'item-master-promosi-1': 'Cikokol',
     };
-    return parsed.map((item, idx) => {
+
+    // Sinkronisasi item baru: Gabungkan item dari INITIAL_PENGAJUAN_HARGA yang belum ada di localStorage
+    const existingIds = new Set(parsed.map((p) => p.id));
+    const missingInitial = INITIAL_PENGAJUAN_HARGA.filter((init) => !existingIds.has(init.id));
+    const combinedList = [...parsed, ...missingInitial];
+
+    const mapped: PengajuanHargaItem[] = combinedList.map((item, idx) => {
       let km = item.kodeMaster;
       if (km) {
         if (item.ukuran) {
@@ -1461,7 +2509,7 @@ export function getStoredPengajuan(): PengajuanHargaItem[] {
       return {
         ...item,
         kodeMaster: km,
-        cabang: item.cabang || initialBranchMap[item.id] || (idx % 2 === 0 ? 'Cikokol' : 'Balaraja'),
+        cabang: initialBranchMap[item.id] || item.cabang || (idx % 2 === 0 ? 'Cikokol' : 'Balaraja'),
         tanggalPengajuan: item.tanggalPengajuan || item.historyLog?.[0]?.tanggal?.slice(0, 10) || '2026-09-24',
         hargaPerCabang: item.hargaPerCabang && item.hargaPerCabang.length > 0
           ? item.hargaPerCabang
@@ -1469,46 +2517,46 @@ export function getStoredPengajuan(): PengajuanHargaItem[] {
               {
                 cabang: 'Cikokol',
                 harga: item.hargaRataRata || item.estimasiHarga || 100000,
-                status: 'AKTIF',
+                status: 'AKTIF' as const,
                 tanggalUpdate: '2026-09-20',
               },
               {
                 cabang: 'Balaraja',
                 harga: Math.round((item.hargaRataRata || item.estimasiHarga || 100000) * 1.02),
-                status: 'AKTIF',
+                status: 'AKTIF' as const,
                 tanggalUpdate: '2026-09-22',
               },
               {
                 cabang: 'Bekasi',
                 harga: Math.round((item.hargaRataRata || item.estimasiHarga || 100000) * 1.04),
-                status: 'AKTIF',
+                status: 'AKTIF' as const,
                 tanggalUpdate: '2026-09-25',
               },
               {
                 cabang: 'Bandung',
                 harga: Math.round((item.hargaRataRata || item.estimasiHarga || 100000) * 1.05),
-                status: idx % 3 === 0 ? 'AKTIF' : 'NONAKTIF',
+                status: (idx % 3 === 0 ? 'AKTIF' : 'NONAKTIF') as 'AKTIF' | 'NONAKTIF',
                 tanggalUpdate: idx % 3 === 0 ? '2026-09-26' : undefined,
               },
               {
                 cabang: 'Serang',
                 harga: Math.round((item.hargaRataRata || item.estimasiHarga || 100000) * 1.03),
-                status: 'NONAKTIF',
+                status: 'NONAKTIF' as const,
               },
               {
                 cabang: 'Parung',
                 harga: Math.round((item.hargaRataRata || item.estimasiHarga || 100000) * 1.01),
-                status: 'NONAKTIF',
+                status: 'NONAKTIF' as const,
               },
               {
                 cabang: 'Cileungsi',
                 harga: Math.round((item.hargaRataRata || item.estimasiHarga || 100000) * 1.02),
-                status: 'NONAKTIF',
+                status: 'NONAKTIF' as const,
               },
               {
                 cabang: 'Bogor',
                 harga: Math.round((item.hargaRataRata || item.estimasiHarga || 100000) * 1.03),
-                status: 'NONAKTIF',
+                status: 'NONAKTIF' as const,
               },
             ],
         surveyToko:
@@ -1544,11 +2592,163 @@ export function getStoredPengajuan(): PengajuanHargaItem[] {
                     },
                   ]
                 : undefined),
+        votingKontraktor:
+          item.votingKontraktor && item.votingKontraktor.daftarKontraktor?.length > 0
+            ? item.votingKontraktor
+            : INITIAL_PENGAJUAN_HARGA.find((init) => init.id === item.id)?.votingKontraktor ||
+              (item.status === 'PENDING_KONTRAKTOR' ||
+              item.status === 'USULAN_KONTRAKTOR' ||
+              item.status === 'DITOLAK_KONTRAKTOR' ||
+              item.status === 'RELEASED'
+                ? makeInitialVotingKontraktor(item.tanggalPengajuan)
+                : undefined),
       };
     });
+
+    if (missingInitial.length > 0) {
+      saveStoredPengajuan(mapped);
+    }
+    return mapped;
   } catch {
     return INITIAL_PENGAJUAN_HARGA;
   }
+}
+
+/**
+ * Submit vote dari salah satu kontraktor rekanan (Kuorum 50% + 1)
+ * - Jika 2 dari 3 setuju -> Early Release langsung ke RELEASED
+ * - Jika 2 dari 3 tolak -> Kuorum gagal, status berubah ke USULAN_KONTRAKTOR untuk review S&B Specialist
+ */
+export function submitVoteKontraktor(
+  itemId: string,
+  kontraktorId: string,
+  payload: {
+    action: 'SETUJU' | 'TOLAK';
+    usulanHarga?: number;
+    usulanMargin?: number;
+    catatan?: string;
+  }
+): PengajuanHargaItem | null {
+  const current = getStoredPengajuan();
+  const index = current.findIndex((i) => i.id === itemId);
+  if (index === -1) return null;
+
+  const item = { ...current[index] };
+  const voting = item.votingKontraktor
+    ? { ...item.votingKontraktor }
+    : makeInitialVotingKontraktor(item.tanggalPengajuan);
+
+  const daftar = (voting.daftarKontraktor || []).map((k) => {
+    if (k.kontraktorId === kontraktorId) {
+      return {
+        ...k,
+        statusVote: (payload.action === 'SETUJU' ? 'SETUJU' : 'TOLAK') as VotingKontraktorItem['statusVote'],
+        usulanHarga: payload.action === 'TOLAK' ? payload.usulanHarga : undefined,
+        usulanMargin: payload.action === 'TOLAK' ? payload.usulanMargin : undefined,
+        catatan: payload.catatan?.trim() || (payload.action === 'SETUJU' ? 'Harga penawaran disepakati.' : ''),
+        tanggalRespon: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        hasRejectedOnce: payload.action === 'TOLAK' ? true : k.hasRejectedOnce,
+      };
+    }
+    return k;
+  });
+
+  voting.daftarKontraktor = daftar;
+
+  const setujuCount = daftar.filter((k) => k.statusVote === 'SETUJU').length;
+  const tolakCount = daftar.filter((k) => k.statusVote === 'TOLAK').length;
+  const menungguCount = daftar.filter((k) => k.statusVote === 'MENUNGGU').length;
+  const targetPerusahaan = daftar.find((k) => k.kontraktorId === kontraktorId)?.namaPerusahaan || 'Kontraktor';
+
+  let nextStatus = item.status;
+  const logs = [...(item.historyLog || [])];
+  const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
+  // Catat log vote rekanan kontraktor
+  logs.push({
+    role: 'Kontraktor',
+    action: payload.action === 'SETUJU' ? 'APPROVE' : 'REJECT',
+    tanggal: nowStr,
+    catatan: `${targetPerusahaan}: ${
+      payload.action === 'SETUJU'
+        ? 'Menyetujui harga penawaran.'
+        : `Mengajukan usulan harga Rp ${(payload.usulanHarga || 0).toLocaleString('id-ID')} (${payload.catatan || ''})`
+    }`,
+  });
+
+  // Simpan usulan harga terbaru ke item untuk referensi umum jika ada
+  const daftarUsulan = daftar.filter((k) => k.statusVote === 'TOLAK' && k.usulanHarga);
+  if (daftarUsulan.length > 0) {
+    const latest = daftarUsulan[daftarUsulan.length - 1];
+    item.usulanHargaKontraktor = latest.usulanHarga;
+    item.usulanMarginKontraktor = latest.usulanMargin;
+  }
+
+  // ATURAN KUORUM (50% + 1):
+  // 1. Kasus SETUJU: Jika minimal 2 dari 3 rekanan setuju, langsung Early Release ke RELEASED (tidak perlu menunggu rekanan ke-3)
+  if (setujuCount >= 2) {
+    nextStatus = 'RELEASED';
+    logs.push({
+      role: 'S&B Specialist',
+      action: 'APPROVE',
+      tanggal: nowStr,
+      catatan: `Kuorum 50%+1 terpenuhi (${setujuCount}/3 kontraktor rekanan menyetujui penawaran). Harga resmi dirilis ke Master.`,
+    });
+  } else if (menungguCount === 0) {
+    // 2. Kasus TOLAK: Jika seluruh rekanan telah selesai merespon (menungguCount === 0) dan setujuCount < 2
+    // Maka kuorum persetujuan tidak tercapai, alihkan ke meja S&B Specialist untuk negosiasi / penyesuaian margin
+    nextStatus = 'USULAN_KONTRAKTOR';
+    logs.push({
+      role: 'S&B Specialist',
+      action: 'REVISE',
+      tanggal: nowStr,
+      catatan: `Seluruh rekanan kontraktor telah selesai merespon (${tolakCount}/3 tolak/usulan). Pengajuan dialihkan ke S&B Specialist untuk evaluasi/negosiasi ulang.`,
+    });
+  } else {
+    // 3. Jika masih ada rekanan yang belum merespon (menungguCount > 0) dan setujuCount < 2:
+    // Status TETAP PENDING_KONTRAKTOR agar seluruh rekanan mendapat kesempatan merespon hingga batas waktu SLA.
+    nextStatus = 'PENDING_KONTRAKTOR';
+  }
+
+  const updatedItem: PengajuanHargaItem = {
+    ...item,
+    status: nextStatus,
+    votingKontraktor: voting,
+    historyLog: logs,
+  };
+
+  current[index] = updatedItem;
+  saveStoredPengajuan(current);
+  return updatedItem;
+}
+
+/**
+ * Atur kontraktor yang usulannya dijadikan acuan negosiasi oleh S&B Specialist
+ */
+export function setSelectedKontraktorForNego(
+  itemId: string,
+  kontraktorId: string
+): PengajuanHargaItem | null {
+  const current = getStoredPengajuan();
+  const index = current.findIndex((i) => i.id === itemId);
+  if (index === -1) return null;
+
+  const item = { ...current[index] };
+  if (!item.votingKontraktor) return null;
+
+  const voting = { ...item.votingKontraktor };
+  voting.selectedKontraktorIdForNego = kontraktorId;
+
+  const selected = (voting.daftarKontraktor || []).find((k) => k.kontraktorId === kontraktorId);
+  if (selected && selected.usulanHarga) {
+    item.usulanHargaKontraktor = selected.usulanHarga;
+    item.usulanMarginKontraktor = selected.usulanMargin;
+  }
+
+  item.votingKontraktor = voting;
+  current[index] = item;
+  saveStoredPengajuan(current);
+  return item;
 }
 
 export function updateHargaCabangPengajuan(

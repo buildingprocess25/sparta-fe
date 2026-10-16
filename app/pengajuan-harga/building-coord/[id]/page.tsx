@@ -500,6 +500,7 @@ export default function BuildingCoordDetailPage() {
                 Batal
               </Button>
             </Link>
+            
             <Button
               type="submit"
               className="rounded-xl h-9 text-xs font-semibold text-white shadow-xs cursor-pointer bg-red-600 hover:bg-red-700 px-5"

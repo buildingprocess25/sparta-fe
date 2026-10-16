@@ -62,11 +62,6 @@ export default function SBSpecialistDetailPage() {
     []
   );
 
-  const handleApplyRecommendedMargin = React.useCallback((recMargin: number) => {
-    setLiveMarginUpah(recMargin);
-    setLiveMarginMaterial(recMargin);
-    setLiveMarginBongkaran(recMargin);
-  }, []);
 
   const formatRupiah = (val?: number) => {
     if (val === undefined || val === null || isNaN(val)) return "Rp 0";
@@ -316,10 +311,29 @@ export default function SBSpecialistDetailPage() {
         let nextStatus = i.status;
         let actionCatatan = `Koefisien teknis AHSP disimpan (Margin Upah: ${data.marginUpah}%, Margin Material: ${data.marginMaterial}%). Status berubah menjadi Siap Survei untuk Building Coordinator. [Upah: ${summaryUpah}] | [Material: ${summaryMat}]`;
 
+        let nextVoting = i.votingKontraktor;
         if (i.status === "PENDING_SB_SPECIALIST" || i.status === "USULAN_KONTRAKTOR") {
           // Alur A: status langsung kembali ke Kontraktor
           nextStatus = "PENDING_KONTRAKTOR";
           actionCatatan = `Penyesuaian margin negosiasi harga selesai (Margin Upah: ${data.marginUpah}%, Margin Material: ${data.marginMaterial}%, Margin Bongkaran: ${data.marginBongkaran ?? data.marginUpah}%). Harga penawaran baru dikirimkan kembali ke Kontraktor.`;
+          
+          if (i.votingKontraktor) {
+            const now = new Date();
+            const newDeadline = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
+            nextVoting = {
+              ...i.votingKontraktor,
+              deadlineVoting: newDeadline,
+              daftarKontraktor: (i.votingKontraktor.daftarKontraktor || []).map((k) => ({
+                ...k,
+                statusVote: 'MENUNGGU' as const,
+                hasRejectedOnce: true, // batas 1x usulan harga terpakai untuk Putaran 2
+                tanggalRespon: undefined,
+                usulanHarga: undefined,
+                usulanMargin: undefined,
+                catatan: undefined,
+              })),
+            };
+          }
         } else if (i.isTrial) {
           if (i.status === "TRIAL_REVISI") nextStatus = "TRIAL_PENDING_REGIONAL_MGR";
         } else {
@@ -330,6 +344,7 @@ export default function SBSpecialistDetailPage() {
         return {
           ...i,
           status: nextStatus,
+          votingKontraktor: nextVoting,
           koefisienUpahItems: data.upahItems,
           koefisienMaterialItems: data.materialItems,
           koefisienUpahBongkaranItems: data.koefisienUpahBongkaranItems,
@@ -840,14 +855,17 @@ export default function SBSpecialistDetailPage() {
           </div>
         )}
 
-        {/* JIKA STATUS USULAN_KONTRAKTOR ATAU ADA USULAN KONTRAKTOR: TAMPILKAN KARTU REVIEW NEGOSIASI KONTRAKTOR */}
-        {(item.status === "USULAN_KONTRAKTOR" || item.usulanHargaKontraktor !== undefined) && (
+        {/* EVALUASI & MONITORING VOTING KONTRAKTOR REKANAN (TERPADU) */}
+        {(item.status === "PENDING_KONTRAKTOR" ||
+          item.status === "USULAN_KONTRAKTOR" ||
+          item.status === "DITOLAK_KONTRAKTOR" ||
+          Boolean(item.votingKontraktor) ||
+          item.usulanHargaKontraktor !== undefined) && (
           <ReviewNegosiasiKontraktorCard
             item={item}
             currentMarginUpah={liveMarginUpah}
             currentMarginMaterial={liveMarginMaterial}
             currentMarginBongkaran={liveMarginBongkaran}
-            onApplyRecommendedMargin={handleApplyRecommendedMargin}
           />
         )}
 

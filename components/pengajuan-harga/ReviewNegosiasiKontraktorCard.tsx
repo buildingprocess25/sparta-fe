@@ -1,14 +1,19 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { PengajuanHargaItem } from "./types";
+import React, { useMemo, useState, useEffect } from "react";
+import { PengajuanHargaItem, VotingKontraktorItem } from "./types";
 import {
+  Users,
   Calculator,
-  MessageSquare,
-  TrendingUp,
-  Store,
-  Sparkles,
+  Clock,
   CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ShieldCheck,
+  Store,
+  TrendingUp,
+  MessageSquare,
+  Sparkles,
   Info,
 } from "lucide-react";
 
@@ -18,6 +23,7 @@ interface ReviewNegosiasiKontraktorCardProps {
   currentMarginMaterial: number;
   currentMarginBongkaran: number;
   onApplyRecommendedMargin?: (margin: number) => void;
+  onSelectKontraktorForNego?: (kontraktorId: string) => void;
 }
 
 export function ReviewNegosiasiKontraktorCard({
@@ -25,7 +31,6 @@ export function ReviewNegosiasiKontraktorCard({
   currentMarginUpah,
   currentMarginMaterial,
   currentMarginBongkaran,
-  onApplyRecommendedMargin,
 }: ReviewNegosiasiKontraktorCardProps) {
   const formatRupiah = (val?: number) => {
     if (val === undefined || val === null || isNaN(val)) return "Rp 0";
@@ -36,44 +41,76 @@ export function ReviewNegosiasiKontraktorCard({
     }).format(val);
   };
 
-  // 1. Ekstraksi Log Penolakan Kontraktor Terakhir
-  const lastRejectLog = useMemo(() => {
-    const logs = item.historyLog || [];
-    for (let i = logs.length - 1; i >= 0; i--) {
-      if (logs[i].role === "Kontraktor" && logs[i].action === "REJECT") {
-        return logs[i];
-      }
+  // =========================================================================
+  // 1. DATA VOTING REKANAN KONTRAKTOR & PERHITUNGAN KUORUM
+  // =========================================================================
+  const voting = item.votingKontraktor;
+  const daftar = useMemo(() => voting?.daftarKontraktor || [], [voting]);
+
+  const totalSetuju = daftar.filter((k) => k.statusVote === "SETUJU").length;
+  const totalTolak = daftar.filter((k) => k.statusVote === "TOLAK").length;
+  const totalMenunggu = daftar.filter(
+    (k) => k.statusVote === "MENUNGGU",
+  ).length;
+  const totalKontraktor = daftar.length || 3;
+  const ambangKuorum = Math.floor(totalKontraktor / 2) + 1; // 2 suara dari 3
+
+  const isKuorumTercapai = totalSetuju >= ambangKuorum;
+  const isKuorumGagal = totalMenunggu === 0 && totalSetuju < ambangKuorum;
+
+  // Countdown timer batas waktu 3x24 jam (72 jam)
+  const [sisaWaktuText, setSisaWaktuText] = useState<string>("");
+  const [isExpired, setIsExpired] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!voting?.deadlineVoting) {
+      setSisaWaktuText("3x24 Jam Aktif");
+      return;
     }
-    return null;
-  }, [item.historyLog]);
 
-  const alasanKontraktor =
-    lastRejectLog?.catatan || "Tidak ada catatan alasan yang dilampirkan.";
+    const hitungSisa = () => {
+      const now = new Date().getTime();
+      const deadline = new Date(voting.deadlineVoting).getTime();
+      const diff = deadline - now;
 
-  // 2. Data Survei 3 Toko BC (Resolusi Bertingkat: Root -> Koefisien Material -> Sintetis Rata-Rata)
+      if (diff <= 0) {
+        setSisaWaktuText("Batas Waktu Berakhir (72 Jam)");
+        setIsExpired(true);
+      } else {
+        const jam = Math.floor(diff / (1000 * 60 * 60));
+        const menit = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setSisaWaktuText(`${jam} Jam ${menit} Menit Tersisa`);
+        setIsExpired(false);
+      }
+    };
+
+    hitungSisa();
+    const interval = setInterval(hitungSisa, 60000);
+    return () => clearInterval(interval);
+  }, [voting?.deadlineVoting]);
+
+  // =========================================================================
+  // 2. DATA SURVEI 3 TOKO BC (Resolusi Cerdas: Root -> Koefisien -> Sintetis)
+  // =========================================================================
   const surveyTokoList = useMemo(() => {
-    // 1. Cek langsung di item.surveyToko (level root)
     if (item.surveyToko && item.surveyToko.length > 0) {
       const valid = item.surveyToko.filter(
-        (s) => typeof s.hargaSatuan === "number" && s.hargaSatuan > 0
+        (s) => typeof s.hargaSatuan === "number" && s.hargaSatuan > 0,
       );
       if (valid.length > 0) return item.surveyToko;
     }
 
-    // 2. Cek di dalam item.koefisienMaterialItems (disimpan oleh Building Coordinator per material)
     if (item.koefisienMaterialItems && item.koefisienMaterialItems.length > 0) {
       for (const mat of item.koefisienMaterialItems) {
         if (mat.surveyToko && mat.surveyToko.length > 0) {
           const valid = mat.surveyToko.filter(
-            (s) => typeof s.hargaSatuan === "number" && s.hargaSatuan > 0
+            (s) => typeof s.hargaSatuan === "number" && s.hargaSatuan > 0,
           );
           if (valid.length > 0) return mat.surveyToko;
         }
       }
     }
 
-    // 3. Fallback Sintetis Cerdas: Jika hargaRataRata atau estimasiHarga > 0,
-    // generate 3 toko referensi berbasis harga rata-rata survei tersebut
     const baseSurveyPrice =
       item.hargaRataRata ||
       item.koefisienMaterialItems?.[0]?.hargaSurveiRataRata ||
@@ -135,11 +172,14 @@ export function ReviewNegosiasiKontraktorCard({
     item.hargaRataRata ||
     (validSurveyPrices.length > 0
       ? Math.round(
-          validSurveyPrices.reduce((a, b) => a + b, 0) / validSurveyPrices.length
+          validSurveyPrices.reduce((a, b) => a + b, 0) /
+            validSurveyPrices.length,
         )
       : 0);
 
-  // 3. Hitung Angka Dasar per Komponen
+  // =========================================================================
+  // 3. HITUNG ANGKA DASAR PER KOMPONEN AHSP
+  // =========================================================================
   const upahDasar = useMemo(() => {
     if (!item.koefisienUpahItems?.length) return 0;
     return item.koefisienUpahItems.reduce((acc, curr) => {
@@ -169,7 +209,7 @@ export function ReviewNegosiasiKontraktorCard({
   ]);
 
   const hasBongkaran = Boolean(
-    item.isTermasukBongkaran && item.koefisienUpahBongkaranItems?.length
+    item.isTermasukBongkaran && item.koefisienUpahBongkaranItems?.length,
   );
 
   const bongkaranDasar = useMemo(() => {
@@ -181,83 +221,367 @@ export function ReviewNegosiasiKontraktorCard({
     }, 0);
   }, [hasBongkaran, item.koefisienUpahBongkaranItems]);
 
-  // Dasar material efektif: gunakan materialDasar jika ada komponen material AHSP, atau hargaRataRataSurvei
-  const materialDasarEfektif = materialDasar > 0 ? materialDasar : hargaRataRataSurvei;
+  const materialDasarEfektif =
+    materialDasar > 0 ? materialDasar : hargaRataRataSurvei;
   const totalAngkaDasar = upahDasar + materialDasarEfektif + bongkaranDasar;
 
-  // 4. Margin Sparta Eksisting (Lama)
+  // =========================================================================
+  // 4. HARGA PENAWARAN SPARTA SEBELUMNYA (LAMA)
+  // =========================================================================
   const marginUpahLama = item.marginUpah ?? 8;
   const marginMaterialLama = item.marginMaterial ?? 8;
   const marginBongkaranLama = item.marginBongkaran ?? item.marginUpah ?? 8;
 
   const nomMarginUpahLama = Math.round((upahDasar * marginUpahLama) / 100);
-  const nomMarginMaterialLama = Math.round((materialDasar * marginMaterialLama) / 100);
-  const nomMarginBongkaranLama = Math.round((bongkaranDasar * marginBongkaranLama) / 100);
-  const totalNomMarginLama = nomMarginUpahLama + nomMarginMaterialLama + nomMarginBongkaranLama;
+  const nomMarginMaterialLama = Math.round(
+    (materialDasar * marginMaterialLama) / 100,
+  );
+  const nomMarginBongkaranLama = Math.round(
+    (bongkaranDasar * marginBongkaranLama) / 100,
+  );
+  const totalNomMarginLama =
+    nomMarginUpahLama + nomMarginMaterialLama + nomMarginBongkaranLama;
 
   const subtotalUpahLama = upahDasar + nomMarginUpahLama;
   const subtotalMaterialLama = materialDasarEfektif + nomMarginMaterialLama;
   const subtotalBongkaranLama = bongkaranDasar + nomMarginBongkaranLama;
-  const totalHargaSpartaLama = subtotalUpahLama + subtotalMaterialLama + subtotalBongkaranLama;
+  const totalHargaSpartaLama =
+    subtotalUpahLama + subtotalMaterialLama + subtotalBongkaranLama;
 
-  // 5. Usulan Kontraktor & Rekomendasi Margin
-  const usulanKontraktor = item.usulanHargaKontraktor || totalHargaSpartaLama;
-  const selisihNominalVsSparta = usulanKontraktor - totalHargaSpartaLama;
-  const persentaseKenaikanVsSparta = totalHargaSpartaLama > 0
-    ? Number(((selisihNominalVsSparta / totalHargaSpartaLama) * 100).toFixed(2))
-    : 0;
+  // =========================================================================
+  // 5. USULAN REKANAN KONTRAKTOR & PERHITUNGAN MARGIN SEHARUSNYA
+  // =========================================================================
+  const daftarPenolak = useMemo(() => {
+    return daftar
+      .filter((k) => k.statusVote === "TOLAK" && Boolean(k.usulanHarga))
+      .map((k) => {
+        const uHarga = k.usulanHarga || 0;
+        const selisihVsDasar = uHarga - totalAngkaDasar;
+        const marginSeharusnya =
+          k.usulanMargin !== undefined &&
+          k.usulanMargin !== null &&
+          k.usulanMargin > 0
+            ? k.usulanMargin
+            : totalAngkaDasar > 0
+              ? Number(((selisihVsDasar / totalAngkaDasar) * 100).toFixed(2))
+              : 0;
+        const selisihVsSparta = uHarga - totalHargaSpartaLama;
+        return {
+          ...k,
+          marginSeharusnya,
+          selisihVsSparta,
+        };
+      });
+  }, [daftar, totalAngkaDasar, totalHargaSpartaLama]);
 
-  // Margin Rekomendasi Total terhadap Angka Dasar
-  const totalSelisihVsDasar = usulanKontraktor - totalAngkaDasar;
-  const rekomendasiMarginPersen = totalAngkaDasar > 0
-    ? Number(((totalSelisihVsDasar / totalAngkaDasar) * 100).toFixed(2))
-    : 0;
+  const minUsulanHarga =
+    daftarPenolak.length > 0
+      ? Math.min(...daftarPenolak.map((p) => p.usulanHarga!))
+      : 0;
+  const maxUsulanHarga =
+    daftarPenolak.length > 0
+      ? Math.max(...daftarPenolak.map((p) => p.usulanHarga!))
+      : 0;
+  const minMarginSeharusnya =
+    daftarPenolak.length > 0
+      ? Math.min(...daftarPenolak.map((p) => p.marginSeharusnya))
+      : 0;
+  const maxMarginSeharusnya =
+    daftarPenolak.length > 0
+      ? Math.max(...daftarPenolak.map((p) => p.marginSeharusnya))
+      : 0;
 
-  // 6. KALKULASI REAL-TIME (Live Calculation berdasarkan margin yang sedang diatur S&B)
-  const liveNomMarginUpah = Math.round((upahDasar * (currentMarginUpah || 0)) / 100);
-  const liveNomMarginMaterial = Math.round((materialDasar * (currentMarginMaterial || 0)) / 100);
-  const liveNomMarginBongkaran = Math.round((bongkaranDasar * (currentMarginBongkaran || 0)) / 100);
+  // Fallback usulan tunggal jika ada usulanHargaKontraktor di level item
+  const singleUsulanKontraktor =
+    item.usulanHargaKontraktor || totalHargaSpartaLama;
+  const singleSelisihVsSparta = singleUsulanKontraktor - totalHargaSpartaLama;
+  const singleMarginSeharusnya =
+    item.usulanMarginKontraktor ||
+    (totalAngkaDasar > 0
+      ? Number(
+          (
+            ((singleUsulanKontraktor - totalAngkaDasar) / totalAngkaDasar) *
+            100
+          ).toFixed(2),
+        )
+      : 0);
+
+  // =========================================================================
+  // 6. LIVE SIMULATION TRACKER (Berdasarkan margin yang sedang diinput manual oleh S&B)
+  // =========================================================================
+  const liveNomMarginUpah = Math.round(
+    (upahDasar * (currentMarginUpah || 0)) / 100,
+  );
+  const liveNomMarginMaterial = Math.round(
+    (materialDasar * (currentMarginMaterial || 0)) / 100,
+  );
+  const liveNomMarginBongkaran = Math.round(
+    (bongkaranDasar * (currentMarginBongkaran || 0)) / 100,
+  );
 
   const liveSubtotalUpah = upahDasar + liveNomMarginUpah;
   const liveSubtotalMaterial = materialDasar + liveNomMarginMaterial;
   const liveSubtotalBongkaran = bongkaranDasar + liveNomMarginBongkaran;
 
-  const liveGrandTotalRaw = liveSubtotalUpah + liveSubtotalMaterial + liveSubtotalBongkaran;
+  const liveGrandTotalRaw =
+    liveSubtotalUpah + liveSubtotalMaterial + liveSubtotalBongkaran;
   const liveGrandTotal = Math.ceil(liveGrandTotalRaw / 100) * 100;
 
-  const liveSelisihVsKontraktor = liveGrandTotal - usulanKontraktor;
-  const liveTotalMarginNominal = liveNomMarginUpah + liveNomMarginMaterial + liveNomMarginBongkaran;
-  const liveMarginEfektif = totalAngkaDasar > 0
-    ? Number(((liveTotalMarginNominal / totalAngkaDasar) * 100).toFixed(2))
-    : 0;
+  const liveTotalMarginNominal =
+    liveNomMarginUpah + liveNomMarginMaterial + liveNomMarginBongkaran;
+  const liveMarginEfektif =
+    totalAngkaDasar > 0
+      ? Number(((liveTotalMarginNominal / totalAngkaDasar) * 100).toFixed(2))
+      : 0;
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
-      {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+      {/* =====================================================================
+          A. HEADER MONITORING & KUORUM VOTING REKANAN KONTRAKTOR
+          ===================================================================== */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-700">
-            <Calculator className="w-4 h-4" />
+          <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <Users className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-800">
-                Review Harga dari Kontraktor
-              </h2>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-600 text-white">
-                Usulan Kontraktor
-              </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-slate-800">
+                Monitoring &amp; Evaluasi Usulan Rekanan Kontraktor
+              </h3>
             </div>
             <p className="text-xs text-slate-500">
-              Kontraktor mengajukan usulan harga. Sesuaikan persentase margin.
+              Evaluasi usulan seluruh rekanan kontraktor. Tentukan dan masukkan
+              persentase margin pada form di bawah.
             </p>
           </div>
         </div>
 
+        {/* Countdown SLA Batas Waktu */}
+        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
+          <Clock
+            className={`w-4 h-4 ${isExpired ? "text-rose-500" : "text-amber-600"}`}
+          />
+          <div className="text-right">
+            <span className="text-[10px] text-slate-400 block font-medium leading-none">
+              Batas Waktu (3x24 Jam)
+            </span>
+            <span
+              className={`text-xs font-bold font-mono ${isExpired ? "text-rose-600" : "text-slate-700"}`}
+            >
+              {sisaWaktuText}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Ringkasan Komparasi Harga */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* =====================================================================
+          B. 4 KARTU KPI RINGKASAN STATUS SUARA
+          ===================================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-medium text-emerald-800 block">
+              Setuju (Sepakat)
+            </span>
+            <span className="text-xl font-black font-mono text-emerald-700">
+              {totalSetuju}
+            </span>
+            <span className="text-[10px] text-emerald-600 block">
+              dari {totalKontraktor} rekanan
+            </span>
+          </div>
+          <CheckCircle2 className="w-6 h-6 text-emerald-500 opacity-80" />
+        </div>
+
+        <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-medium text-amber-800 block">
+              Menolak / Usul Harga
+            </span>
+            <span className="text-xl font-black font-mono text-amber-700">
+              {totalTolak}
+            </span>
+            <span className="text-[10px] text-amber-600 block">
+              perlu evaluasi margin
+            </span>
+          </div>
+          <XCircle className="w-6 h-6 text-amber-500 opacity-80" />
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-medium text-slate-700 block">
+              Belum Respon
+            </span>
+            <span className="text-xl font-black font-mono text-slate-700">
+              {totalMenunggu}
+            </span>
+            <span className="text-[10px] text-slate-500 block">
+              menunggu konfirmasi
+            </span>
+          </div>
+          <AlertCircle className="w-6 h-6 text-slate-400 opacity-80" />
+        </div>
+
+        <div
+          className={`p-3 rounded-xl border flex flex-col justify-center ${
+            isKuorumTercapai
+              ? "bg-emerald-500 text-white border-emerald-600"
+              : isKuorumGagal
+                ? "bg-rose-50 border-rose-200 text-rose-900"
+                : "bg-blue-50 border-blue-200 text-blue-900"
+          }`}
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <ShieldCheck className="w-4 h-4" />
+            <span className="text-[11px] font-bold">Hasil Keputusan</span>
+          </div>
+          <p className="text-xs font-semibold leading-tight">
+            {isKuorumTercapai ? (
+              <span>
+                {totalSetuju}/{totalKontraktor} setuju &rarr; Rilis ke
+                Master
+              </span>
+            ) : isKuorumGagal ? (
+              <span>
+                {totalTolak}/{totalKontraktor} menolak &rarr; Perlu
+                Review S&amp;B
+              </span>
+            ) : (
+              <span>
+                Voting Berlangsung &rarr; Butuh{" "}
+                {Math.max(0, ambangKuorum - totalSetuju)} Suara
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          C. TABEL RINCIAN RESPON REKANAN KONTRAKTOR (MURNI MANUAL, TANPA ACUAN)
+          ===================================================================== */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+            <tr>
+              <th className="py-2.5 px-3">Rekanan Kontraktor</th>
+              <th className="py-2.5 px-3">Status Suara</th>
+              <th className="py-2.5 px-3">Usulan Harga</th>
+              <th className="py-2.5 px-3">Margin Seharusnya</th>
+              <th className="py-2.5 px-3">Catatan / Alasan</th>
+              <th className="py-2.5 px-3">Waktu Respon</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {daftar.map((k: VotingKontraktorItem, idx: number) => {
+              const isTolak =
+                k.statusVote === "TOLAK" && Boolean(k.usulanHarga);
+              const uHarga = k.usulanHarga || 0;
+              const marginCalc =
+                k.usulanMargin !== undefined &&
+                k.usulanMargin !== null &&
+                k.usulanMargin > 0
+                  ? k.usulanMargin
+                  : totalAngkaDasar > 0
+                    ? Number(
+                        (
+                          ((uHarga - totalAngkaDasar) / totalAngkaDasar) *
+                          100
+                        ).toFixed(2),
+                      )
+                    : 0;
+
+              return (
+                <tr
+                  key={k.kontraktorId || idx}
+                  className="hover:bg-slate-50/70 transition-colors"
+                >
+                  <td className="py-3 px-3">
+                    <div className="font-bold text-slate-800">
+                      {k.namaPerusahaan}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      PIC: {k.picName}
+                    </div>
+                  </td>
+
+                  <td className="py-3 px-3">
+                    {k.statusVote === "SETUJU" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        Setuju
+                      </span>
+                    ) : k.statusVote === "TOLAK" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        <XCircle className="w-3 h-3 text-amber-600" />
+                        Usulan Harga
+                      </span>
+                    ) : k.statusVote === "TIMEOUT" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        <Clock className="w-3 h-3 text-rose-600" />
+                        Timeout (72 Jam)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        Menunggu Respon
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="py-3 px-3">
+                    {isTolak ? (
+                      <span className="font-mono font-bold text-amber-900 block text-xs">
+                        {formatRupiah(k.usulanHarga)}
+                      </span>
+                    ) : k.statusVote === "SETUJU" ? (
+                      <span className="text-emerald-700 font-medium text-[11px]">
+                        Sepakat Penawaran SPARTA
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic text-[11px]">
+                        -
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="py-3 px-3">
+                    {isTolak ? (
+                      <span className="inline-block font-mono font-black text-xs text-orange-800 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md shadow-2xs">
+                        {marginCalc}%
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic text-[11px]">
+                        -
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="py-3 px-3 max-w-xs">
+                    <p
+                      className="text-slate-600 text-[11px] line-clamp-2"
+                      title={k.catatan || ""}
+                    >
+                      {k.catatan ? `“${k.catatan}”` : "-"}
+                    </p>
+                  </td>
+
+                  <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
+                    {k.tanggalRespon || "-"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* =====================================================================
+          D. RINGKASAN KOMPARASI HARGA: PENAWARAN LAMA VS USULAN KONTRAKTOR
+          ===================================================================== */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Box 1: Penawaran Sebelumnya */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-1">
           <span className="text-[11px] font-medium text-slate-500 block">
             Harga Penawaran Sebelumnya
@@ -269,69 +593,98 @@ export function ReviewNegosiasiKontraktorCard({
             </span>
           </div>
           <span className="text-[10px] text-slate-500 block">
-            Angka Dasar: {formatRupiah(totalAngkaDasar)} + Margin
+            Angka Dasar: {formatRupiah(totalAngkaDasar)} + Margin{" "}
+            {marginMaterialLama}%
           </span>
         </div>
 
+        {/* Box 2: Usulan Harga Rekanan Kontraktor */}
         <div className="bg-orange-50/60 border border-orange-200 rounded-xl p-3.5 space-y-1">
           <span className="text-[11px] font-medium text-orange-800 block">
             Usulan Harga Kontraktor
           </span>
-          <div className="text-base font-black font-mono text-orange-950">
-            {formatRupiah(usulanKontraktor)}
-            <span className="text-[11px] font-normal text-orange-700 font-sans ml-1">
-              / {item.satuan || "satuan"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-orange-800">
-            <TrendingUp className="w-3 h-3" />
-            <span>
-              {selisihNominalVsSparta >= 0 ? "+" : ""}
-              {formatRupiah(selisihNominalVsSparta)} dari penawaran lama
-            </span>
-          </div>
-          <div className="pt-2 mt-1.5 border-t border-orange-200/80 flex items-center justify-between text-xs">
-            <span className="text-[11px] font-bold text-orange-900">
-              Margin seharusnya:
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono font-black text-xs text-orange-700 bg-white px-2 py-0.5 rounded-md border border-orange-300 shadow-2xs">
-                {rekomendasiMarginPersen}%
-              </span>
-              {onApplyRecommendedMargin && (
-                <button
-                  type="button"
-                  onClick={() => onApplyRecommendedMargin(rekomendasiMarginPersen)}
-                  className="px-2 py-0.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold rounded-md shadow-2xs transition-colors cursor-pointer"
-                  title="Terapkan ke margin kalkulasi"
-                >
-                  Terapkan
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
-          <div>
-            <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mb-1">
-              <MessageSquare className="w-3 h-3 text-slate-400" />
-              Alasan Penolakan Kontraktor
-            </span>
-            <p className="text-xs text-slate-700 italic bg-white p-2 rounded-lg border border-slate-200 line-clamp-3">
-              &ldquo;{alasanKontraktor}&rdquo;
-            </p>
-          </div>
+          {daftarPenolak.length > 0 ? (
+            daftarPenolak.length === 1 ? (
+              <>
+                <div className="text-base font-black font-mono text-orange-950">
+                  {formatRupiah(daftarPenolak[0].usulanHarga)}
+                  <span className="text-[11px] font-normal text-orange-700 font-sans ml-1">
+                    / {item.satuan || "satuan"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-orange-800">
+                  <TrendingUp className="w-3 h-3" />
+                  <span>
+                    {daftarPenolak[0].selisihVsSparta >= 0 ? "+" : ""}
+                    {formatRupiah(daftarPenolak[0].selisihVsSparta)} dari
+                    penawaran lama
+                  </span>
+                </div>
+                <div className="pt-2 mt-1.5 border-t border-orange-200/80 flex items-center justify-between text-xs">
+                  <span className="text-[11px] font-bold text-orange-900">
+                    Margin seharusnya:
+                  </span>
+                  <span className="font-mono font-black text-xs text-orange-800 bg-white px-2 py-0.5 rounded-md border border-orange-300 shadow-2xs">
+                    {daftarPenolak[0].marginSeharusnya}%
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-base font-black font-mono text-orange-950">
+                  {formatRupiah(minUsulanHarga)} -{" "}
+                  {formatRupiah(maxUsulanHarga)}
+                </div>
+                <div className="text-[10px] font-semibold text-orange-800">
+                  {daftarPenolak.length} mengajukan usulan
+                </div>
+                <div className="pt-2 mt-1.5 border-t border-orange-200/80 flex items-center justify-between text-xs">
+                  <span className="text-[11px] font-bold text-orange-900">
+                    Margin seharusnya:
+                  </span>
+                  <span className="font-mono font-black text-xs text-orange-800 bg-white px-2 py-0.5 rounded-md border border-orange-300 shadow-2xs">
+                    {minMarginSeharusnya}% - {maxMarginSeharusnya}%
+                  </span>
+                </div>
+              </>
+            )
+          ) : (
+            <>
+              <div className="text-base font-black font-mono text-orange-950">
+                {formatRupiah(singleUsulanKontraktor)}
+                <span className="text-[11px] font-normal text-orange-700 font-sans ml-1">
+                  / {item.satuan || "satuan"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold text-orange-800">
+                <TrendingUp className="w-3 h-3" />
+                <span>
+                  {singleSelisihVsSparta >= 0 ? "+" : ""}
+                  {formatRupiah(singleSelisihVsSparta)} dari penawaran lama
+                </span>
+              </div>
+              <div className="pt-2 mt-1.5 border-t border-orange-200/80 flex items-center justify-between text-xs">
+                <span className="text-[11px] font-bold text-orange-900">
+                  Margin seharusnya:
+                </span>
+                <span className="font-mono font-black text-xs text-orange-800 bg-white px-2 py-0.5 rounded-md border border-orange-300 shadow-2xs">
+                  {singleMarginSeharusnya}%
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Rincian Survei 3 Toko (Survei BC) */}
+      {/* =====================================================================
+          E. RINCIAN SURVEI 3 TOKO (SURVEI PASAR BC)
+          ===================================================================== */}
       <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
           <div className="flex items-center gap-1.5">
             <Store className="w-4 h-4 text-slate-600" />
             <span className="text-xs font-bold text-slate-700">
-              Hasil Survei Harga
+              Hasil Survei Harga Pasar
             </span>
           </div>
           <div className="text-xs font-semibold text-slate-600">
@@ -346,8 +699,13 @@ export function ReviewNegosiasiKontraktorCard({
         {validSurveyPrices.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
             <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs space-y-0.5">
-              <span className="text-[10px] text-slate-500 font-medium block">Toko 1</span>
-              <span className="font-semibold text-slate-800 block truncate" title={toko1?.namaToko || "Toko 1"}>
+              <span className="text-[10px] text-slate-500 font-medium block">
+                Toko 1
+              </span>
+              <span
+                className="font-semibold text-slate-800 block truncate"
+                title={toko1?.namaToko || "Toko 1"}
+              >
                 {toko1?.namaToko || "Toko 1"}
               </span>
               <span className="font-mono font-bold text-blue-700 text-xs block">
@@ -356,8 +714,13 @@ export function ReviewNegosiasiKontraktorCard({
             </div>
 
             <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs space-y-0.5">
-              <span className="text-[10px] text-slate-500 font-medium block">Toko 2</span>
-              <span className="font-semibold text-slate-800 block truncate" title={toko2?.namaToko || "Toko 2"}>
+              <span className="text-[10px] text-slate-500 font-medium block">
+                Toko 2
+              </span>
+              <span
+                className="font-semibold text-slate-800 block truncate"
+                title={toko2?.namaToko || "Toko 2"}
+              >
                 {toko2?.namaToko || "Toko 2"}
               </span>
               <span className="font-mono font-bold text-blue-700 text-xs block">
@@ -366,8 +729,13 @@ export function ReviewNegosiasiKontraktorCard({
             </div>
 
             <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs space-y-0.5">
-              <span className="text-[10px] text-slate-500 font-medium block">Toko 3</span>
-              <span className="font-semibold text-slate-800 block truncate" title={toko3?.namaToko || "Toko 3"}>
+              <span className="text-[10px] text-slate-500 font-medium block">
+                Toko 3
+              </span>
+              <span
+                className="font-semibold text-slate-800 block truncate"
+                title={toko3?.namaToko || "Toko 3"}
+              >
                 {toko3?.namaToko || "Toko 3"}
               </span>
               <span className="font-mono font-bold text-blue-700 text-xs block">
@@ -377,15 +745,21 @@ export function ReviewNegosiasiKontraktorCard({
           </div>
         ) : (
           <p className="text-xs text-slate-500 italic bg-white p-2 rounded-lg border border-slate-200">
-            Data 3 toko belum tercatat lengkap, menggunakan estimasi dasar acuan: {formatRupiah(materialDasar)} / {item.satuan || "satuan"}.
+            Data 3 toko belum tercatat lengkap, mengacu pada estimasi dasar:{" "}
+            {formatRupiah(materialDasar)} / {item.satuan || "satuan"}.
           </p>
         )}
       </div>
 
-      {/* LIVE TRACKER PERHITUNGAN REAL-TIME */}
-      <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4">
+      {/* =====================================================================
+          F. SIMULASI PERHITUNGAN REAL-TIME DARI MARGIN MANUAL S&B
+          ===================================================================== */}
+      <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 space-y-2.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-0.5">
+            <span className="text-[11px] font-bold text-blue-900 block uppercase tracking-wide">
+              Total Harga Baru
+            </span>
             <div className="flex items-baseline gap-2">
               <span className="text-xl font-black font-mono text-blue-900">
                 {formatRupiah(liveGrandTotal)}
@@ -393,39 +767,32 @@ export function ReviewNegosiasiKontraktorCard({
               <span className="text-xs font-semibold text-blue-700">
                 / {item.satuan || "satuan"}
               </span>
-              <span className="text-xs text-slate-500">
-                (Margin: <strong>{liveMarginEfektif}%</strong>)
+              <span className="text-xs text-slate-600">
+                (Margin Efektif: <strong>{liveMarginEfektif}%</strong>)
               </span>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-3 bg-white px-3.5 py-2 rounded-xl border border-blue-200 text-xs">
-            <div className="text-slate-600">
-              <span className="text-[10px] text-slate-400 block font-medium">Selisih Harga Kontraktor</span>
-              <strong className={`font-mono text-xs ${liveSelisihVsKontraktor === 0 ? "text-emerald-700" : liveSelisihVsKontraktor < 0 ? "text-amber-700" : "text-blue-700"}`}>
-                {liveSelisihVsKontraktor > 0 ? "+" : ""}
-                {formatRupiah(liveSelisihVsKontraktor)}
-              </strong>
-            </div>
-            <span className="text-slate-300">|</span>
-            <div className="text-[11px] text-slate-600 font-medium">
-              {liveSelisihVsKontraktor === 0 ? (
-                <span className="text-emerald-700 font-semibold">Tepat sesuai target usulan</span>
-              ) : liveSelisihVsKontraktor < 0 ? (
-                <span className="text-amber-800">Di bawah usulan ({formatRupiah(Math.abs(liveSelisihVsKontraktor))})</span>
-              ) : (
-                <span className="text-blue-800">Di atas usulan (+{formatRupiah(liveSelisihVsKontraktor)})</span>
-              )}
-            </div>
-          </div>
+        {/* Petunjuk Manual S&B */}
+        <div className="flex items-start gap-2 pt-2 border-t border-blue-200/60 text-xs text-blue-900">
+          <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+          <span>
+            Persentase margin diatur secara mandiri oleh S&amp;B Specialist pada
+            tabel form Koefisien di bawah. Setelah margin disesuaikan, klik{" "}
+            <strong>&ldquo;Simpan&rdquo;</strong> untuk mengirimkan penawaran
+            baru kepada rekanan kontraktor.
+          </span>
         </div>
       </div>
 
-      {/* Tabel Rincian 3 Komponen: Angka Dasar, Margin Lama, Rekomendasi, & Hasil Real-Time */}
+      {/* =====================================================================
+          G. TABEL RINCIAN 3 KOMPONEN BIAYA: ANGKAS DASAR, MARGIN LAMA & MARGIN BARU
+          ===================================================================== */}
       <div className="border border-slate-200 rounded-xl overflow-hidden">
         <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
           <span className="text-xs font-bold text-slate-700">
-            Perbandingan Angka Dasar dan Margin Lama
+            Perbandingan Angka Dasar dan Margin
           </span>
           <span className="text-[11px] text-slate-500">
             Satuan: {item.satuan || "unit"}
@@ -440,14 +807,11 @@ export function ReviewNegosiasiKontraktorCard({
                 <th className="py-2.5 px-3 text-right">Angka Dasar</th>
                 <th className="py-2.5 px-3 text-right">Margin Lama</th>
                 <th className="py-2.5 px-3 text-right">Subtotal Lama</th>
-                <th className="py-2.5 px-3 text-right text-slate-600">
-                  Rekomendasi
-                </th>
                 <th className="py-2.5 px-3 text-right bg-blue-50/50 text-blue-900">
                   Margin Baru
                 </th>
                 <th className="py-2.5 px-3.5 text-right bg-blue-50/50 text-blue-900">
-                  Subtotal 
+                  Subtotal Baru
                 </th>
               </tr>
             </thead>
@@ -461,14 +825,15 @@ export function ReviewNegosiasiKontraktorCard({
                   {formatRupiah(upahDasar)}
                 </td>
                 <td className="py-2.5 px-3 text-right">
-                  <span className="font-semibold text-slate-700">{marginUpahLama}%</span>{" "}
-                  <span className="text-slate-400 text-[10px]">({formatRupiah(nomMarginUpahLama)})</span>
+                  <span className="font-semibold text-slate-700">
+                    {marginUpahLama}%
+                  </span>{" "}
+                  <span className="text-slate-400 text-[10px]">
+                    ({formatRupiah(nomMarginUpahLama)})
+                  </span>
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-800 font-semibold">
                   {formatRupiah(subtotalUpahLama)}
-                </td>
-                <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                  {rekomendasiMarginPersen}%
                 </td>
                 <td className="py-2.5 px-3 text-right bg-blue-50/30 font-bold font-mono text-blue-700">
                   {currentMarginUpah}%
@@ -484,7 +849,8 @@ export function ReviewNegosiasiKontraktorCard({
                   <div>
                     <span>B. Bahan &amp; Material</span>
                     <span className="block text-[10px] text-slate-500 font-normal">
-                      Mengacu pada Rata-Rata Survei: {formatRupiah(hargaRataRataSurvei)}
+                      Mengacu pada Rata-Rata Survei:{" "}
+                      {formatRupiah(hargaRataRataSurvei)}
                     </span>
                   </div>
                 </td>
@@ -492,14 +858,15 @@ export function ReviewNegosiasiKontraktorCard({
                   {formatRupiah(hargaRataRataSurvei)}
                 </td>
                 <td className="py-2.5 px-3 text-right">
-                  <span className="font-semibold text-slate-700">{marginMaterialLama}%</span>{" "}
-                  <span className="text-slate-400 text-[10px]">({formatRupiah(nomMarginMaterialLama)})</span>
+                  <span className="font-semibold text-slate-700">
+                    {marginMaterialLama}%
+                  </span>{" "}
+                  <span className="text-slate-400 text-[10px]">
+                    ({formatRupiah(nomMarginMaterialLama)})
+                  </span>
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono text-slate-800 font-semibold">
                   {formatRupiah(subtotalMaterialLama)}
-                </td>
-                <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                  {rekomendasiMarginPersen}%
                 </td>
                 <td className="py-2.5 px-3 text-right bg-blue-50/30 font-bold font-mono text-blue-700">
                   {currentMarginMaterial}%
@@ -519,14 +886,15 @@ export function ReviewNegosiasiKontraktorCard({
                     {formatRupiah(bongkaranDasar)}
                   </td>
                   <td className="py-2.5 px-3 text-right">
-                    <span className="font-semibold text-slate-700">{marginBongkaranLama}%</span>{" "}
-                    <span className="text-slate-400 text-[10px]">({formatRupiah(nomMarginBongkaranLama)})</span>
+                    <span className="font-semibold text-slate-700">
+                      {marginBongkaranLama}%
+                    </span>{" "}
+                    <span className="text-slate-400 text-[10px]">
+                      ({formatRupiah(nomMarginBongkaranLama)})
+                    </span>
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono text-slate-800 font-semibold">
                     {formatRupiah(subtotalBongkaranLama)}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                    {rekomendasiMarginPersen}%
                   </td>
                   <td className="py-2.5 px-3 text-right bg-blue-50/30 font-bold font-mono text-blue-700">
                     {currentMarginBongkaran}%
@@ -548,9 +916,6 @@ export function ReviewNegosiasiKontraktorCard({
                 </td>
                 <td className="py-3 px-3 text-right font-mono">
                   {formatRupiah(totalHargaSpartaLama)}
-                </td>
-                <td className="py-3 px-3 text-right font-mono text-slate-700">
-                  {rekomendasiMarginPersen}%
                 </td>
                 <td className="py-3 px-3 text-right bg-blue-100/60 font-mono text-blue-900 text-xs">
                   {liveMarginEfektif}%

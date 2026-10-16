@@ -43,6 +43,27 @@ export interface ApprovalLog {
 }
 
 /**
+ * Data Partisipan Voting Penawaran Kontraktor Rekanan (Kuorum 50% + 1)
+ */
+export interface VotingKontraktorItem {
+  kontraktorId: string; // misal: 'kontraktor-1'
+  namaPerusahaan: string; // misal: 'PT Mahakarya Konstruksi Mandiri'
+  picName: string; // misal: 'Ir. Budi Santoso'
+  statusVote: 'MENUNGGU' | 'SETUJU' | 'TOLAK' | 'TIMEOUT';
+  tanggalRespon?: string;
+  usulanHarga?: number;
+  usulanMargin?: number;
+  catatan?: string;
+  hasRejectedOnce?: boolean;
+}
+
+export interface VotingKontraktorState {
+  deadlineVoting: string; // Batas waktu konfirmasi (3x24 jam) ISO String
+  daftarKontraktor: VotingKontraktorItem[];
+  selectedKontraktorIdForNego?: string; // ID kontraktor acuan yang dipilih S&B Specialist
+}
+
+/**
  * Alur 1: Request Penetapan Harga Baru oleh B&M Manager
  */
 export interface RequestPenetapanItem {
@@ -145,6 +166,9 @@ export interface PengajuanHargaItem {
   // Usulan Kontraktor
   usulanHargaKontraktor?: number;
   usulanMarginKontraktor?: number;
+
+  // Voting Rekanan Kontraktor (Kuorum 50% + 1)
+  votingKontraktor?: VotingKontraktorState;
 
   historyLog?: ApprovalLog[];
 
