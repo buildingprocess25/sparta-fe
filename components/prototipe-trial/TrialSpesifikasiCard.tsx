@@ -256,11 +256,18 @@ export function TrialSpesifikasiCard({ item }: TrialSpesifikasiCardProps) {
                       <p className="text-xs font-semibold text-slate-800 truncate" title={file.name}>
                         {file.name}
                       </p>
-                      {file.size && (
-                        <span className="text-[10px] text-slate-400">
-                          {(file.size / 1024).toFixed(1)} KB
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {file.labelJenis && (
+                          <span className="text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.2 rounded border border-red-200">
+                            {file.labelJenis}
+                          </span>
+                        )}
+                        {file.size && (
+                          <span className="text-[10px] text-slate-400">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <a

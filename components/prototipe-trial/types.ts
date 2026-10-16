@@ -38,13 +38,87 @@ export interface KoefisienItem {
   jenis: 'UPAH' | 'MATERIAL' | 'BONGKARAN';
 }
 
+export type JenisLampiranTrial =
+  | 'KATALOG'
+  | 'TEKNIKAL_SPEK'
+  | 'HASIL_UJI'
+  | 'SPH'
+  | 'FOTO_ITEM';
+
 export interface LampiranFileItem {
   id: string;
   name: string;
   url: string;
   size?: number;
   type?: string;
+  jenisLampiran?: JenisLampiranTrial;
+  labelJenis?: string;
+  isImage?: boolean;
 }
+
+export interface KategoriLampiranConfig {
+  key: JenisLampiranTrial;
+  label: string;
+  shortLabel: string;
+  docLabel: string;
+  required: boolean;
+  multiple: boolean;
+  accept: string;
+  description: string;
+}
+
+export const KATEGORI_LAMPIRAN_TRIAL: KategoriLampiranConfig[] = [
+  {
+    key: 'KATALOG',
+    label: '1. Katalog Material',
+    shortLabel: 'Katalog',
+    docLabel: 'Katalog Material',
+    required: true,
+    multiple: false,
+    accept: '.pdf,.doc,.docx,image/*',
+    description: 'Brosur atau katalog resmi produk dari pabrikan/vendor (PDF/Gambar)',
+  },
+  {
+    key: 'TEKNIKAL_SPEK',
+    label: '2. Teknikal Spek',
+    shortLabel: 'Teknikal Spek',
+    docLabel: 'Spesifikasi Teknis',
+    required: false,
+    multiple: false,
+    accept: '.pdf,.doc,.docx,.xls,.xlsx,image/*',
+    description: 'Lembar data teknis spesifikasi material (Data Sheet)',
+  },
+  {
+    key: 'HASIL_UJI',
+    label: '3. Hasil Uji',
+    shortLabel: 'Hasil Uji',
+    docLabel: 'Hasil Uji Lab',
+    required: false,
+    multiple: false,
+    accept: '.pdf,.doc,.docx,image/*',
+    description: 'Dokumen hasil pengujian laboratorium atau sertifikat mutu',
+  },
+  {
+    key: 'SPH',
+    label: '4. SPH (Surat Penawaran Harga)',
+    shortLabel: 'SPH',
+    docLabel: 'Surat Penawaran Harga (SPH)',
+    required: true,
+    multiple: false,
+    accept: '.pdf,.doc,.docx,.xls,.xlsx,image/*',
+    description: 'Dokumen penawaran harga resmi dari supplier/distributor',
+  },
+  {
+    key: 'FOTO_ITEM',
+    label: '5. Foto / Gambar Item',
+    shortLabel: 'Foto / Gambar Item',
+    docLabel: 'Foto / Gambar Fisik Item',
+    required: true,
+    multiple: true,
+    accept: 'image/*,.pdf',
+    description: 'Foto sampel fisik material dan/atau lokasi pemasangan (bisa >1 foto)',
+  },
+];
 
 export interface FormEvaluasiTim {
   tim: 'TIM_PP' | 'TIM_BMES' | 'TIM_SB';
@@ -253,3 +327,74 @@ export function calculateEvaluationQuorum(item: TrialItem): {
     isComplete: totalVoted >= 3,
   };
 }
+
+const ROMAWI_BULAN = [
+  'I', 'II', 'III', 'IV', 'V', 'VI',
+  'VII', 'VIII', 'IX', 'X', 'XI', 'XII',
+];
+
+/**
+ * Menghasilkan nomor dokumen penerbitan trial dengan format:
+ * [nomor]/TRIAL/[romawi bulan]/[tahun 2 digit] (contoh: 001/TRIAL/X/26)
+ * Nomor urut otomatis di-reset kembali ke 001 setiap pergantian bulan.
+ */
+export function generateNomorDokumenTrial(
+  item: TrialItem,
+  allItems: TrialItem[] = [],
+  overrideDateStr?: string
+): string {
+  if (
+    !overrideDateStr &&
+    item.nomorDokumenTrial &&
+    /^\d{3}\/TRIAL\/[IVX]+\/\d{2}$/.test(item.nomorDokumenTrial)
+  ) {
+    return item.nomorDokumenTrial;
+  }
+
+  const refDate = (
+    overrideDateStr ||
+    item.trialStartDate ||
+    item.tanggalPengajuan ||
+    new Date().toISOString().split('T')[0]
+  ).split(' ')[0];
+
+  const parts = refDate.split('-');
+  const yyyy = parts[0] || String(new Date().getFullYear());
+  const mm = (parts[1] || String(new Date().getMonth() + 1)).padStart(2, '0');
+  const monthIdx = Math.max(0, Math.min(11, (parseInt(mm, 10) || 1) - 1));
+  const romanMonth = ROMAWI_BULAN[monthIdx];
+  const yearShort = yyyy.slice(-2);
+  const targetYearMonth = `${yyyy}-${mm}`;
+
+  if (!allItems || allItems.length === 0) {
+    return `001/TRIAL/${romanMonth}/${yearShort}`;
+  }
+
+  const sameMonthItems = allItems
+    .filter((it) => {
+      const itDate =
+        it.id === item.id && overrideDateStr
+          ? overrideDateStr
+          : it.trialStartDate || it.tanggalPengajuan || '';
+      return itDate.startsWith(targetYearMonth);
+    })
+    .sort((a, b) => {
+      const dateA =
+        a.id === item.id && overrideDateStr
+          ? overrideDateStr
+          : a.trialStartDate || a.tanggalPengajuan || '';
+      const dateB =
+        b.id === item.id && overrideDateStr
+          ? overrideDateStr
+          : b.trialStartDate || b.tanggalPengajuan || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return a.kode.localeCompare(b.kode);
+    });
+
+  const idx = sameMonthItems.findIndex((it) => it.id === item.id);
+  const seqNumber = idx !== -1 ? idx + 1 : sameMonthItems.length + 1;
+  const paddedNo = String(seqNumber).padStart(3, '0');
+
+  return `${paddedNo}/TRIAL/${romanMonth}/${yearShort}`;
+}
+

@@ -14,6 +14,7 @@ import {
   FormEvaluasiTim,
   LampiranFileItem,
   calculateEvaluationQuorum,
+  generateNomorDokumenTrial,
 } from './types';
 
 const STORAGE_KEY = 'sparta_prototipe_trial_items_v2';
@@ -226,7 +227,7 @@ const INITIAL_MOCK_ITEMS: TrialItem[] = [
     makerNama: 'Pak Wiwit (Regional Manager)',
     tanggalPengajuan: '2026-08-15',
     status: 'TRIAL_AKTIF', // Sedang aktif berjalan di lapangan!
-    nomorDokumenTrial: 'SPARTA/TRIAL/202608/SIP-105',
+    nomorDokumenTrial: '002/TRIAL/VIII/26',
     trialStartDate: '2026-08-20',
     trialEndDate: '2026-11-18',
     hargaTrialFinal: 1920000,
@@ -270,7 +271,7 @@ const INITIAL_MOCK_ITEMS: TrialItem[] = [
     makerNama: 'Annisa Purnamasari (PP Specialist)',
     tanggalPengajuan: '2026-08-01',
     status: 'TRIAL_EVALUASI_VOTING', // Masa aktif 60 hari habis!
-    nomorDokumenTrial: 'SPARTA/TRIAL/202608/SIP-106',
+    nomorDokumenTrial: '001/TRIAL/VIII/26',
     trialStartDate: '2026-08-05',
     trialEndDate: '2026-10-04',
     hargaTrialFinal: 172000,
@@ -315,7 +316,7 @@ const INITIAL_MOCK_ITEMS: TrialItem[] = [
     makerNama: 'Pak Iqbal (BMES Specialist)',
     tanggalPengajuan: '2026-07-20',
     status: 'TRIAL_PENDING_FINAL_BM_REG', // Lolos kuorum 2 dari 3 setuju!
-    nomorDokumenTrial: 'SPARTA/TRIAL/202607/SIP-107',
+    nomorDokumenTrial: '001/TRIAL/VII/26',
     hargaTrialFinal: 675000,
     evaluasiPP: {
       tim: 'TIM_PP',
@@ -365,7 +366,7 @@ const INITIAL_MOCK_ITEMS: TrialItem[] = [
     makerNama: 'Pak Jhon (Regional Manager)',
     tanggalPengajuan: '2026-06-10',
     status: 'TRIAL_EVALUASI_TIDAK_LANJUT', // Tidak lanjut / Kuorum gagal -> NON-DEADLOCK!
-    nomorDokumenTrial: 'SPARTA/TRIAL/202606/SIP-108',
+    nomorDokumenTrial: '001/TRIAL/VI/26',
     hargaTrialFinal: 225000,
     evaluasiPP: {
       tim: 'TIM_PP',
@@ -414,7 +415,7 @@ const INITIAL_MOCK_ITEMS: TrialItem[] = [
     makerNama: 'Pak Andy (BMES Manager)',
     tanggalPengajuan: '2026-05-01',
     status: 'TRIAL_PROMOTED_MASTER', // SUDAH RESMI MASUK MASTER HARGA!
-    nomorDokumenTrial: 'SPARTA/TRIAL/202605/SIP-109',
+    nomorDokumenTrial: '001/TRIAL/V/26',
     hargaTrialFinal: 182000,
     historyLog: [
       { role: 'Regional Manager', action: 'APPROVE', tanggal: '2026-05-10' },
@@ -481,10 +482,7 @@ export function saveStoredTrialItems(items: TrialItem[]): void {
         ...it,
         lampiranMakerUrl: undefined,
         lampiranMakerList: it.lampiranMakerList?.map((f) => ({
-          id: f.id,
-          name: f.name,
-          size: f.size,
-          type: f.type,
+          ...f,
           url: '#',
         })),
       }));
@@ -617,9 +615,9 @@ export function submitTrialSBCoefficients(
 
 export function approveTrialRegMgrConfig(id: string, catatan: string): void {
   const today = new Date().toISOString().split('T')[0];
-  const yearMonth = today.replace('-', '').substring(0, 6);
+  const allItems = getStoredTrialItems();
   updateTrialItem(id, (item) => {
-    const docNo = item.nomorDokumenTrial || `SPARTA/TRIAL/${yearMonth}/${item.kode}`;
+    const docNo = generateNomorDokumenTrial(item, allItems, today);
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + item.durasiHari);
     return {
@@ -634,7 +632,7 @@ export function approveTrialRegMgrConfig(id: string, catatan: string): void {
           role: 'B&M Regional Manager',
           action: 'APPROVE',
           tanggal: today,
-          catatan: catatan || `Harga disetujui. Dokumen resmi diterbitkan: ${docNo}. Item aktif untuk transaksi SPK.`,
+          catatan: catatan || `Harga disetujui. Dokumen resmi diterbitkan: No. ${docNo}. Item aktif untuk transaksi SPK.`,
         },
       ],
     };

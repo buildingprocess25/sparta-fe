@@ -13,7 +13,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import CreatableSelect from "react-select/creatable";
 import {
   Dialog,
@@ -42,7 +42,13 @@ import {
   FileText,
 } from "lucide-react";
 import type { StylesConfig } from "react-select";
-import { TrialItem, TrialStatus, LampiranFileItem } from "./types";
+import {
+  TrialItem,
+  TrialStatus,
+  LampiranFileItem,
+  JenisLampiranTrial,
+  KATEGORI_LAMPIRAN_TRIAL,
+} from "./types";
 import { addTrialItem, updateTrialItem, useTrialStore } from "./store";
 import {
   getKodeData,
@@ -482,6 +488,8 @@ interface UploadedFileItem {
   type: string;
   url: string;
   isImage: boolean;
+  jenisLampiran: JenisLampiranTrial;
+  labelJenis: string;
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -498,7 +506,6 @@ export function ModalTambahTrial({
   onSuccess,
   itemToEdit = null,
 }: ModalTambahTrialProps) {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { items: existingTrialItems } = useTrialStore();
 
   // Konteks Prototype (Aktor Maker & Cabang Uji Coba)
@@ -531,7 +538,7 @@ export function ModalTambahTrial({
   const [estimasiHarga, setEstimasiHarga] = useState<number>(125000);
   const [isTermasukBongkaran, setIsTermasukBongkaran] = useState(false);
 
-  // Lampiran Berkas (Mendukung Multi-Upload / Bulking)
+  // Lampiran Berkas Terkategorisasi (5 Jenis Lampiran)
   const [lampiranList, setLampiranList] = useState<UploadedFileItem[]>([]);
 
   // Prefill data saat mode edit draf
@@ -559,7 +566,9 @@ export function ModalTambahTrial({
             size: f.size || 1024,
             type: f.type || "application/pdf",
             url: f.url,
-            isImage: Boolean(f.name.match(/\.(jpg|jpeg|png|webp)$/i)),
+            isImage: f.isImage ?? Boolean(f.name.match(/\.(jpg|jpeg|png|webp)$/i)),
+            jenisLampiran: f.jenisLampiran || "KATALOG",
+            labelJenis: f.labelJenis || "Katalog",
           }))
         );
       }
@@ -692,8 +701,13 @@ export function ModalTambahTrial({
     }
   };
 
-  // Handler Upload Dokumen & Gambar (Mendukung Multi-Upload / Bulking)
-  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handler Upload Berkas Per Slot Kategori (Opsi A: 5 Slot Terstruktur)
+  const handleSlotFileChange = (
+    jenis: JenisLampiranTrial,
+    label: string,
+    isMultiple: boolean,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -707,7 +721,9 @@ export function ModalTambahTrial({
       }
 
       const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-      const isImg = file.type.startsWith("image/");
+      const isImg =
+        file.type.startsWith("image/") ||
+        Boolean(file.name.match(/\.(jpg|jpeg|png|webp)$/i));
       const url = URL.createObjectURL(file);
 
       newItems.push({
@@ -717,33 +733,54 @@ export function ModalTambahTrial({
         type: file.type,
         url,
         isImage: isImg,
+        jenisLampiran: jenis,
+        labelJenis: label,
       });
     });
 
     if (newItems.length > 0) {
-      setLampiranList((prev) => [...prev, ...newItems]);
+      setLampiranList((prev) => {
+        if (isMultiple) {
+          // Untuk Foto / Gambar Item: izinkan lebih dari 1 foto (append)
+          return [...prev, ...newItems];
+        } else {
+          // Untuk berkas tunggal: timpa berkas lama pada kategori yang sama
+          const filtered = prev.filter((f) => f.jenisLampiran !== jenis);
+          return [...filtered, newItems[0]];
+        }
+      });
     }
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    e.target.value = "";
   };
 
   const handleRemoveFile = (id: string) => {
     setLampiranList((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const handleClearAllFiles = () => {
-    setLampiranList([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
   const handleSubmit = (isDraft: boolean) => {
     if (!isDraft && (!namaItem.trim() || !merk.trim() || !alasanTrial.trim())) {
       alert("Mohon lengkapi Nama Item, Merk, dan Alasan Pengajuan Trial.");
       return;
+    }
+
+    if (!isDraft) {
+      const missingRequired = KATEGORI_LAMPIRAN_TRIAL.filter(
+        (kat) =>
+          kat.required &&
+          !lampiranList.some((f) => f.jenisLampiran === kat.key)
+      );
+      if (missingRequired.length > 0) {
+        const missingLabels = missingRequired
+          .map((k) => k.shortLabel)
+          .join(", ");
+        alert(
+          `Mohon lengkapi berkas lampiran wajib berikut sebelum mengajukan:\n- ${missingRequired
+            .map((k) => k.label)
+            .join("\n- ")}\n\n(Kurang: ${missingLabels})`
+        );
+        return;
+      }
     }
 
     if (!isDraft && kodeData.isDuplicate) {
@@ -780,6 +817,9 @@ export function ModalTambahTrial({
       url: f.url,
       size: f.size,
       type: f.type,
+      jenisLampiran: f.jenisLampiran,
+      labelJenis: f.labelJenis,
+      isImage: f.isImage,
     }));
 
     const newItem: TrialItem = {
@@ -1412,123 +1452,189 @@ export function ModalTambahTrial({
             </div>
           </div>
 
-          {/* SEKSI 4: LAMPIRAN DOKUMEN & FOTO SPESIFIKASI MATERIAL (BULK UPLOAD) */}
+          {/* SEKSI 4: LAMPIRAN DOKUMEN & FOTO SPESIFIKASI MATERIAL (5 SLOT TERSTRUKTUR) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-purple-600" />
+                <FileText className="w-4 h-4 text-red-600" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                   4. Lampiran Dokumen &amp; Foto Spesifikasi Material
                 </h4>
               </div>
-              {lampiranList.length > 0 && (
-                <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
-                  {lampiranList.length} Berkas Terpilih
-                </span>
-              )}
+              {(() => {
+                const requiredList = KATEGORI_LAMPIRAN_TRIAL.filter((k) => k.required);
+                const filledRequired = requiredList.filter((k) =>
+                  lampiranList.some((f) => f.jenisLampiran === k.key)
+                ).length;
+                const isAllRequiredDone = filledRequired === requiredList.length;
+
+                return (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                        isAllRequiredDone
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-800 border-amber-200"
+                      }`}
+                    >
+                      {filledRequired}/{requiredList.length} Berkas Wajib Terisi
+                    </span>
+                    {lampiranList.length > 0 && (
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                        Total {lampiranList.length} Berkas
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
-            <div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                multiple
-                accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
-                onChange={handleFilesChange}
-                className="hidden"
-              />
+            <div className="space-y-3">
+              {KATEGORI_LAMPIRAN_TRIAL.map((kat) => {
+                const slotFiles = lampiranList.filter(
+                  (f) => f.jenisLampiran === kat.key
+                );
+                const isFilled = slotFiles.length > 0;
+                const inputId = `trial-upload-${kat.key}`;
 
-              {/* Area Unggah (Dropzone / Tombol Upload Bulking) */}
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="p-5 border-2 border-dashed border-slate-200 hover:border-purple-400 bg-slate-50 hover:bg-purple-50/20 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
-              >
-                <Upload className="w-7 h-7 text-slate-400 mb-1.5" />
-                <span className="text-xs font-bold text-slate-800">
-                  Pilih atau Tarik Berkas Dokumen &amp; Foto ke Sini
-                </span>
-                <span className="text-[11px] text-slate-400 mt-0.5">
-                  Mendukung unggah banyak berkas sekaligus: PDF, Word, Excel, JPG, PNG, WebP (Maks. 10MB per berkas)
-                </span>
-              </div>
+                return (
+                  <div
+                    key={kat.key}
+                    className={`p-3.5 rounded-xl border transition-all ${
+                      isFilled
+                        ? "border-emerald-200 bg-emerald-50/20"
+                        : kat.required
+                        ? "border-slate-200 bg-slate-50/50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <input
+                      id={inputId}
+                      type="file"
+                      multiple={kat.multiple}
+                      accept={kat.accept}
+                      onChange={(e) =>
+                        handleSlotFileChange(
+                          kat.key,
+                          kat.shortLabel,
+                          kat.multiple,
+                          e
+                        )
+                      }
+                      className="hidden"
+                    />
 
-              {/* Daftar Berkas Terunggah */}
-              {lampiranList.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
-                    <span>Daftar Berkas Terlampir ({lampiranList.length})</span>
-                    <button
-                      type="button"
-                      onClick={handleClearAllFiles}
-                      className="text-[11px] text-rose-600 hover:underline cursor-pointer"
-                    >
-                      Hapus Semua
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto p-1">
-                    {lampiranList.map((file) => (
-                      <div
-                        key={file.id}
-                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3 relative group hover:border-slate-300 transition-colors"
-                      >
-                        {file.isImage ? (
-                          <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 relative">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={file.url}
-                              alt={file.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-12 h-12 rounded-lg border border-red-200 bg-red-50 text-red-600 flex flex-col items-center justify-center shrink-0">
-                            <FileText className="w-5 h-5" />
-                            <span className="text-[8px] font-bold uppercase mt-0.5">
-                              {file.name.split(".").pop() || "DOC"}
+                    {/* Baris Atas Slot: Nama Kategori, Status Wajib/Opsional & Tombol Pilih Berkas */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-slate-900">
+                            {kat.label}
+                          </span>
+                          {kat.required ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
+                              Wajib
                             </span>
-                          </div>
-                        )}
-
-                        <div className="flex-1 min-w-0 text-xs">
-                          <span
-                            className="font-bold text-slate-900 block truncate"
-                            title={file.name}
-                          >
-                            {file.name}
-                          </span>
-                          <span className="text-[10px] text-slate-400 block mt-0.5">
-                            {formatFileSize(file.size)} &bull;{" "}
-                            {file.isImage ? "Foto/Gambar" : "Dokumen"}
-                          </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                              Opsional
+                            </span>
+                          )}
+                          {isFilled && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" />
+                              {kat.multiple
+                                ? `${slotFiles.length} Foto Terunggah`
+                                : "Terunggah"}
+                            </span>
+                          )}
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(file.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-                          title="Hapus berkas ini"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <p className="text-[11px] text-slate-500">
+                          {kat.description}
+                        </p>
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500 px-1">
-                    <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> {lampiranList.length} berkas siap disimpan
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-purple-600 hover:underline font-medium cursor-pointer"
-                    >
-                      + Tambah Berkas Lain
-                    </button>
+                      <label
+                        htmlFor={inputId}
+                        className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors shrink-0 ${
+                          isFilled
+                            ? "bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-2xs"
+                            : "bg-red-600 hover:bg-red-700 text-white shadow-2xs"
+                        }`}
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>
+                          {kat.multiple
+                            ? isFilled
+                              ? "+ Tambah Foto"
+                              : "Pilih Gambar"
+                            : isFilled
+                            ? "Ganti Berkas"
+                            : "Pilih Berkas"}
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Daftar Berkas yang Sudah Diunggah pada Slot Ini */}
+                    {isFilled && (
+                      <div
+                        className={`mt-3 pt-2.5 border-t border-slate-200/80 ${
+                          kat.multiple
+                            ? "grid grid-cols-1 sm:grid-cols-2 gap-2"
+                            : "space-y-2"
+                        }`}
+                      >
+                        {slotFiles.map((file) => (
+                          <div
+                            key={file.id}
+                            className="p-2 bg-white border border-slate-200 rounded-lg flex items-center gap-2.5 hover:border-slate-300 transition-colors"
+                          >
+                            {file.isImage ? (
+                              <div className="w-10 h-10 rounded-md overflow-hidden border border-slate-200 bg-slate-50 shrink-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={file.url}
+                                  alt={file.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-md border border-red-200 bg-red-50 text-red-600 flex flex-col items-center justify-center shrink-0">
+                                <FileText className="w-4 h-4" />
+                                <span className="text-[8px] font-bold uppercase mt-0.5">
+                                  {file.name.split(".").pop() || "DOC"}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex-1 min-w-0 text-xs">
+                              <span
+                                className="font-semibold text-slate-800 block truncate"
+                                title={file.name}
+                              >
+                                {file.name}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block">
+                                {formatFileSize(file.size)} &bull;{" "}
+                                {file.isImage ? "Foto / Gambar" : "Dokumen"}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFile(file.id)}
+                              className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                              title="Hapus berkas ini"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
           </div>
 
