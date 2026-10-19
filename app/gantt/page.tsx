@@ -4651,7 +4651,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                         const input = memoInputs[key] || ({} as any);
                         const existingStatus = latestStatusMapState.get(key);
-                        if (!input.status && existingStatus) {
+                        if (!input.status && existingStatus && !fromSerahTerimaModal) {
                             input.status = existingStatus as any;
                         }
 
@@ -4721,7 +4721,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             const entriesToSubmit = Object.entries(memoInputs).filter(([key, val]) => {
                 const existingStatus = latestStatusMapState.get(key);
-                const effectiveStatus = val.status || existingStatus;
+                const effectiveStatus = (fromSerahTerimaModal && val.status) ? val.status : (val.status || existingStatus);
                 if (!effectiveStatus) return false;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
             const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
@@ -4780,7 +4780,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const existingId = latestIdMapState.get(upperKey);
 
                 const existingStatus = latestStatusMapState.get(key);
-                const effectiveStatus = val.status || existingStatus;
+                const effectiveStatus = (fromSerahTerimaModal && val.status) ? val.status : (val.status || existingStatus);
 
                 // [PERBAIKAN 1]: Mengubah status menjadi lowercase utuh agar lolos validasi strict enum backend
                 const statusLower = typeof effectiveStatus === 'string' ? effectiveStatus.toLowerCase().replace(/\s+/g, '_') : '';
@@ -5222,11 +5222,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                     {d.items.map((item: any, j: number) => {
                                                         const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                                                         const latestStatusKey = latestStatusMapState.get(key);
-                                                        const currentStatus = memoInputs[key]?.status || latestStatusKey;
+                                                        const currentStatus = (memoInputs.hasOwnProperty(key) && memoInputs[key]?.status !== undefined)
+                                                            ? memoInputs[key].status
+                                                            : (latestStatusKey || '');
                                                         const lateDays = memoInputs[key]?.lateDays || 0;
                                                         const isAlreadySavedToday = Boolean((memoInputs[key] as any)?.isSaved && latestIdMapState.has(key));
-                                                        const isTerminalStatus = ['Selesai', 'Tidak Dikerjakan'].includes(String(currentStatus || latestStatusKey || ''));
-                                                        const shouldLockAsSaved = isAlreadySavedToday && (!fromSerahTerimaModal || isTerminalStatus);
+                                                        const shouldLockAsSaved = isAlreadySavedToday && !fromSerahTerimaModal;
 
                                                         const renderOpnameForm = () => {
                                                             if (currentStatus !== 'Selesai' || isWorkItemBlockedByOpname(item, key)) return null;
@@ -5479,6 +5480,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                         onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
                                                                                                         className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
                                                                                                     />
+                                                                                                    {memoInputs[key]?.dokumentasiUrl && (
+                                                                                                        <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="ml-2 flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200 transition-colors shrink-0">
+                                                                                                            <FileText className="w-3.5 h-3.5" /> Foto Sebelumnya
+                                                                                                        </a>
+                                                                                                    )}
                                                                                                 </div>
                                                                                             </div>
 
