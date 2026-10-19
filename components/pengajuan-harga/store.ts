@@ -2699,7 +2699,7 @@ export function submitVoteKontraktor(
         isParked = true;
         parkedCabang = targetCabang;
         parkedAt = nowStr;
-        parkedReason = 'Menolak harga penetapan final pasca pengajuan banding harga';
+        parkedReason = 'Menolak harga penetapan pasca pengajuan banding harga';
 
         setKontraktorParked({
           kontraktorId,

@@ -864,7 +864,7 @@ export function ReviewNegosiasiKontraktorCard({
           <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <span>
             {isRegionalManager
-              ? "Kolom di bawah menampilkan rincian harga yang telah disesuaikan dan ditetapkan oleh S&B Specialist berdasarkan pertimbangan usulan rekanan kontraktor. Periksa dan berikan keputusan persetujuan untuk meneruskan penawaran resmi kepada kontraktor."
+              ? "Kolom di bawah menampilkan rincian harga yang telah disesuaikan dan ditetapkan oleh S&B Specialist berdasarkan pertimbangan usulan rekanan kontraktor. Periksa dan berikan keputusan persetujuan untuk meneruskan kepada kontraktor."
               : "Persentase margin diatur secara mandiri oleh S&B Specialist pada tabel form Koefisien di bawah. Setelah margin disesuaikan, simpan koefisien untuk meneruskan ke Regional Manager guna persetujuan penetapan harga."}
           </span>
         </div>
