@@ -573,15 +573,6 @@ export default function ContractorPerformanceDashboard() {
                                                                                 {formatRupiah(spk)} <span className="text-[11px] font-semibold text-slate-400">/ {totalToko} toko</span>
                                                                             </span>
                                                                         </div>
-                                                                        <div className="pt-3 mt-3 border-t border-slate-100/80 flex justify-between items-center gap-6">
-                                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Selisih</span>
-                                                                            <span className={cn(
-                                                                                "text-[15px] font-black",
-                                                                                penawaran - spk >= 0 ? "text-emerald-500" : "text-rose-500"
-                                                                            )}>
-                                                                                {formatRupiah(Math.abs(penawaran - spk))}
-                                                                            </span>
-                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             );
