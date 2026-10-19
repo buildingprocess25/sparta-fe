@@ -127,7 +127,7 @@ export default function ContractorPerformanceDashboard() {
     return (
         <div className="h-full overflow-y-auto bg-slate-50/50 font-sans relative">
             <main className="pb-8 relative">
-                
+
                 {/* 1. Sticky Header & Filters Section */}
                 <div className="sticky top-0 z-40 bg-slate-50/95 backdrop-blur-md transition-all duration-300 px-4 lg:px-8 pb-4 pt-6">
                     <div className="max-w-[1400px] mx-auto space-y-4">
@@ -152,7 +152,7 @@ export default function ContractorPerformanceDashboard() {
                         {/* Filter Container */}
                         {isHeaderVisible && (
                             <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 p-2 bg-white border border-slate-200/80 rounded-2xl w-full animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm">
-                                
+
                                 {/* Search Input */}
                                 <div className="relative w-full lg:flex-1 lg:min-w-[280px]">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -246,7 +246,7 @@ export default function ContractorPerformanceDashboard() {
 
                                 {/* Select Bangunan (Ruko / Non Ruko) */}
                                 <div className="relative border border-slate-200/70 rounded-xl hover:bg-slate-50 transition-colors bg-white">
-                                    <select 
+                                    <select
                                         className="h-9 pl-3 pr-8 bg-transparent text-[13px] font-semibold text-slate-600 outline-none appearance-none cursor-pointer min-w-[150px]"
                                         value={filters.bangunan || 'ALL'}
                                         onChange={(e) => setFilters(p => ({ ...p, bangunan: e.target.value }))}
@@ -325,7 +325,7 @@ export default function ContractorPerformanceDashboard() {
                         />
 
                         {/* Penilaian Toko (White with Emerald Accents) */}
-                        <div 
+                        <div
                             onClick={() => openModalRanking('evaluasi_toko')}
                             className="col-span-1 md:col-span-1 lg:col-span-3 bg-white rounded-[24px] p-8 border border-slate-200/70 shadow-sm cursor-pointer hover:border-emerald-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.08)] hover:-translate-y-1 transition-all duration-300 relative group overflow-hidden"
                         >
@@ -344,7 +344,7 @@ export default function ContractorPerformanceDashboard() {
                                     <h2 className="text-3xl font-bold mb-1.5 text-slate-800 tracking-tight group-hover:text-emerald-700 transition-colors">Penilaian Toko</h2>
                                     <p className="text-slate-500 text-[14px] font-medium leading-relaxed max-w-sm">Penilaian keseluruhan komponen bangunan toko berdasarkan standar kelayakan Alfamart.</p>
                                 </div>
-                                
+
                                 <div className="flex flex-wrap md:flex-nowrap items-center gap-8 lg:gap-12">
                                     <div className="flex flex-col">
                                         <span className="text-slate-400 font-bold text-[12px] uppercase tracking-wider mb-1">Nilai Toko</span>
@@ -400,52 +400,52 @@ export default function ContractorPerformanceDashboard() {
                                         allSpHistory.map((row, i) => {
                                             const spLevel = String(row.sp_level || '');
                                             const borderColor = spLevel === '1' ? 'border-l-amber-400' :
-                                                                spLevel === '2' ? 'border-l-orange-500' :
-                                                                (spLevel === '3' || spLevel === 'FINAL') ? 'border-l-rose-500' :
-                                                                'border-l-slate-200';
+                                                spLevel === '2' ? 'border-l-orange-500' :
+                                                    (spLevel === '3' || spLevel === 'FINAL') ? 'border-l-rose-500' :
+                                                        'border-l-slate-200';
                                             return (
                                                 <tr key={i} className={cn("hover:bg-slate-50/80 transition-colors group border-l-4", borderColor)}>
-                                                <td className="px-6 py-4">
-                                                    <div className="font-bold text-slate-800 text-[15px]">{row.nama_kontraktor}</div>
-                                                    <div className="text-[13px] text-slate-500 flex items-center gap-1.5 mt-1">
-                                                        <span className="font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">{row.action_type === 'SP' && row.sp_level ? `SP ${row.sp_level}` : row.action_type}</span>
-                                                        <span>•</span>
-                                                        <span>{getParentBranch(row.cabang)}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    {row.is_active ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                                            Aktif
-                                                        </span>
-                                                    ) : row.has_next_sp ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200/80">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                                            {row.next_sp_level ? `Dilanjut ke SP ${row.next_sp_level}` : 'Dilanjut ke SP Selanjutnya'}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                                            Selesai
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4 text-slate-600 font-medium">
-                                                    {new Date(row.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                    <span className="text-slate-300 mx-2">→</span>
-                                                    {row.expires_at ? new Date(row.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Belum Berakhir'}
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <button
-                                                        onClick={() => openModalSpSingle(row)}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 font-semibold rounded-xl border border-slate-200 transition-all shadow-sm"
-                                                    >
-                                                        Detail
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-800 text-[15px]">{row.nama_kontraktor}</div>
+                                                        <div className="text-[13px] text-slate-500 flex items-center gap-1.5 mt-1">
+                                                            <span className="font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">{row.action_type === 'SP' && row.sp_level ? `SP ${row.sp_level}` : row.action_type}</span>
+                                                            <span>•</span>
+                                                            <span>{getParentBranch(row.cabang)}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {row.is_active ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                                Aktif
+                                                            </span>
+                                                        ) : row.has_next_sp ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200/80">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                                {row.next_sp_level ? `Dilanjut ke SP ${row.next_sp_level}` : 'Dilanjut ke SP Selanjutnya'}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                                                Selesai
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-slate-600 font-medium">
+                                                        {new Date(row.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        <span className="text-slate-300 mx-2">→</span>
+                                                        {row.expires_at ? new Date(row.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Belum Berakhir'}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <button
+                                                            onClick={() => openModalSpSingle(row)}
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 font-semibold rounded-xl border border-slate-200 transition-all shadow-sm"
+                                                        >
+                                                            Detail
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
                                         })
                                     )}
                                 </tbody>
@@ -664,7 +664,7 @@ function ModernMetricCard({
     const theme = themes[colorScheme];
 
     return (
-        <div 
+        <div
             onClick={onClick}
             className={cn(
                 "rounded-[24px] p-6 border shadow-sm cursor-pointer transition-all duration-300 relative overflow-hidden group flex flex-col justify-between",
@@ -679,7 +679,7 @@ function ModernMetricCard({
                     <ChevronRight className="w-4 h-4 text-slate-400" />
                 </div>
             </div>
-            
+
             <div className="relative z-10">
                 <h3 className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-slate-500 transition-colors">{title}</h3>
                 <div className="text-[24px] font-bold text-slate-800 tracking-tight mb-2 truncate group-hover:text-slate-900 transition-colors" title={mainValue}>{mainValue}</div>
@@ -693,7 +693,7 @@ function ModernMetricCard({
                     <span className="text-xs font-bold text-slate-500">{subValue}</span>
                 </div>
             </div>
-            
+
             {/* Soft background glow on hover */}
             <div className={cn("absolute -bottom-10 -right-10 w-32 h-32 rounded-full opacity-0 group-hover:opacity-20 blur-2xl transition-opacity duration-500", theme.iconBg.split(' ')[0])}></div>
         </div>
