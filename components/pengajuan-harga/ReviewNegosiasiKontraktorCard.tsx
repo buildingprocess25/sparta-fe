@@ -335,7 +335,18 @@ export function ReviewNegosiasiKontraktorCard({
       : 0;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+      {/* Watermark Gedung di Tengah Background */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] z-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/Building-Logo.png"
+          alt="Watermark Building Logo"
+          className="w-96 h-96 object-contain select-none pointer-events-none"
+        />
+      </div>
+
+      <div className="relative z-10 space-y-5">
       {/* =====================================================================
           A. HEADER MONITORING & KUORUM VOTING REKANAN KONTRAKTOR
           ===================================================================== */}
@@ -927,6 +938,7 @@ export function ReviewNegosiasiKontraktorCard({
             </tfoot>
           </table>
         </div>
+      </div>
       </div>
     </div>
   );

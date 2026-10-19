@@ -157,16 +157,14 @@ export function TrialDokumenViewer({
 
       {/* Container Kertas A4 (Persis Template dokumen-terbit.html) */}
       <div className="print-container max-w-5xl mx-auto bg-white p-6 sm:p-8 shadow-md relative overflow-hidden border border-gray-200 print:shadow-none print:border-none print:max-w-full print:p-0">
-        {/* Watermark Gedung di Tengah Background */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] z-0">
-          <svg
-            className="w-96 h-96 text-gray-900"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3zm5 15h-2v-6H9v6H7v-7.81l5-4.5 5 4.5V18z" />
-            <path d="M7 10.19V18h2v-6h6v6h2v-7.81l-5-4.5z" opacity=".3" />
-          </svg>
+        {/* Watermark Gedung di Tengah Background (Building-Logo.png) */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.04] z-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/Building-Logo.png"
+            alt="Watermark Building Logo"
+            className="w-96 h-96 object-contain select-none pointer-events-none"
+          />
         </div>
 
         {/* Konten Utama (z-10 agar di atas watermark) */}
