@@ -11,6 +11,8 @@ import {
   HargaCabangItem,
   VotingKontraktorItem,
   VotingKontraktorState,
+  LampiranBandingKontraktor,
+  ParkedKontraktorCabang,
 } from './types';
 
 // Daftar 3 Rekanan Kontraktor Default untuk Kuorum Voting (50% + 1)
@@ -2614,10 +2616,51 @@ export function getStoredPengajuan(): PengajuanHargaItem[] {
   }
 }
 
+const PARKED_KONTRAKTOR_STORAGE_KEY = 'sparta_parked_kontraktor_list_v1';
+
+export function getParkedKontraktorList(): ParkedKontraktorCabang[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(PARKED_KONTRAKTOR_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function isKontraktorParkedInCabang(kontraktorId: string, cabang?: string): boolean {
+  if (!cabang) return false;
+  const list = getParkedKontraktorList();
+  const cTarget = cabang.toLowerCase().trim();
+  return list.some(
+    (p) => p.kontraktorId === kontraktorId && p.cabang.toLowerCase().trim() === cTarget
+  );
+}
+
+export function setKontraktorParked(entry: ParkedKontraktorCabang): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getParkedKontraktorList();
+    const cTarget = entry.cabang.toLowerCase().trim();
+    const existingIndex = list.findIndex(
+      (p) => p.kontraktorId === entry.kontraktorId && p.cabang.toLowerCase().trim() === cTarget
+    );
+    if (existingIndex >= 0) {
+      list[existingIndex] = entry;
+    } else {
+      list.push(entry);
+    }
+    localStorage.setItem(PARKED_KONTRAKTOR_STORAGE_KEY, JSON.stringify(list));
+  } catch (err) {
+    console.error('Failed to save parked kontraktor:', err);
+  }
+}
+
 /**
  * Submit vote dari salah satu kontraktor rekanan (Kuorum 50% + 1)
  * - Jika 2 dari 3 setuju -> Early Release langsung ke RELEASED
- * - Jika 2 dari 3 tolak -> Kuorum gagal, status berubah ke USULAN_KONTRAKTOR untuk review S&B Specialist
+ * - Jika 2 dari 3 tolak/usul -> Kuorum tolak tercapai, langsung beralih ke USULAN_KONTRAKTOR untuk review SNB tanpa menunggu sisa rekanan
+ * - Jika kontraktor menolak setelah pernah mengajukan banding (Putaran 2) -> Otomatis DI-PARKING dari seluruh pekerjaan di cabang tersebut
  */
 export function submitVoteKontraktor(
   itemId: string,
@@ -2627,6 +2670,7 @@ export function submitVoteKontraktor(
     usulanHarga?: number;
     usulanMargin?: number;
     catatan?: string;
+    lampiranList?: LampiranBandingKontraktor[];
   }
 ): PengajuanHargaItem | null {
   const current = getStoredPengajuan();
@@ -2638,16 +2682,49 @@ export function submitVoteKontraktor(
     ? { ...item.votingKontraktor }
     : makeInitialVotingKontraktor(item.tanggalPengajuan);
 
+  const targetCabang = item.cabang || 'Tangerang';
+  const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
   const daftar = (voting.daftarKontraktor || []).map((k) => {
     if (k.kontraktorId === kontraktorId) {
+      const isSecondRoundReject =
+        payload.action === 'TOLAK' && Boolean(k.hasRejectedOnce || item.isHasilNegosiasi);
+
+      let isParked = k.isParked || false;
+      let parkedCabang = k.parkedCabang;
+      let parkedAt = k.parkedAt;
+      let parkedReason = k.parkedReason;
+
+      if (isSecondRoundReject) {
+        isParked = true;
+        parkedCabang = targetCabang;
+        parkedAt = nowStr;
+        parkedReason = 'Menolak harga penetapan final pasca pengajuan banding harga';
+
+        setKontraktorParked({
+          kontraktorId,
+          namaPerusahaan: k.namaPerusahaan,
+          cabang: targetCabang,
+          parkedAt: nowStr,
+          alasan: parkedReason,
+        });
+      }
+
       return {
         ...k,
         statusVote: (payload.action === 'SETUJU' ? 'SETUJU' : 'TOLAK') as VotingKontraktorItem['statusVote'],
         usulanHarga: payload.action === 'TOLAK' ? payload.usulanHarga : undefined,
         usulanMargin: payload.action === 'TOLAK' ? payload.usulanMargin : undefined,
         catatan: payload.catatan?.trim() || (payload.action === 'SETUJU' ? 'Harga penawaran disepakati.' : ''),
-        tanggalRespon: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        lampiranList: payload.action === 'TOLAK' && payload.lampiranList && payload.lampiranList.length > 0 
+          ? payload.lampiranList 
+          : k.lampiranList,
+        tanggalRespon: nowStr,
         hasRejectedOnce: payload.action === 'TOLAK' ? true : k.hasRejectedOnce,
+        isParked,
+        parkedCabang,
+        parkedAt,
+        parkedReason,
       };
     }
     return k;
@@ -2658,23 +2735,35 @@ export function submitVoteKontraktor(
   const setujuCount = daftar.filter((k) => k.statusVote === 'SETUJU').length;
   const tolakCount = daftar.filter((k) => k.statusVote === 'TOLAK').length;
   const menungguCount = daftar.filter((k) => k.statusVote === 'MENUNGGU').length;
+  const totalKontraktor = daftar.length || 3;
+  const ambangKuorum = Math.floor(totalKontraktor / 2) + 1; // 2 suara dari 3
+
   const targetPerusahaan = daftar.find((k) => k.kontraktorId === kontraktorId)?.namaPerusahaan || 'Kontraktor';
+  const targetRekanan = daftar.find((k) => k.kontraktorId === kontraktorId);
 
   let nextStatus = item.status;
   const logs = [...(item.historyLog || [])];
-  const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
   // Catat log vote rekanan kontraktor
-  logs.push({
-    role: 'Kontraktor',
-    action: payload.action === 'SETUJU' ? 'APPROVE' : 'REJECT',
-    tanggal: nowStr,
-    catatan: `${targetPerusahaan}: ${
-      payload.action === 'SETUJU'
-        ? 'Menyetujui harga penawaran.'
-        : `Mengajukan usulan harga Rp ${(payload.usulanHarga || 0).toLocaleString('id-ID')} (${payload.catatan || ''})`
-    }`,
-  });
+  if (targetRekanan?.isParked) {
+    logs.push({
+      role: 'Kontraktor',
+      action: 'REJECT',
+      tanggal: nowStr,
+      catatan: `${targetPerusahaan}: Menolak harga penetapan final pasca banding. Perusahaan dinonaktifkan sementara (DI-PARKING) dari SELURUH pekerjaan di Cabang ${targetCabang}.`,
+    });
+  } else {
+    logs.push({
+      role: 'Kontraktor',
+      action: payload.action === 'SETUJU' ? 'APPROVE' : 'REJECT',
+      tanggal: nowStr,
+      catatan: `${targetPerusahaan}: ${
+        payload.action === 'SETUJU'
+          ? 'Menyetujui harga penawaran.'
+          : `Mengajukan usulan harga Rp ${(payload.usulanHarga || 0).toLocaleString('id-ID')} (${payload.catatan || ''})`
+      }`,
+    });
+  }
 
   // Simpan usulan harga terbaru ke item untuk referensi umum jika ada
   const daftarUsulan = daftar.filter((k) => k.statusVote === 'TOLAK' && k.usulanHarga);
@@ -2686,27 +2775,35 @@ export function submitVoteKontraktor(
 
   // ATURAN KUORUM (50% + 1):
   // 1. Kasus SETUJU: Jika minimal 2 dari 3 rekanan setuju, langsung Early Release ke RELEASED (tidak perlu menunggu rekanan ke-3)
-  if (setujuCount >= 2) {
+  if (setujuCount >= ambangKuorum) {
     nextStatus = 'RELEASED';
     logs.push({
       role: 'S&B Specialist',
       action: 'APPROVE',
       tanggal: nowStr,
-      catatan: `Kuorum 50%+1 terpenuhi (${setujuCount}/3 kontraktor rekanan menyetujui penawaran). Harga resmi dirilis ke Master.`,
+      catatan: `Kuorum 50%+1 terpenuhi (${setujuCount}/${totalKontraktor} kontraktor rekanan menyetujui penawaran). Harga resmi dirilis ke Master.`,
     });
-  } else if (menungguCount === 0) {
-    // 2. Kasus TOLAK: Jika seluruh rekanan telah selesai merespon (menungguCount === 0) dan setujuCount < 2
-    // Maka kuorum persetujuan tidak tercapai, alihkan ke meja S&B Specialist untuk negosiasi / penyesuaian margin
+  } else if (tolakCount >= ambangKuorum) {
+    // 2. Kasus TOLAK / BANDING: Jika minimal 2 dari 3 rekanan menolak/mengajukan banding,
+    // langsung alihkan ke S&B Specialist tanpa menunggu sisa rekanan merespon!
     nextStatus = 'USULAN_KONTRAKTOR';
     logs.push({
       role: 'S&B Specialist',
       action: 'REVISE',
       tanggal: nowStr,
-      catatan: `Seluruh rekanan kontraktor telah selesai merespon (${tolakCount}/3 tolak/usulan). Pengajuan dialihkan ke S&B Specialist untuk evaluasi/negosiasi ulang.`,
+      catatan: `Kuorum tolak/usulan tercapai (${tolakCount}/${totalKontraktor} kontraktor rekanan menolak/usulan harga). Pengajuan langsung dialihkan ke S&B Specialist untuk penyesuaian koefisien & margin tanpa menunggu sisa rekanan.`,
+    });
+  } else if (menungguCount === 0) {
+    // 3. Jika seluruh rekanan selesai merespon dan kuorum persetujuan tidak tercapai
+    nextStatus = 'USULAN_KONTRAKTOR';
+    logs.push({
+      role: 'S&B Specialist',
+      action: 'REVISE',
+      tanggal: nowStr,
+      catatan: `Seluruh rekanan kontraktor telah selesai merespon (${tolakCount}/${totalKontraktor} tolak/usulan). Pengajuan dialihkan ke S&B Specialist untuk evaluasi/negosiasi ulang.`,
     });
   } else {
-    // 3. Jika masih ada rekanan yang belum merespon (menungguCount > 0) dan setujuCount < 2:
-    // Status TETAP PENDING_KONTRAKTOR agar seluruh rekanan mendapat kesempatan merespon hingga batas waktu SLA.
+    // 4. Jika masih menunggu dan belum mencapai ambang kuorum (setuju < 2 dan tolak < 2)
     nextStatus = 'PENDING_KONTRAKTOR';
   }
 

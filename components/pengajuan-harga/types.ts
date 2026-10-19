@@ -42,6 +42,20 @@ export interface ApprovalLog {
   revisiFields?: string[];
 }
 
+export interface LampiranBandingKontraktor {
+  namaFile: string;
+  url: string;
+  size?: string;
+}
+
+export interface ParkedKontraktorCabang {
+  kontraktorId: string;
+  namaPerusahaan: string;
+  cabang: string;
+  parkedAt: string;
+  alasan: string;
+}
+
 /**
  * Data Partisipan Voting Penawaran Kontraktor Rekanan (Kuorum 50% + 1)
  */
@@ -55,6 +69,11 @@ export interface VotingKontraktorItem {
   usulanMargin?: number;
   catatan?: string;
   hasRejectedOnce?: boolean;
+  lampiranList?: LampiranBandingKontraktor[];
+  isParked?: boolean;
+  parkedCabang?: string;
+  parkedAt?: string;
+  parkedReason?: string;
 }
 
 export interface VotingKontraktorState {
@@ -162,10 +181,21 @@ export interface PengajuanHargaItem {
   marginUpah?: number; // Margin persentase internal S&B untuk komponen upah (%) - default 8%
   marginMaterial?: number; // Margin persentase internal S&B untuk komponen material (%) - default 8%
   marginBongkaran?: number; // Margin persentase internal S&B untuk komponen bongkaran (%) - default 8%
+  marginUpahAwal?: number; // Margin awal sebelum disesuaikan oleh SNB
+  marginMaterialAwal?: number; // Margin awal sebelum disesuaikan oleh SNB
+  marginBongkaranAwal?: number; // Margin awal sebelum disesuaikan oleh SNB
   
   // Usulan Kontraktor
   usulanHargaKontraktor?: number;
   usulanMarginKontraktor?: number;
+
+  // Penetapan SNB Pasca Usulan Kontraktor (untuk Approval Regional Manager)
+  isHasilNegosiasi?: boolean;
+  hargaDitetapkanSNB?: number;
+  marginUpahSNB?: number;
+  marginMaterialSNB?: number;
+  marginBongkaranSNB?: number;
+  catatanPenyesuaianSNB?: string;
 
   // Voting Rekanan Kontraktor (Kuorum 50% + 1)
   votingKontraktor?: VotingKontraktorState;

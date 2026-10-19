@@ -674,7 +674,7 @@ function ReviewSurveiContent() {
                         className="w-full sm:w-auto border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 rounded-xl text-xs h-9 px-5 font-semibold cursor-pointer"
                       >
                         <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                        Tolak & Ajukan Harga Baru
+                        Tolak Harga
                       </Button>
                       <Button
                         type="button"
@@ -683,7 +683,7 @@ function ReviewSurveiContent() {
                         className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-5 font-semibold shadow-2xs gap-1.5 cursor-pointer"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Sepakati Harga Standar
+                        Setujui Harga
                       </Button>
                     </>
                   ) : activeAction === "revise" ? (

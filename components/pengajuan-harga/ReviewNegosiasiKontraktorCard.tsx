@@ -15,13 +15,17 @@ import {
   MessageSquare,
   Sparkles,
   Info,
+  Paperclip,
+  Ban,
 } from "lucide-react";
+import { isKontraktorParkedInCabang } from "./store";
 
 interface ReviewNegosiasiKontraktorCardProps {
   item: PengajuanHargaItem;
   currentMarginUpah: number;
   currentMarginMaterial: number;
   currentMarginBongkaran: number;
+  isRegionalManager?: boolean;
   onApplyRecommendedMargin?: (margin: number) => void;
   onSelectKontraktorForNego?: (kontraktorId: string) => void;
 }
@@ -31,6 +35,7 @@ export function ReviewNegosiasiKontraktorCard({
   currentMarginUpah,
   currentMarginMaterial,
   currentMarginBongkaran,
+  isRegionalManager = false,
 }: ReviewNegosiasiKontraktorCardProps) {
   const formatRupiah = (val?: number) => {
     if (val === undefined || val === null || isNaN(val)) return "Rp 0";
@@ -56,7 +61,8 @@ export function ReviewNegosiasiKontraktorCard({
   const ambangKuorum = Math.floor(totalKontraktor / 2) + 1; // 2 suara dari 3
 
   const isKuorumTercapai = totalSetuju >= ambangKuorum;
-  const isKuorumGagal = totalMenunggu === 0 && totalSetuju < ambangKuorum;
+  const isKuorumTolakTercapai = totalTolak >= ambangKuorum;
+  const isKuorumGagal = isKuorumTolakTercapai || (totalMenunggu === 0 && totalSetuju < ambangKuorum);
 
   // Countdown timer batas waktu 3x24 jam (72 jam)
   const [sisaWaktuText, setSisaWaktuText] = useState<string>("");
@@ -222,31 +228,46 @@ export function ReviewNegosiasiKontraktorCard({
   }, [hasBongkaran, item.koefisienUpahBongkaranItems]);
 
   const materialDasarEfektif =
-    materialDasar > 0 ? materialDasar : hargaRataRataSurvei;
+    hargaRataRataSurvei > 0
+      ? hargaRataRataSurvei
+      : (materialDasar > 0 ? materialDasar : (item.estimasiHarga || 0));
   const totalAngkaDasar = upahDasar + materialDasarEfektif + bongkaranDasar;
 
   // =========================================================================
   // 4. HARGA PENAWARAN SPARTA SEBELUMNYA (LAMA)
   // =========================================================================
-  const marginUpahLama = item.marginUpah ?? 8;
-  const marginMaterialLama = item.marginMaterial ?? 8;
-  const marginBongkaranLama = item.marginBongkaran ?? item.marginUpah ?? 8;
+  const defaultMarginAwal = 8;
+  const marginUpahLama =
+    item.marginUpahAwal ??
+    (item.isHasilNegosiasi && item.marginUpah && item.marginUpah === item.marginUpahSNB
+      ? defaultMarginAwal
+      : (item.marginUpah ?? defaultMarginAwal));
+  const marginMaterialLama =
+    item.marginMaterialAwal ??
+    (item.isHasilNegosiasi && item.marginMaterial && item.marginMaterial === item.marginMaterialSNB
+      ? defaultMarginAwal
+      : (item.marginMaterial ?? defaultMarginAwal));
+  const marginBongkaranLama =
+    item.marginBongkaranAwal ??
+    (item.isHasilNegosiasi && item.marginBongkaran && item.marginBongkaran === item.marginBongkaranSNB
+      ? defaultMarginAwal
+      : (item.marginBongkaran ?? (item.marginUpahAwal ?? defaultMarginAwal)));
 
   const nomMarginUpahLama = Math.round((upahDasar * marginUpahLama) / 100);
   const nomMarginMaterialLama = Math.round(
-    (materialDasar * marginMaterialLama) / 100,
+    (materialDasarEfektif * marginMaterialLama) / 100,
   );
   const nomMarginBongkaranLama = Math.round(
     (bongkaranDasar * marginBongkaranLama) / 100,
   );
   const totalNomMarginLama =
-    nomMarginUpahLama + nomMarginMaterialLama + nomMarginBongkaranLama;
+    nomMarginUpahLama + nomMarginMaterialLama + (hasBongkaran ? nomMarginBongkaranLama : 0);
 
   const subtotalUpahLama = upahDasar + nomMarginUpahLama;
   const subtotalMaterialLama = materialDasarEfektif + nomMarginMaterialLama;
   const subtotalBongkaranLama = bongkaranDasar + nomMarginBongkaranLama;
   const totalHargaSpartaLama =
-    subtotalUpahLama + subtotalMaterialLama + subtotalBongkaranLama;
+    subtotalUpahLama + subtotalMaterialLama + (hasBongkaran ? subtotalBongkaranLama : 0);
 
   // =========================================================================
   // 5. USULAN REKANAN KONTRAKTOR & PERHITUNGAN MARGIN SEHARUSNYA
@@ -307,28 +328,48 @@ export function ReviewNegosiasiKontraktorCard({
       : 0);
 
   // =========================================================================
-  // 6. LIVE SIMULATION TRACKER (Berdasarkan margin yang sedang diinput manual oleh S&B)
+  // 6. LIVE SIMULATION TRACKER (Berdasarkan margin yang sedang diinput manual oleh S&B / Ditetapkan SNB)
   // =========================================================================
+  const effectiveMarginUpah =
+    isRegionalManager && item.marginUpahSNB !== undefined
+      ? item.marginUpahSNB
+      : currentMarginUpah;
+  const effectiveMarginMaterial =
+    isRegionalManager && item.marginMaterialSNB !== undefined
+      ? item.marginMaterialSNB
+      : currentMarginMaterial;
+  const effectiveMarginBongkaran =
+    isRegionalManager && item.marginBongkaranSNB !== undefined
+      ? item.marginBongkaranSNB
+      : currentMarginBongkaran;
+
   const liveNomMarginUpah = Math.round(
-    (upahDasar * (currentMarginUpah || 0)) / 100,
+    (upahDasar * (effectiveMarginUpah || 0)) / 100,
   );
   const liveNomMarginMaterial = Math.round(
-    (materialDasar * (currentMarginMaterial || 0)) / 100,
+    (materialDasarEfektif * (effectiveMarginMaterial || 0)) / 100,
   );
   const liveNomMarginBongkaran = Math.round(
-    (bongkaranDasar * (currentMarginBongkaran || 0)) / 100,
+    (bongkaranDasar * (effectiveMarginBongkaran || 0)) / 100,
   );
 
   const liveSubtotalUpah = upahDasar + liveNomMarginUpah;
-  const liveSubtotalMaterial = materialDasar + liveNomMarginMaterial;
+  const liveSubtotalMaterial = materialDasarEfektif + liveNomMarginMaterial;
   const liveSubtotalBongkaran = bongkaranDasar + liveNomMarginBongkaran;
 
   const liveGrandTotalRaw =
-    liveSubtotalUpah + liveSubtotalMaterial + liveSubtotalBongkaran;
-  const liveGrandTotal = Math.ceil(liveGrandTotalRaw / 100) * 100;
+    liveSubtotalUpah +
+    liveSubtotalMaterial +
+    (hasBongkaran ? liveSubtotalBongkaran : 0);
+  const liveGrandTotal =
+    item.hargaDitetapkanSNB && isRegionalManager && Math.abs(item.hargaDitetapkanSNB - liveGrandTotalRaw) < 500
+      ? item.hargaDitetapkanSNB
+      : Math.ceil(liveGrandTotalRaw / 100) * 100;
 
   const liveTotalMarginNominal =
-    liveNomMarginUpah + liveNomMarginMaterial + liveNomMarginBongkaran;
+    liveNomMarginUpah +
+    liveNomMarginMaterial +
+    (hasBongkaran ? liveNomMarginBongkaran : 0);
   const liveMarginEfektif =
     totalAngkaDasar > 0
       ? Number(((liveTotalMarginNominal / totalAngkaDasar) * 100).toFixed(2))
@@ -362,8 +403,7 @@ export function ReviewNegosiasiKontraktorCard({
               </h3>
             </div>
             <p className="text-xs text-slate-500">
-              Evaluasi usulan seluruh rekanan kontraktor. Tentukan dan masukkan
-              persentase margin pada form di bawah.
+              Evaluasi usulan seluruh rekanan kontraktor.
             </p>
           </div>
         </div>
@@ -457,7 +497,7 @@ export function ReviewNegosiasiKontraktorCard({
             ) : isKuorumGagal ? (
               <span>
                 {totalTolak}/{totalKontraktor} menolak &rarr; Perlu
-                Review S&amp;B
+                Review
               </span>
             ) : (
               <span>
@@ -481,6 +521,7 @@ export function ReviewNegosiasiKontraktorCard({
               <th className="py-2.5 px-3">Usulan Harga</th>
               <th className="py-2.5 px-3">Margin Seharusnya</th>
               <th className="py-2.5 px-3">Catatan / Alasan</th>
+              <th className="py-2.5 px-3">Dokumen Lampiran</th>
               <th className="py-2.5 px-3">Waktu Respon</th>
             </tr>
           </thead>
@@ -503,84 +544,117 @@ export function ReviewNegosiasiKontraktorCard({
                       )
                     : 0;
 
-              return (
-                <tr
-                  key={k.kontraktorId || idx}
-                  className="hover:bg-slate-50/70 transition-colors"
-                >
-                  <td className="py-3 px-3">
-                    <div className="font-bold text-slate-800">
-                      {k.namaPerusahaan}
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      PIC: {k.picName}
-                    </div>
-                  </td>
+                const isParked = k.isParked || isKontraktorParkedInCabang(k.kontraktorId, item.cabang || "Tangerang");
 
-                  <td className="py-3 px-3">
-                    {k.statusVote === "SETUJU" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        Setuju
-                      </span>
-                    ) : k.statusVote === "TOLAK" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        <XCircle className="w-3 h-3 text-amber-600" />
-                        Usulan Harga
-                      </span>
-                    ) : k.statusVote === "TIMEOUT" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                        <Clock className="w-3 h-3 text-rose-600" />
-                        Timeout (72 Jam)
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                        <Clock className="w-3 h-3 text-slate-400" />
-                        Menunggu Respon
-                      </span>
-                    )}
-                  </td>
+                return (
+                  <tr
+                    key={k.kontraktorId || idx}
+                    className="hover:bg-slate-50/70 transition-colors"
+                  >
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-800">
+                          {k.namaPerusahaan}
+                        </span>
+                        {isParked && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                            <Ban className="w-2.5 h-2.5 text-rose-600" />
+                            DI-PARKING ({item.cabang || "Cabang"})
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        PIC: {k.picName}
+                      </div>
+                    </td>
 
-                  <td className="py-3 px-3">
-                    {isTolak ? (
-                      <span className="font-mono font-bold text-amber-900 block text-xs">
-                        {formatRupiah(k.usulanHarga)}
-                      </span>
-                    ) : k.statusVote === "SETUJU" ? (
-                      <span className="text-emerald-700 font-medium text-[11px]">
-                        Sepakat Penawaran SPARTA
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 italic text-[11px]">
-                        -
-                      </span>
-                    )}
-                  </td>
+                    <td className="py-3 px-3">
+                      {k.statusVote === "SETUJU" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Setuju
+                        </span>
+                      ) : k.statusVote === "TOLAK" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          <XCircle className="w-3 h-3 text-amber-600" />
+                          Usulan Harga
+                        </span>
+                      ) : k.statusVote === "TIMEOUT" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                          <Clock className="w-3 h-3 text-rose-600" />
+                          Timeout (72 Jam)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          Menunggu Respon
+                        </span>
+                      )}
+                    </td>
 
-                  <td className="py-3 px-3">
-                    {isTolak ? (
-                      <span className="inline-block font-mono font-black text-xs text-orange-800 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md shadow-2xs">
-                        {marginCalc}%
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 italic text-[11px]">
-                        -
-                      </span>
-                    )}
-                  </td>
+                    <td className="py-3 px-3">
+                      {isTolak ? (
+                        <span className="font-mono font-bold text-amber-900 block text-xs">
+                          {formatRupiah(k.usulanHarga)}
+                        </span>
+                      ) : k.statusVote === "SETUJU" ? (
+                        <span className="text-emerald-700 font-medium text-[11px]">
+                          Sepakat Penawaran SPARTA
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">
+                          -
+                        </span>
+                      )}
+                    </td>
 
-                  <td className="py-3 px-3 max-w-xs">
-                    <p
-                      className="text-slate-600 text-[11px] line-clamp-2"
-                      title={k.catatan || ""}
-                    >
-                      {k.catatan ? `“${k.catatan}”` : "-"}
-                    </p>
-                  </td>
+                    <td className="py-3 px-3">
+                      {isTolak ? (
+                        <span className="inline-block font-mono font-black text-xs text-orange-800 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md shadow-2xs">
+                          {marginCalc}%
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">
+                          -
+                        </span>
+                      )}
+                    </td>
 
-                  <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
-                    {k.tanggalRespon || "-"}
-                  </td>
+                    <td className="py-3 px-3 max-w-xs">
+                      <p
+                        className="text-slate-600 text-[11px] line-clamp-3"
+                        title={k.catatan || ""}
+                      >
+                        {k.catatan ? `“${k.catatan}”` : "-"}
+                      </p>
+                    </td>
+
+                    <td className="py-3 px-3">
+                      {k.lampiranList && k.lampiranList.length > 0 ? (
+                        <div className="flex flex-col gap-1.5 items-start">
+                          {k.lampiranList.map((file, fIdx) => (
+                            <a
+                              key={fIdx}
+                              href={file.url}
+                              download={file.namaFile}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-[10px] font-medium transition-colors shadow-2xs max-w-[170px]"
+                              title={`Unduh / Buka: ${file.namaFile}`}
+                            >
+                              <Paperclip className="w-3 h-3 text-blue-500 shrink-0" />
+                              <span className="truncate">{file.namaFile}</span>
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">-</span>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
+                      {k.tanggalRespon || "-"}
+                    </td>
                 </tr>
               );
             })}
@@ -785,14 +859,13 @@ export function ReviewNegosiasiKontraktorCard({
           </div>
         </div>
 
-        {/* Petunjuk Manual S&B */}
+        {/* Petunjuk Manual S&B / Regional Manager */}
         <div className="flex items-start gap-2 pt-2 border-t border-blue-200/60 text-xs text-blue-900">
           <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <span>
-            Persentase margin diatur secara mandiri oleh S&amp;B Specialist pada
-            tabel form Koefisien di bawah. Setelah margin disesuaikan, klik{" "}
-            <strong>&ldquo;Simpan&rdquo;</strong> untuk mengirimkan penawaran
-            baru kepada rekanan kontraktor.
+            {isRegionalManager
+              ? "Kolom di bawah menampilkan rincian harga yang telah disesuaikan dan ditetapkan oleh S&B Specialist berdasarkan pertimbangan usulan rekanan kontraktor. Periksa dan berikan keputusan persetujuan untuk meneruskan penawaran resmi kepada kontraktor."
+              : "Persentase margin diatur secara mandiri oleh S&B Specialist pada tabel form Koefisien di bawah. Setelah margin disesuaikan, simpan koefisien untuk meneruskan ke Regional Manager guna persetujuan penetapan harga."}
           </span>
         </div>
       </div>
@@ -819,10 +892,10 @@ export function ReviewNegosiasiKontraktorCard({
                 <th className="py-2.5 px-3 text-right">Margin Lama</th>
                 <th className="py-2.5 px-3 text-right">Subtotal Lama</th>
                 <th className="py-2.5 px-3 text-right bg-blue-50/50 text-blue-900">
-                  Margin Baru
+                  {isRegionalManager || item.isHasilNegosiasi ? "Margin Baru" : "Margin Baru"}
                 </th>
                 <th className="py-2.5 px-3.5 text-right bg-blue-50/50 text-blue-900">
-                  Subtotal Baru
+                  {isRegionalManager || item.isHasilNegosiasi ? "Subtotal Baru" : "Subtotal Baru"}
                 </th>
               </tr>
             </thead>
@@ -847,7 +920,7 @@ export function ReviewNegosiasiKontraktorCard({
                   {formatRupiah(subtotalUpahLama)}
                 </td>
                 <td className="py-2.5 px-3 text-right bg-blue-50/30 font-bold font-mono text-blue-700">
-                  {currentMarginUpah}%
+                  {effectiveMarginUpah}%
                 </td>
                 <td className="py-2.5 px-3.5 text-right bg-blue-50/30 font-mono text-slate-900 font-bold">
                   {formatRupiah(liveSubtotalUpah)}
@@ -861,12 +934,12 @@ export function ReviewNegosiasiKontraktorCard({
                     <span>B. Bahan &amp; Material</span>
                     <span className="block text-[10px] text-slate-500 font-normal">
                       Mengacu pada Rata-Rata Survei:{" "}
-                      {formatRupiah(hargaRataRataSurvei)}
+                      {formatRupiah(materialDasarEfektif)}
                     </span>
                   </div>
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono">
-                  {formatRupiah(hargaRataRataSurvei)}
+                  {formatRupiah(materialDasarEfektif)}
                 </td>
                 <td className="py-2.5 px-3 text-right">
                   <span className="font-semibold text-slate-700">
@@ -880,7 +953,7 @@ export function ReviewNegosiasiKontraktorCard({
                   {formatRupiah(subtotalMaterialLama)}
                 </td>
                 <td className="py-2.5 px-3 text-right bg-blue-50/30 font-bold font-mono text-blue-700">
-                  {currentMarginMaterial}%
+                  {effectiveMarginMaterial}%
                 </td>
                 <td className="py-2.5 px-3.5 text-right bg-blue-50/30 font-mono text-slate-900 font-bold">
                   {formatRupiah(liveSubtotalMaterial)}
@@ -908,7 +981,7 @@ export function ReviewNegosiasiKontraktorCard({
                     {formatRupiah(subtotalBongkaranLama)}
                   </td>
                   <td className="py-2.5 px-3 text-right bg-blue-50/30 font-bold font-mono text-blue-700">
-                    {currentMarginBongkaran}%
+                    {effectiveMarginBongkaran}%
                   </td>
                   <td className="py-2.5 px-3.5 text-right bg-blue-50/30 font-mono text-slate-900 font-bold">
                     {formatRupiah(liveSubtotalBongkaran)}

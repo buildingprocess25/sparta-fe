@@ -31,6 +31,7 @@ import { DetailSpesifikasi } from "@/components/pengajuan-harga/DetailSpesifikas
 import { RincianSurvei3TokoCard } from "@/components/pengajuan-harga/RincianSurvei3TokoCard";
 import { RingkasanBiayaMaterial } from "@/components/pengajuan-harga/RingkasanBiayaMaterial";
 import { RincianKalkulasiKoefisienTrial } from "@/components/pengajuan-harga/RincianKalkulasiKoefisienTrial";
+import { ReviewNegosiasiKontraktorCard } from "@/components/pengajuan-harga/ReviewNegosiasiKontraktorCard";
 import { PengajuanTimelineBar } from "@/components/pengajuan-harga/PengajuanTimelineBar";
 import { useGlobalAlert } from "@/context/GlobalAlertContext";
 import { Label } from "@/components/ui/label";
@@ -92,25 +93,47 @@ export default function RegionalManagerReviewPage() {
   }, [itemId]);
 
   // ==========================================
-  // REGULER FLOW (Layer 3)
+  // REGULER FLOW (Layer 3) & APPROVAL PENETAPAN NEGOSIASI
   // ==========================================
   const handleApproveReguler = () => {
     if (!item) return;
     setIsSubmitting(true);
     const updated = getStoredPengajuan().map((i) => {
       if (i.id === item.id) {
+        let nextVoting = i.votingKontraktor;
+        if (i.isHasilNegosiasi && i.votingKontraktor) {
+          const now = new Date();
+          const newDeadline = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
+          nextVoting = {
+            ...i.votingKontraktor,
+            deadlineVoting: newDeadline,
+            daftarKontraktor: (i.votingKontraktor.daftarKontraktor || []).map((k) => ({
+              ...k,
+              statusVote: 'MENUNGGU' as const,
+              hasRejectedOnce: true, // batas 1x usulan telah terpakai
+              tanggalRespon: undefined,
+              usulanHarga: undefined,
+              usulanMargin: undefined,
+              catatan: undefined,
+            })),
+          };
+        }
+
+        const logCatatan = i.isHasilNegosiasi
+          ? (catatan.trim() || "Penetapan harga hasil negosiasi disetujui Regional Manager. Penawaran resmi diteruskan ke Kontraktor untuk konfirmasi.")
+          : (catatan.trim() || "Disetujui Regional Manager (Layer 3). Diteruskan ke Kontraktor.");
+
         return {
           ...i,
           status: "PENDING_KONTRAKTOR" as const,
+          votingKontraktor: nextVoting,
           historyLog: [
             ...(i.historyLog || []),
             {
               role: "Regional Manager" as const,
               action: "APPROVE" as const,
               tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan:
-                catatan.trim() ||
-                "Disetujui Regional Manager (Layer 3). Diteruskan ke Kontraktor.",
+              catatan: logCatatan,
             },
           ],
         };
@@ -121,8 +144,46 @@ export default function RegionalManagerReviewPage() {
     saveStoredPengajuan(updated);
     showAlert({
       title: "Berhasil",
-      message: "Pengajuan harga reguler disetujui.",
+      message: item.isHasilNegosiasi
+        ? "Penetapan harga disetujui dan penawaran resmi diteruskan ke Kontraktor."
+        : "Pengajuan harga reguler disetujui.",
       type: "success",
+    });
+    router.push("/pengajuan-harga/regional-manager");
+  };
+
+  const handleRejectNegosiasiKeSNB = () => {
+    if (!item) return;
+    if (!catatan.trim()) {
+      setCatatanError("Catatan pengembalian ke S&B Specialist wajib diisi.");
+      return;
+    }
+    setIsSubmitting(true);
+    const updated = getStoredPengajuan().map((i) => {
+      if (i.id === item.id) {
+        return {
+          ...i,
+          status: "USULAN_KONTRAKTOR" as const,
+          catatanReview: catatan.trim(),
+          historyLog: [
+            ...(i.historyLog || []),
+            {
+              role: "Regional Manager" as const,
+              action: "REJECT" as const,
+              tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
+              catatan: `Dikembalikan ke S&B Specialist oleh Regional Manager: ${catatan.trim()}`,
+            },
+          ],
+        };
+      }
+      return i;
+    });
+
+    saveStoredPengajuan(updated);
+    showAlert({
+      title: "Dikembalikan ke S&B Specialist",
+      message: "Pengajuan dikembalikan ke S&B Specialist untuk penyesuaian ulang penetapan margin.",
+      type: "warning",
     });
     router.push("/pengajuan-harga/regional-manager");
   };
@@ -353,7 +414,7 @@ export default function RegionalManagerReviewPage() {
         backHref="/pengajuan-harga/regional-manager"
       />
 
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-5">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 md:p-6 space-y-5">
         <PengajuanTimelineBar item={item} />
         <DetailSpesifikasi item={item} showDeskripsi={true} />
 
@@ -394,7 +455,7 @@ export default function RegionalManagerReviewPage() {
             )}
           </div>
         )}
-        {isPendingReguler && (
+        {isPendingReguler && !item.isHasilNegosiasi && (
           <>
             {item.koefisienMaterialItems &&
             item.koefisienMaterialItems.length > 0 ? (
@@ -437,6 +498,17 @@ export default function RegionalManagerReviewPage() {
           </>
         )}
 
+        {/* EVALUASI & MONITORING HASIL NEGOSIASI KONTRAKTOR REKANAN (TERPADU UNTUK REGIONAL MANAGER) */}
+        {(Boolean(item.votingKontraktor) || item.isHasilNegosiasi || item.usulanHargaKontraktor !== undefined) && (
+          <ReviewNegosiasiKontraktorCard
+            item={item}
+            currentMarginUpah={item.marginUpahSNB ?? item.marginUpah ?? 8}
+            currentMarginMaterial={item.marginMaterialSNB ?? item.marginMaterial ?? 8}
+            currentMarginBongkaran={item.marginBongkaranSNB ?? item.marginBongkaran ?? 8}
+            isRegionalManager={true}
+          />
+        )}
+
         {(isPendingTrial || isPendingPromosi) && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs">
@@ -476,7 +548,7 @@ export default function RegionalManagerReviewPage() {
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <FileText className="w-4 h-4 text-blue-600" />
-              <span>Tinjauan & Keputusan Regional Manager</span>
+              <span>Tinjauan &amp; Keputusan Regional Manager</span>
             </h3>
           </div>
 
@@ -499,20 +571,47 @@ export default function RegionalManagerReviewPage() {
               <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
                 {isPendingReguler && (
                   <>
-                    <Button
-                      onClick={() => setActiveAction("reject_reguler")}
-                      disabled={isSubmitting}
-                      className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" /> Revisi
-                    </Button>
-                    <Button
-                      onClick={() => setActiveAction("approve_reguler")}
-                      disabled={isSubmitting}
-                      className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Setujui ke Kontraktor
-                    </Button>
+                    {item.isHasilNegosiasi ? (
+                      <>
+                        <Button
+                          onClick={() => {
+                            setActiveAction("reject_negosiasi");
+                            setCatatanError("");
+                          }}
+                          disabled={isSubmitting}
+                          className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Kembalikan ke S&amp;B
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setActiveAction("approve_reguler");
+                            setCatatanError("");
+                          }}
+                          disabled={isSubmitting}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Setujui &amp; Rilis ke Kontraktor
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          onClick={() => setActiveAction("reject_reguler")}
+                          disabled={isSubmitting}
+                          className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Revisi
+                        </Button>
+                        <Button
+                          onClick={() => setActiveAction("approve_reguler")}
+                          disabled={isSubmitting}
+                          className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Setujui ke Kontraktor
+                        </Button>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -693,6 +792,7 @@ export default function RegionalManagerReviewPage() {
                   onClick={() => {
                     if (activeAction === "approve_reguler") handleApproveReguler();
                     if (activeAction === "reject_reguler") handleRejectReguler();
+                    if (activeAction === "reject_negosiasi") handleRejectNegosiasiKeSNB();
                     if (activeAction === "approve_trial") handleApproveTrial();
                     if (activeAction === "reject_trial") handleRejectTrial();
                     if (activeAction === "revise_trial") handleReviseTrial();

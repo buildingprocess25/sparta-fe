@@ -16,6 +16,7 @@ import {
   Search,
   Clock,
   BadgeCheck,
+  Ban,
 } from 'lucide-react';
 import {
   PengajuanHargaItem,
@@ -23,6 +24,7 @@ import {
 } from '@/components/pengajuan-harga/types';
 import {
   getStoredPengajuan,
+  isKontraktorParkedInCabang,
 } from '@/components/pengajuan-harga/store';
 import { PengajuanHargaTable } from '@/components/pengajuan-harga/PengajuanHargaTable';
 
@@ -152,6 +154,23 @@ export default function KontraktorPage() {
             </div>
           </div>
         </div>
+
+        {/* Banner Peringatan Akun Di-Parking di Cabang Ini */}
+        {selectedCabang !== 'all' && isKontraktorParkedInCabang('kontraktor-1', selectedCabang) && (
+          <div className="bg-rose-50 border border-rose-300 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
+            <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-700 shrink-0">
+              <Ban className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-xs font-bold text-rose-950 uppercase tracking-wide">
+                Peringatan: Perusahaan Anda Sedang Di-Parking di Cabang {selectedCabang}
+              </h3>
+              <p className="text-xs text-rose-800 leading-relaxed">
+                Akun perusahaan Anda dinonaktifkan sementara dari seluruh pekerjaan di wilayah Cabang {selectedCabang} karena penolakan atas harga penetapan final pasca pengajuan banding harga.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Tab & Search */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">

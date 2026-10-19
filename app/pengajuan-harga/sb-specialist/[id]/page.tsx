@@ -313,27 +313,57 @@ export default function SBSpecialistDetailPage() {
 
         let nextVoting = i.votingKontraktor;
         if (i.status === "PENDING_SB_SPECIALIST" || i.status === "USULAN_KONTRAKTOR") {
-          // Alur A: status langsung kembali ke Kontraktor
-          nextStatus = "PENDING_KONTRAKTOR";
-          actionCatatan = `Penyesuaian margin negosiasi harga selesai (Margin Upah: ${data.marginUpah}%, Margin Material: ${data.marginMaterial}%, Margin Bongkaran: ${data.marginBongkaran ?? data.marginUpah}%). Harga penawaran baru dikirimkan kembali ke Kontraktor.`;
-          
-          if (i.votingKontraktor) {
-            const now = new Date();
-            const newDeadline = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
-            nextVoting = {
-              ...i.votingKontraktor,
-              deadlineVoting: newDeadline,
-              daftarKontraktor: (i.votingKontraktor.daftarKontraktor || []).map((k) => ({
-                ...k,
-                statusVote: 'MENUNGGU' as const,
-                hasRejectedOnce: true, // batas 1x usulan harga terpakai untuk Putaran 2
-                tanggalRespon: undefined,
-                usulanHarga: undefined,
-                usulanMargin: undefined,
-                catatan: undefined,
-              })),
-            };
-          }
+          // Hitung total harga baru yang ditetapkan SNB
+          const upah = (data.upahItems || []).reduce((acc: number, curr: any) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)), 0);
+          const bongkaran = (data.koefisienUpahBongkaranItems || []).reduce((acc: number, curr: any) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)), 0);
+          const materialFromItems = (data.materialItems || []).reduce((acc: number, curr: any) => {
+            const avg = curr.hargaSurveiRataRata || curr.hargaAcuan || 0;
+            return acc + ((Number(curr.value) || 0) * avg);
+          }, 0);
+          const material = (i.hargaRataRata && i.hargaRataRata > 0) ? i.hargaRataRata : ((i.estimasiHarga && i.estimasiHarga > 0) ? i.estimasiHarga : materialFromItems);
+
+          const upahSNB = Math.round(upah + (upah * (data.marginUpah || 0) / 100));
+          const bongkaranSNB = Math.round(bongkaran + (bongkaran * ((data.marginBongkaran ?? data.marginUpah) || 0) / 100));
+          const materialSNB = Math.round(material + (material * (data.marginMaterial || 0) / 100));
+          const totalHargaSNB = Math.round(upahSNB + bongkaranSNB + materialSNB);
+
+          const defaultMarginAwal = 8;
+          const originalMarginUpah = i.marginUpahAwal ?? (i.marginUpah && i.marginUpah !== i.marginUpahSNB ? i.marginUpah : defaultMarginAwal);
+          const originalMarginMaterial = i.marginMaterialAwal ?? (i.marginMaterial && i.marginMaterial !== i.marginMaterialSNB ? i.marginMaterial : defaultMarginAwal);
+          const originalMarginBongkaran = i.marginBongkaranAwal ?? (i.marginBongkaran && i.marginBongkaran !== i.marginBongkaranSNB ? i.marginBongkaran : defaultMarginAwal);
+
+          // Poin 3: Alur persetujuan lanjut ke Regional Manager
+          nextStatus = "PENDING_REGIONAL_MGR";
+          actionCatatan = `Penyesuaian koefisien & margin oleh S&B Specialist selesai (Margin Upah: ${data.marginUpah}%, Material: ${data.marginMaterial}%, Bongkaran: ${data.marginBongkaran ?? data.marginUpah}% -> Total Ditetapkan: Rp ${totalHargaSNB.toLocaleString('id-ID')}). Diteruskan ke Regional Manager untuk approval penetapan harga.`;
+
+          return {
+            ...i,
+            status: nextStatus,
+            isHasilNegosiasi: true,
+            hargaDitetapkanSNB: totalHargaSNB,
+            marginUpahAwal: originalMarginUpah,
+            marginMaterialAwal: originalMarginMaterial,
+            marginBongkaranAwal: originalMarginBongkaran,
+            marginUpahSNB: data.marginUpah,
+            marginMaterialSNB: data.marginMaterial,
+            marginBongkaranSNB: data.marginBongkaran ?? data.marginUpah,
+            catatanPenyesuaianSNB: actionCatatan,
+            koefisienUpahItems: data.upahItems,
+            koefisienMaterialItems: data.materialItems,
+            koefisienUpahBongkaranItems: data.koefisienUpahBongkaranItems,
+            marginUpah: originalMarginUpah,
+            marginMaterial: originalMarginMaterial,
+            marginBongkaran: originalMarginBongkaran,
+            historyLog: [
+              ...(i.historyLog || []),
+              {
+                role: "S&B Specialist" as const,
+                action: "MASTERING" as const,
+                tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
+                catatan: actionCatatan,
+              },
+            ],
+          };
         } else if (i.isTrial) {
           if (i.status === "TRIAL_REVISI") nextStatus = "TRIAL_PENDING_REGIONAL_MGR";
         } else {
@@ -371,8 +401,8 @@ export default function SBSpecialistDetailPage() {
 
     if (item.status === "PENDING_SB_SPECIALIST" || item.status === "USULAN_KONTRAKTOR") {
       showAlert({
-        title: "Berhasil",
-        message: "Margin berhasil disesuaikan dan harga penawaran baru telah dikirimkan kembali ke Kontraktor.",
+        title: "Penetapan Berhasil Disimpan",
+        message: "Penyesuaian koefisien dan margin berhasil disimpan dan diteruskan ke Regional Manager untuk approval.",
         type: "success",
       });
       router.push("/pengajuan-harga/sb-specialist");
@@ -883,7 +913,7 @@ export default function SBSpecialistDetailPage() {
             onMarginChange={handleMarginChange}
             onSave={handleSaveKoefisien}
             onBack={() => router.push("/pengajuan-harga/sb-specialist")}
-            isReadOnly={item.status === "USULAN_KONTRAKTOR"}
+            isReadOnly={item.status === "APPROVED_ACTIVE" || item.status === "RELEASED"}
           />
         )}
       </main>
