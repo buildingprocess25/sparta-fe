@@ -2887,6 +2887,22 @@ export const updateOpname = async (
     return result;
 };
 
+/** Menyetujui semua item opname berstatus pending pada suatu toko sekaligus */
+export const bulkApproveOpname = async (
+    idToko: number
+): Promise<{ status: string; message: string; data: { updated_count: number } }> => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/opname/bulk-approve`;
+    const res = await apiFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_toko: idToko })
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, `Gagal menyetujui semua opname (${res.status}).`));
+    return result;
+};
+
 /** Hapus data Opname. */
 export const deleteOpname = async (id: number) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`, {
