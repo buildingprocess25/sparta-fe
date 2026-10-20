@@ -490,6 +490,7 @@ const canAccessSuratPeringatanDocs = (role: string, isSuperHuman: boolean) => {
     if (isSuperHuman) return true;
     const roles = getRoleParts(role);
     if (roles.some(roleName => roleName === 'KONTRAKTOR' || roleName.includes('DIREKTUR KONTRAKTOR'))) return true;
+    if (roles.some(roleName => roleName.includes('PROJECT PLANNING') || roleName.includes('PP SPECIALIST') || roleName.includes('PP MANAGER'))) return true;
     return roles.some(roleName =>
         roleName.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
         roleName.includes('BRANCH BUILDING COORDINATOR') ||
@@ -1386,8 +1387,8 @@ export default function DaftarDokumenPage() {
         setIsDirektur(direkturFlag);
         setIsSuperHuman(superHumanFlag);
         const ppRoles = getPpRoles(role, email);
-        const ppOnlyFlag = ppRoles.isPP && !ppRoles.isPPMgr && !ppRoles.isCoor && !ppRoles.isBM && !contractorFlag && !direkturFlag;
-        setIsPPOnly(ppOnlyFlag);
+        // PP Specialist dan Manager kini memiliki akses penuh ke seluruh dokumen
+        setIsPPOnly(false);
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email, nama_pt });
     }, [router]);
 
@@ -2834,8 +2835,6 @@ export default function DaftarDokumenPage() {
                                 // Hide PERTAMBAHAN_SPK, PENGAWASAN, BERKAS_SERAH_TERIMA and INSTRUKSI_LAPANGAN from KONTRAKTOR and DIREKTUR
                                 // KTK dan PENGAWASAN sekarang sudah difilter per kontraktor di backend, jadi boleh ditampilkan
                                 if ((kat === 'BERKAS_SERAH_TERIMA' || kat === 'INSTRUKSI_LAPANGAN') && (isContractor || isDirektur)) return false;
-                                // PP-only roles: hanya tampilkan card PROJECT_PLANNING
-                                if (isPPOnly && kat !== 'PROJECT_PLANNING') return false;
                                 // Hide PROJECT_PLANNING dari KONTRAKTOR dan DIREKTUR
                                 if (kat === 'PROJECT_PLANNING' && (isContractor || isDirektur)) return false;
                                 if (kat === 'PROJECT_PLANNING' && !canViewAllBranches(userInfo.role, isSuperHuman) && !canAccessProjectPlanningByCabang(userInfo.cabang)) return false;

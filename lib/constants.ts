@@ -480,7 +480,16 @@ export const hasStoreWorkspaceRole = (role: string | string[] | undefined | null
 export const canViewAllBranches = (
     role: string | string[] | undefined | null,
     isSuperHuman = false
-): boolean => isSuperHuman || hasRegionalManagerRole(role) || normalizeRoles(role).includes("HEAD OFFICE");
+): boolean => {
+    if (isSuperHuman) return true;
+    if (hasRegionalManagerRole(role)) return true;
+    const roles = normalizeRoles(role);
+    if (roles.includes("HEAD OFFICE")) return true;
+    if (roles.some((r) => r.includes("PROJECT PLANNING") || r.includes("PP SPECIALIST") || r.includes("PP MANAGER"))) {
+        return true;
+    }
+    return false;
+};
 
 export const canApproveAllBranches = (
     _role: string | string[] | undefined | null,
