@@ -197,7 +197,7 @@ export default function RegionalManagerPage() {
               }`}
             >
               <Building2 className="w-3.5 h-3.5 text-purple-600" />
-              <span>Approval Negosiasi (per Cabang)</span>
+              <span>Penolakan Kontraktor</span>
               <Badge
                 variant="secondary"
                 className={`text-[10px] px-1.5 py-0.2 ${

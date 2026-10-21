@@ -390,19 +390,19 @@ export default function KontraktorReviewPage() {
 
       if (isPenolakanFinal) {
         showAlert({
-          title: "Penolakan Final & Akun Di-Parking",
-          message: `Perusahaan Anda dinonaktifkan sementara dari SELURUH pekerjaan di Cabang ${item.cabang || "Tangerang"} karena penolakan atas harga penetapan final.`,
+          title: "Penolakan Terakhir, Anda dinonaktifkan sementara",
+          message: `Perusahaan Anda dinonaktifkan sementara dari SELURUH pekerjaan di Cabang ${item.cabang || "Anda"} karena penolakan atas harga yang diajukan.`,
           type: "error",
         });
       } else if (updated.status === "RELEASED") {
         showAlert({
-          title: "Kuorum 50%+1 Terpenuhi!",
-          message: `Penawaran harga resmi disepakati dan dirilis ke Master Harga. Terima kasih atas partisipasi ${activeRekanan.namaPerusahaan}.`,
+          title: "Harga disepakti!",
+          message: `Harga telah disepakati dan dirilis ke Master Harga. Terima kasih atas partisipasi ${activeRekanan.namaPerusahaan}.`,
           type: "success",
         });
       } else if (updated.status === "USULAN_KONTRAKTOR") {
         showAlert({
-          title: "Usulan Harga Terkirim (Kuorum Banding)",
+          title: "Usulan Harga Terkirim",
           message: `Usulan harga dari ${activeRekanan.namaPerusahaan} beserta lampiran dokumen telah diteruskan ke tim S&B Specialist.`,
           type: "warning",
         });

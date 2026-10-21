@@ -853,7 +853,7 @@ export function ReviewNegosiasiKontraktorCard({
                 / {item.satuan || "satuan"}
               </span>
               <span className="text-xs text-slate-600">
-                (Margin Efektif: <strong>{liveMarginEfektif}%</strong>)
+                (Margin: <strong>{liveMarginEfektif}%</strong>)
               </span>
             </div>
           </div>

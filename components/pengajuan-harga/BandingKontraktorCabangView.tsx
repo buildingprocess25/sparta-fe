@@ -11,11 +11,11 @@ import {
   Clock,
   AlertCircle,
   ArrowRight,
-  TrendingUp,
   Search,
   Check,
   AlertTriangle,
   X,
+  XCircle,
   Layers,
   MapPin,
   ChevronRight,
@@ -38,15 +38,6 @@ export function BandingKontraktorCabangView({
   const [search, setSearch] = useState("");
   const [selectedCabang, setSelectedCabang] = useState<string>("");
   const [pendingSwitchCabang, setPendingSwitchCabang] = useState<string | null>(null);
-
-  const formatRupiah = (val?: number) => {
-    if (val === undefined || val === null || isNaN(val) || val <= 0) return "-";
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   // Helper untuk menentukan apakah suatu item sudah selesai diproses sesuai role
   const isItemCompletedForRole = (item: PengajuanHargaItem) => {
@@ -195,6 +186,24 @@ export function BandingKontraktorCabangView({
       return a.item.localeCompare(b.item);
     });
   }, [currentBranchData, search, role]);
+
+  // Daftar unik rekanan kontraktor yang terdaftar di cabang aktif ini
+  const branchContractors = useMemo(() => {
+    if (!currentBranchData) return [];
+    const contractorMap = new Map<string, string>();
+    currentBranchData.items.forEach((item) => {
+      item.votingKontraktor?.daftarKontraktor?.forEach((k) => {
+        const key = k.kontraktorId || k.namaPerusahaan;
+        if (!contractorMap.has(key)) {
+          contractorMap.set(key, k.namaPerusahaan);
+        }
+      });
+    });
+    return Array.from(contractorMap.entries()).map(([id, name]) => ({
+      id,
+      name,
+    }));
+  }, [currentBranchData]);
 
   // Handler pergantian cabang dengan peringatan jika cabang aktif belum selesai
   const handleSelectCabang = (targetCabang: string) => {
@@ -381,28 +390,26 @@ export function BandingKontraktorCabangView({
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4">Item Pekerjaan</th>
-                  <th className="py-3 px-3">Harga Awal</th>
-                  <th className="py-3 px-3">Harga Kontraktor</th>
-                  <th className="py-3 px-3 text-center">Status Respon Rekanan</th>
-                  <th className="py-3 px-3">Status Evaluasi</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
+                  <th className="py-3 px-4 min-w-[220px]">Item Pekerjaan</th>
+                  {branchContractors.map((c) => (
+                    <th
+                      key={c.id}
+                      className="py-3 px-3 text-center min-w-[140px] max-w-[220px]"
+                    >
+                      <div className="font-semibold text-slate-800 text-xs truncate" title={c.name}>
+                        {c.name}
+                      </div>
+                    </th>
+                  ))}
+                  {branchContractors.length === 0 && (
+                    <th className="py-3 px-3 text-center min-w-[140px]">Status Rekanan</th>
+                  )}
+                  <th className="py-3 px-3 min-w-[150px]">Status Evaluasi</th>
+                  <th className="py-3 px-4 text-right min-w-[130px]">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {displayedBranchItems.map((item) => {
-                  const voting = item.votingKontraktor;
-                  const daftar = voting?.daftarKontraktor || [];
-                  const totalSetuju = daftar.filter((k) => k.statusVote === "SETUJU").length;
-                  const totalTolak = daftar.filter((k) => k.statusVote === "TOLAK").length;
-
-                  // Harga penawaran lama
-                  const hargaLama = item.estimasiHarga || item.hargaRataRata || 0;
-
-                  // Usulan kontraktor
-                  const usulanList = daftar.filter((k) => k.statusVote === "TOLAK" && Boolean(k.usulanHarga));
-                  const firstUsulan = usulanList[0]?.usulanHarga || item.usulanHargaKontraktor || 0;
-
                   const isCompleted = isItemCompletedForRole(item);
                   const isPending = isItemPendingForRole(item);
 
@@ -438,47 +445,45 @@ export function BandingKontraktorCabangView({
                         </span>
                       </td>
 
-                      {/* Kolom 2: Penawaran SPARTA */}
-                      <td className="py-3 px-3 font-mono">
-                        <span className="font-bold text-slate-800 text-xs">
-                          {formatRupiah(hargaLama)}
-                        </span>
-                        <span className="text-[10px] text-slate-400 block font-sans">
-                          / {item.satuan || "satuan"}
-                        </span>
-                      </td>
+                      {/* Kolom Matriks: Keputusan Tiap Rekanan Kontraktor */}
+                      {branchContractors.map((c) => {
+                        const voteItem = item.votingKontraktor?.daftarKontraktor?.find(
+                          (k) => (k.kontraktorId && k.kontraktorId === c.id) || k.namaPerusahaan === c.name
+                        );
 
-                      {/* Kolom 3: Usulan Kontraktor */}
-                      <td className="py-3 px-3 font-mono">
-                        {firstUsulan > 0 ? (
-                          <>
-                            <span className="font-bold text-amber-900 text-xs block">
-                              {formatRupiah(firstUsulan)}
-                            </span>
-                            <span className="text-[10px] text-amber-700 font-sans font-semibold inline-flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3 text-amber-600" />
-                              {firstUsulan > hargaLama ? "+" : ""}
-                              {formatRupiah(firstUsulan - hargaLama)}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">-</span>
-                        )}
-                      </td>
+                        return (
+                          <td key={c.id} className="py-3 px-3 text-center whitespace-nowrap">
+                            {voteItem ? (
+                              voteItem.statusVote === "TOLAK" ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <XCircle className="w-3 h-3 text-rose-500" />
+                                  Tolak
+                                </span>
+                              ) : voteItem.statusVote === "SETUJU" ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  Setuju
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  Menunggu
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-slate-300 font-mono text-xs">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
 
-                      {/* Kolom 4: Status Suara Rekanan */}
-                      <td className="py-3 px-3 text-center">
-                        <div className="inline-flex items-center gap-1.5 text-[10px] font-bold">
-                          <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
-                            {totalTolak} Tolak
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            {totalSetuju} Setuju
-                          </span>
-                        </div>
-                      </td>
+                      {branchContractors.length === 0 && (
+                        <td className="py-3 px-3 text-center text-slate-400 text-xs italic">
+                          -
+                        </td>
+                      )}
 
-                      {/* Kolom 5: Status Evaluasi Sesuai Peran */}
+                      {/* Kolom Status Evaluasi Sesuai Peran */}
                       <td className="py-3 px-3">
                         {role === "SB_SPECIALIST" ? (
                           item.status === "USULAN_KONTRAKTOR" ? (
