@@ -599,7 +599,7 @@ export function ReviewNegosiasiKontraktorCard({
                         </span>
                       ) : k.statusVote === "SETUJU" ? (
                         <span className="text-emerald-700 font-medium text-[11px]">
-                          Sepakat Penawaran SPARTA
+                          Sepakati Harga
                         </span>
                       ) : (
                         <span className="text-slate-400 italic text-[11px]">

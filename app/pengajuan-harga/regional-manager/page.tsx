@@ -13,13 +13,14 @@ import {
 import { PengajuanHargaItem } from '@/components/pengajuan-harga/types';
 import { getStoredPengajuan } from '@/components/pengajuan-harga/store';
 import { PengajuanHargaTable } from '@/components/pengajuan-harga/PengajuanHargaTable';
+import { BandingKontraktorCabangView } from '@/components/pengajuan-harga/BandingKontraktorCabangView';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
 export default function RegionalManagerPage() {
   const { showAlert } = useGlobalAlert();
 
   const [items, setItems] = useState<PengajuanHargaItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'pending' | 'trial'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'negosiasi' | 'trial'>('pending');
   const [search, setSearch] = useState('');
 
   // Load Initial Data
@@ -33,10 +34,10 @@ export default function RegionalManagerPage() {
     return () => window.removeEventListener('focus', loadData);
   }, []);
 
-  // Filter 1: Items Pending Survei Reguler (Layer 3)
+  // Filter 1: Items Pending Survei Reguler (Layer 3 - Murni dari BC)
   const pendingItems = useMemo(() => {
     return items.filter((item) => {
-      const isPending = item.status === 'PENDING_REGIONAL_MGR';
+      const isPending = item.status === 'PENDING_REGIONAL_MGR' && !item.isHasilNegosiasi;
       if (!isPending) return false;
 
       if (search.trim()) {
@@ -54,7 +55,28 @@ export default function RegionalManagerPage() {
     });
   }, [items, search]);
 
-  // Filter 2: Items Pending Approval Usulan Trial (Jalur B)
+  // Filter 2: Items Negosiasi & Banding Kontraktor (per Cabang)
+  const negosiasiItems = useMemo(() => {
+    return items.filter((item) => {
+      return (
+        (item.status === 'PENDING_REGIONAL_MGR' && item.isHasilNegosiasi) ||
+        item.status === 'USULAN_KONTRAKTOR' ||
+        (item.isHasilNegosiasi &&
+          (item.status === 'PENDING_KONTRAKTOR' ||
+            item.status === 'APPROVED_ACTIVE' ||
+            item.status === 'RELEASED')) ||
+        Boolean(item.votingKontraktor?.daftarKontraktor?.some((k) => k.statusVote === 'TOLAK'))
+      );
+    });
+  }, [items]);
+
+  const pendingNegosiasiCount = useMemo(() => {
+    return negosiasiItems.filter(
+      (item) => item.status === 'PENDING_REGIONAL_MGR' && item.isHasilNegosiasi
+    ).length;
+  }, [negosiasiItems]);
+
+  // Filter 3: Items Pending Approval Usulan Trial (Jalur B)
   const trialPendingItems = useMemo(() => {
     return items.filter((item) => {
       const isPendingTrial = item.status === 'TRIAL_PENDING_REGIONAL_MGR';
@@ -124,6 +146,12 @@ export default function RegionalManagerPage() {
               <span className="text-[11px] text-slate-500 font-medium block">Survei Toko</span>
               <span className="text-lg font-bold text-amber-700">{pendingItems.length}</span>
             </div>
+            <div className="bg-purple-50/70 border border-purple-200 rounded-xl px-4 py-2 text-center min-w-[90px]">
+              <span className="text-[11px] text-purple-700 font-medium block">Approval Negosiasi</span>
+              <span className="text-lg font-bold text-purple-800">
+                {pendingNegosiasiCount}
+              </span>
+            </div>
             <div className="bg-blue-50/70 border border-blue-200 rounded-xl px-4 py-2 text-center min-w-[90px]">
               <span className="text-[11px] text-blue-700 font-medium block">Spek Sementara</span>
               <span className="text-lg font-bold text-blue-800">
@@ -159,7 +187,30 @@ export default function RegionalManagerPage() {
               </Badge>
             </button>
 
-            {/* Tab 2: Pengajuan Spesifikasi Sementara */}
+            {/* Tab 2: Approval Negosiasi (per Cabang) */}
+            <button
+              onClick={() => setActiveTab('negosiasi')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'negosiasi'
+                  ? 'bg-white text-purple-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-purple-600" />
+              <span>Approval Negosiasi (per Cabang)</span>
+              <Badge
+                variant="secondary"
+                className={`text-[10px] px-1.5 py-0.2 ${
+                  activeTab === 'negosiasi'
+                    ? 'bg-purple-100 text-purple-900 font-bold'
+                    : 'bg-slate-300 text-slate-700'
+                } ${pendingNegosiasiCount > 0 ? 'bg-amber-500 text-white font-bold animate-pulse' : ''}`}
+              >
+                {pendingNegosiasiCount}
+              </Badge>
+            </button>
+
+            {/* Tab 3: Pengajuan Spesifikasi Sementara */}
             <button
               onClick={() => setActiveTab('trial')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
@@ -204,10 +255,17 @@ export default function RegionalManagerPage() {
             title="Daftar Survei Toko Menunggu Persetujuan Layer 3"
             onResetFilter={() => setSearch('')}
             getDetailHref={(item) =>
-              item.isHasilNegosiasi || Boolean(item.votingKontraktor)
-                ? `/pengajuan-harga/regional-manager/${item.id}`
-                : `/pengajuan-harga/review/survei/${item.id}?from=regional-manager`
+              `/pengajuan-harga/review/survei/${item.id}?from=regional-manager`
             }
+          />
+        )}
+
+        {/* TAB 2: APPROVAL NEGOSIASI (PER CABANG) */}
+        {activeTab === 'negosiasi' && (
+          <BandingKontraktorCabangView
+            items={negosiasiItems}
+            role="REGIONAL_MANAGER"
+            getDetailHref={(item) => `/pengajuan-harga/regional-manager/${item.id}`}
           />
         )}
 

@@ -31,6 +31,7 @@ import {
   AlertCircle,
   FileCheck,
   Sparkles,
+  Building2,
 } from "lucide-react";
 import { PengajuanHargaItem } from "@/components/pengajuan-harga/types";
 import {
@@ -43,15 +44,16 @@ import { RingkasanBiayaMaterial } from "@/components/pengajuan-harga/RingkasanBi
 import { TambahItemTrialModal } from "@/components/pengajuan-harga/TambahItemTrialModal";
 import { EvaluasiTrialModal } from "@/components/pengajuan-harga/EvaluasiTrialModal";
 import { PengajuanTimelineBar } from "@/components/pengajuan-harga/PengajuanTimelineBar";
+import { BandingKontraktorCabangView } from "@/components/pengajuan-harga/BandingKontraktorCabangView";
 import { useGlobalAlert } from "@/context/GlobalAlertContext";
 
 export default function SBSpecialistPage() {
   const router = useRouter();
   const { showAlert } = useGlobalAlert();
 
-  // Tab State: 'validasi_spek' (Alur 1 / dari B&M) vs 'approval_harga' (Alur 2 / Layer 2 dari BC) vs 'item_trial' (Alur B)
+  // Tab State: 'validasi_spek' vs 'approval_harga' vs 'usulan_kontraktor' vs 'item_trial'
   const [activeTab, setActiveTab] = useState<
-    "validasi_spek" | "approval_harga" | "item_trial"
+    "validasi_spek" | "approval_harga" | "usulan_kontraktor" | "item_trial"
   >("validasi_spek");
 
   // Data Store
@@ -212,12 +214,10 @@ export default function SBSpecialistPage() {
       });
   }, [specItems, search, statusFilter]);
 
-  // ================= TAB 2: APPROVAL HARGA SURVEI & USULAN KONTRAKTOR =================
+  // ================= TAB 2: APPROVAL HARGA SURVEI (MURNI BC - LAYER 2) =================
   const pendingLayer2Items = useMemo(() => {
     return items.filter((item) => {
-      const isPending =
-        item.status === "PENDING_SB_SPECIALIST" ||
-        item.status === "USULAN_KONTRAKTOR";
+      const isPending = item.status === "PENDING_SB_SPECIALIST";
       if (!isPending) return false;
 
       if (search.trim()) {
@@ -235,6 +235,25 @@ export default function SBSpecialistPage() {
     });
   }, [items, search]);
 
+  // ================= TAB 3: BANDING KONTRAKTOR (PER CABANG) =================
+  const kontraktorBandingItems = useMemo(() => {
+    return items.filter((item) => {
+      return (
+        item.status === "USULAN_KONTRAKTOR" ||
+        (item.isHasilNegosiasi &&
+          (item.status === "PENDING_REGIONAL_MGR" ||
+            item.status === "PENDING_KONTRAKTOR" ||
+            item.status === "APPROVED_ACTIVE" ||
+            item.status === "RELEASED")) ||
+        Boolean(item.votingKontraktor?.daftarKontraktor?.some((k) => k.statusVote === "TOLAK"))
+      );
+    });
+  }, [items]);
+
+  const pendingBandingCount = useMemo(() => {
+    return kontraktorBandingItems.filter((i) => i.status === "USULAN_KONTRAKTOR").length;
+  }, [kontraktorBandingItems]);
+
   // ================= TAB 3: JALUR TRIAL (ALUR B) =================
   const trialItems = useMemo(() => {
     return items.filter(
@@ -251,17 +270,27 @@ export default function SBSpecialistPage() {
   }, [items]);
 
   const displayedTrialItems = useMemo(() => {
-    if (!search.trim()) return trialItems;
-    const q = search.toLowerCase();
-    return trialItems.filter(
-      (i) =>
-        i.kode.toLowerCase().includes(q) ||
-        (i.kodeMaster && i.kodeMaster.toLowerCase().includes(q)) ||
-        i.item.toLowerCase().includes(q) ||
-        i.merk.toLowerCase().includes(q) ||
-        i.lokasi.toLowerCase().includes(q) ||
-        i.kategori.toLowerCase().includes(q),
-    );
+    let list = trialItems;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (i) =>
+          i.kode.toLowerCase().includes(q) ||
+          (i.kodeMaster && i.kodeMaster.toLowerCase().includes(q)) ||
+          i.item.toLowerCase().includes(q) ||
+          i.merk.toLowerCase().includes(q) ||
+          i.lokasi.toLowerCase().includes(q) ||
+          i.kategori.toLowerCase().includes(q),
+      );
+    }
+    return [...list].sort((a, b) => {
+      // Prioritaskan item yang butuh revisi tindakan oleh S&B Specialist di paling atas
+      const aNeedsAction = a.status === "TRIAL_REVISI";
+      const bNeedsAction = b.status === "TRIAL_REVISI";
+      if (aNeedsAction && !bNeedsAction) return -1;
+      if (!aNeedsAction && bNeedsAction) return 1;
+      return 0;
+    });
   }, [trialItems, search]);
 
   const handleOpenTambahTrial = () => {
@@ -437,6 +466,23 @@ export default function SBSpecialistPage() {
             </button>
 
             <button
+              onClick={() => setActiveTab("usulan_kontraktor")}
+              className={`flex items-center gap-2 px-4 py-2.5 font-bold text-xs md:text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "usulan_kontraktor"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              <span>Penolakan Kontraktor</span>
+              {pendingBandingCount > 0 && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-amber-500 text-white animate-pulse">
+                  {pendingBandingCount}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => setActiveTab("item_trial")}
               className={`flex items-center gap-2 px-4 py-2.5 font-bold text-xs md:text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "item_trial"
@@ -554,13 +600,20 @@ export default function SBSpecialistPage() {
             items={pendingLayer2Items}
             showStatus={true}
             showHarga={true}
-            title="Daftar Pengajuan Harga Survei &amp; Usulan Kontraktor Menunggu Review S&amp;B"
+            title="Daftar Pengajuan Harga Survei Lapangan dari Building Coordinator"
             onResetFilter={handleResetFilter}
             getDetailHref={(item) =>
-              item.status === "USULAN_KONTRAKTOR"
-                ? `/pengajuan-harga/sb-specialist/${item.id}`
-                : `/pengajuan-harga/review/survei/${item.id}?from=sb-specialist`
+              `/pengajuan-harga/review/survei/${item.id}?from=sb-specialist`
             }
+          />
+        )}
+
+        {/* ================= TAB 3: BANDING KONTRAKTOR (PER CABANG) ================= */}
+        {activeTab === "usulan_kontraktor" && (
+          <BandingKontraktorCabangView
+            items={kontraktorBandingItems}
+            role="SB_SPECIALIST"
+            getDetailHref={(item) => `/pengajuan-harga/sb-specialist/${item.id}`}
           />
         )}
 
