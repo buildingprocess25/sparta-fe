@@ -261,7 +261,7 @@ function FileProxyRow({
     if (!directUrl) return;
 
     if (mode === "view") {
-      // Langsung buka link asli dokumen di tab baru tanpa proxy backend
+      // Langsung buka link asli dokumen di tab baru (dapat diakses oleh akun @sat.co.id)
       window.open(directUrl, "_blank", "noopener,noreferrer");
       setViewed(true);
       onViewed(field);
@@ -274,28 +274,7 @@ function FileProxyRow({
     if (mode === "download") {
       setLoading("download");
       try {
-        const fileId = extractGdriveFileId(directUrl);
-        if (fileId) {
-          const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-          const a = document.createElement("a");
-          a.style.display = "none";
-          a.href = downloadUrl;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        } else {
-          const a = document.createElement("a");
-          a.style.display = "none";
-          a.href = directUrl;
-          a.download = `file_${field}_${projektId}`;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }
+        await proxyProjekPlanningFile(projektId, field, "download");
         setViewed(true);
         onViewed(field);
         const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';

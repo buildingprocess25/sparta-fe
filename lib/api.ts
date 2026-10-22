@@ -5864,10 +5864,12 @@ export const proxyProjekPlanningFile = async (
     field: string,
     mode: "view" | "download" = "view",
     itemIndex?: number,
-    newWindow?: Window | null
+    newWindow?: Window | null,
+    fileIndex?: number
 ): Promise<void> => {
     let url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/proxy-file?field=${field}&mode=${mode}`;
     if (itemIndex !== undefined) url += `&item_index=${itemIndex}`;
+    if (fileIndex !== undefined) url += `&file_index=${fileIndex}`;
 
     const res = await apiFetch(url);
     if (!res.ok) {
@@ -5892,8 +5894,21 @@ export const proxyProjekPlanningFile = async (
     const contentType = res.headers.get("Content-Type") || "application/octet-stream";
     const disposition = res.headers.get("Content-Disposition") || "";
     let filename = `file_${field}_${id}`;
-    const fnMatch = disposition.match(/filename="?([^";\n]+)"?/);
-    if (fnMatch?.[1]) filename = decodeURIComponent(fnMatch[1]);
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;\n]+)/i);
+    const standardMatch = disposition.match(/filename="?([^";\n]+)"?/);
+    if (utf8Match?.[1]) {
+        try {
+            filename = decodeURIComponent(utf8Match[1]);
+        } catch {
+            filename = utf8Match[1];
+        }
+    } else if (standardMatch?.[1]) {
+        try {
+            filename = decodeURIComponent(standardMatch[1]);
+        } catch {
+            filename = standardMatch[1];
+        }
+    }
 
     const blob = await res.blob();
     const blobUrl = window.URL.createObjectURL(blob);
