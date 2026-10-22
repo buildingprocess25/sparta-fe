@@ -3830,7 +3830,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     setBlockedOpnameItemKeys(blockedOpnameIds);
 
                     const hasPengawasanDocument = (row: any) =>
-                        Boolean(String(row?.dokumentasi || '').trim() || String(row?.dokumentasi_base64 || '').trim());
+                        Boolean(String(row?.dokumentasi || '').trim());
                     const workKeyOf = (row: any) => `${String(row.kategori_pekerjaan || '').toUpperCase()}|${String(row.jenis_pekerjaan || '').toUpperCase()}`;
                     const comparePengawasanPriority = (a: any, b: any) => {
                         const aMissingDoc = hasPengawasanDocument(a) ? 1 : 0;
