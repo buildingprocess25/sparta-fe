@@ -42,17 +42,9 @@ const getApiAuthToken = (): string | null => {
 };
 
 const withApiAuthQuery = (url: string): string => {
-    const token = getApiAuthToken();
-    if (!token) return url;
-
-    try {
-        const target = new URL(url, typeof window !== "undefined" ? window.location.origin : API_URL);
-        if (!isSpartaApiUrl(target)) return url;
-        target.searchParams.set("access_token", token);
-        return target.toString();
-    } catch {
-        return url;
-    }
+    // Keamanan: Hindari melewatkan token di URL query string agar tidak bocor
+    // ke access log, proxy logs, maupun browser history.
+    return url;
 };
 
 const isSpartaApiUrl = (input: RequestInfo | URL): boolean => {
@@ -81,10 +73,12 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
         headers.set("Authorization", `Bearer ${token}`);
     }
 
-    // Bypass dev tunnel and ngrok warning pages.
-    headers.set("ngrok-skip-browser-warning", "69420");
-    headers.set("X-Tunnel-Skip-AntiPhishing-Page", "true");
-    headers.set("bypass-tunnel-reminder", "true");
+    // Bypass dev tunnel and ngrok warning pages in non-production only
+    if (process.env.NODE_ENV !== "production") {
+        headers.set("ngrok-skip-browser-warning", "69420");
+        headers.set("X-Tunnel-Skip-AntiPhishing-Page", "true");
+        headers.set("bypass-tunnel-reminder", "true");
+    }
 
     const response = await globalThis.fetch(input, {
         cache: "no-store",
