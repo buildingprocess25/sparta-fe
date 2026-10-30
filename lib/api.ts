@@ -669,6 +669,13 @@ export const deleteDcDocument = async (
     return result;
 };
 
+export const getDcDocumentProxyUrl = (linkDokumen: string, mode: "view" | "download" = "view") => {
+    const cleanApiUrl = API_URL.replace(/\/$/, "");
+    const encodedUrl = encodeURIComponent(linkDokumen);
+    const downloadParam = mode === "download" ? "&download=true" : "";
+    return `${cleanApiUrl}/api/proxy-file?url=${encodedUrl}${downloadParam}`;
+};
+
 export const buildDcDocumentViewUrl = (id: number, actor: DcDocumentActor, mode: "view" | "download" = "view") => {
     const params = new URLSearchParams({
         actor_email: actor.actor_email,
@@ -5415,6 +5422,7 @@ export type ProjekPlanningListFilters = {
     cabang?: string;
     email_pembuat?: string;
     id_toko?: number;
+    jenis?: string;
 };
 
 export type ProjekPlanningTaskCounts = {
@@ -5692,6 +5700,7 @@ export const fetchProjekPlanningList = async (
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
     if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
+    if (filters?.jenis) params.append("jenis", filters.jenis);
     const url = `${base}/api/projek-planning${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };

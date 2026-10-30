@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, logDcCategoryEdit, getDcCategoryEditLogs, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType, type DcCategoryActivityLog } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, getDcDocumentProxyUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, logDcCategoryEdit, getDcCategoryEditLogs, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType, type DcCategoryActivityLog } from "@/lib/api";
 import { DC_DOCUMENT_LEGENDS, getDcDocumentConfigForStage, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 
 const CUSTOM_SLOT_OPTIONS: DcDocumentUploadSlotType[] = ["PDF/JPEG", "AUTOCAD", "WORD", "EXCEL", "PPT"];
@@ -429,7 +429,7 @@ export default function DcDocumentDetailPage() {
               {slotDocuments.map((doc, index) => (
                 <div key={doc.id} className="flex flex-col gap-1 w-full sm:w-[260px] shrink-0">
                   <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm hover:border-emerald-300 hover:shadow-md transition-all group/doc">
-                    <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
+                    <a href={doc.link_dokumen ? getDcDocumentProxyUrl(doc.link_dokumen, "view") : buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
                       <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
                         <FileText className="w-3.5 h-3.5" />
                       </div>
@@ -457,7 +457,7 @@ export default function DcDocumentDetailPage() {
         <div className="flex flex-col gap-2 w-full sm:items-end">
           {slotDocuments.map((doc, index) => (
             <div key={doc.id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm w-full sm:w-[260px] shrink-0">
-              <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1">
+              <a href={doc.link_dokumen ? getDcDocumentProxyUrl(doc.link_dokumen, "view") : buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1">
                 <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
                   <FileText className="w-3.5 h-3.5" />
                 </div>
