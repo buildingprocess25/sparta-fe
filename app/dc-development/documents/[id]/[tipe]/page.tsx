@@ -363,8 +363,8 @@ export default function DcDocumentDetailPage() {
 
   const getAcceptString = (type: string) => {
     const t = type.toUpperCase();
-    if (t.includes('PDF/JPEG')) return 'application/pdf,image/jpeg,image/png,image/jpg';
-    if (t.includes('AUTOCAD')) return '.dwg,.dxf';
+    if (t.includes('PDF/JPEG')) return 'application/pdf,image/jpeg,image/png,image/jpg,.pdf,.jpg,.jpeg,.png';
+    if (t.includes('AUTOCAD')) return '.dwg,.dxf,application/acad,image/vnd.dwg';
     if (t.includes('WORD')) return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     if (t.includes('EXCEL')) return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     if (t.includes('PPT')) return '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -572,7 +572,11 @@ export default function DcDocumentDetailPage() {
                     {meta ? (
                       <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-md px-1.5 py-0.5 flex-1 min-w-0" title={`Ukuran asli: ${formatBytes(meta.originalSize)} → ${formatBytes(meta.compressedSize)}`}>
                         <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                        <span className="truncate">{formatBytes(meta.originalSize)} → {formatBytes(meta.compressedSize)} (-{meta.ratioPercent}%)</span>
+                        <span className="truncate">
+                          {meta.ratioPercent > 0
+                            ? `${formatBytes(meta.originalSize)} → ${formatBytes(meta.compressedSize)} (-${meta.ratioPercent}%)`
+                            : `Sudah Optimal (${formatBytes(meta.compressedSize)})`}
+                        </span>
                       </div>
                     ) : (
                       <span className="text-[10px] text-slate-500 font-medium italic">Hemat bandwidth upload</span>
@@ -589,7 +593,7 @@ export default function DcDocumentDetailPage() {
                           ? "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
                           : "bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-xs"
                       }`}
-                      title={meta ? "Kompres ulang gambar" : "Kompres gambar untuk memperkecil ukuran file"}
+                      title={meta ? "Kompres ulang dokumen" : "Kompres dokumen untuk memperkecil ukuran file"}
                     >
                       {isCompressing ? (
                         <>
@@ -597,10 +601,17 @@ export default function DcDocumentDetailPage() {
                           Mengompres...
                         </>
                       ) : meta ? (
-                        <>
-                          <Sparkles className="w-2.5 h-2.5 mr-1 text-amber-500" />
-                          Kompres Ulang
-                        </>
+                        meta.ratioPercent > 0 ? (
+                          <>
+                            <Sparkles className="w-2.5 h-2.5 mr-1 text-amber-500" />
+                            Kompres Ulang
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-2.5 h-2.5 mr-1 text-emerald-600" />
+                            Sudah Optimal
+                          </>
+                        )
                       ) : (
                         <>
                           <Sparkles className="w-2.5 h-2.5 mr-1" />
