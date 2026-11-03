@@ -3026,10 +3026,10 @@ export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
     }
 
     const disposition = res.headers.get("Content-Disposition");
-    let filename = `OPNAME_${id}.pdf`;
+    let filename = `KTK_${id}.pdf`;
     if (disposition?.includes("filename=")) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match?.[1]) filename = match[1];
+        const match = disposition.match(/filename=["']?([^"';]+)["']?/);
+        if (match?.[1]) filename = match[1].trim();
     }
 
     const blob = await res.blob();
