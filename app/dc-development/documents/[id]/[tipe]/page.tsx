@@ -64,6 +64,7 @@ export default function DcDocumentDetailPage() {
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [savingCategory, setSavingCategory] = useState<string | null>(null);
   const [compressingKeys, setCompressingKeys] = useState<Record<string, boolean>>({});
+  const [compressProgress, setCompressProgress] = useState<Record<string, { percent: number; current?: number; total?: number; message?: string }>>({});
   const [compressedMeta, setCompressedMeta] = useState<Record<string, { originalSize: number; compressedSize: number; ratioPercent: number }>>({});
   
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
@@ -433,6 +434,21 @@ export default function DcDocumentDetailPage() {
       });
       return next;
     });
+
+    setCompressProgress(prev => {
+      const next = { ...prev };
+      delete next[`${compKey}_${index}`];
+      Object.keys(prev).forEach(k => {
+        if (k.startsWith(`${compKey}_`)) {
+          const idx = parseInt(k.replace(`${compKey}_`, ""), 10);
+          if (idx > index) {
+            next[`${compKey}_${idx - 1}`] = prev[k];
+            delete next[k];
+          }
+        }
+      });
+      return next;
+    });
   };
 
   const handleCompressDraft = async (compKey: string, index: number) => {
@@ -441,9 +457,18 @@ export default function DcDocumentDetailPage() {
 
     const taskKey = `${compKey}_${index}`;
     setCompressingKeys(prev => ({ ...prev, [taskKey]: true }));
+    setCompressProgress(prev => ({
+      ...prev,
+      [taskKey]: { percent: 0, message: "Mempersiapkan..." }
+    }));
 
     try {
-      const result = await compressDocumentFile(file);
+      const result = await compressDocumentFile(file, {
+        onProgress: (p) => {
+          setCompressProgress(prev => ({ ...prev, [taskKey]: p }));
+        }
+      });
+
       setDraftFiles(prev => {
         const files = [...(prev[compKey] || [])];
         files[index] = result.file;
@@ -536,6 +561,7 @@ export default function DcDocumentDetailPage() {
           {localFiles.map((file, index) => {
             const taskKey = `${compKey}_${index}`;
             const isCompressing = !!compressingKeys[taskKey];
+            const progress = compressProgress[taskKey];
             const meta = compressedMeta[taskKey];
             const compressible = isCompressibleFile(file);
             const currentSizeStr = formatBytes(file.size);
@@ -597,8 +623,10 @@ export default function DcDocumentDetailPage() {
                     >
                       {isCompressing ? (
                         <>
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Mengompres...
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin shrink-0" />
+                          <span className="truncate max-w-[85px]">
+                            {progress?.message || (progress?.percent !== undefined ? `${progress.percent}%` : "Mengompres...")}
+                          </span>
                         </>
                       ) : meta ? (
                         meta.ratioPercent > 0 ? (
