@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
     Loader2, Search, CheckSquare, AlertCircle, CheckCircle,
-    Info, Hash, Send, X, Eye, ChevronDown, ChevronRight,
+    Info, Hash, Send, X, Eye, ChevronDown, ChevronRight, ChevronUp,
     Camera, FileText, ThumbsUp, ThumbsDown, Clock, Filter,
     Building2, ClipboardList, ArrowLeft, ExternalLink, RefreshCw, Lock, Database
 } from 'lucide-react';
@@ -239,8 +239,7 @@ const getContractorFirstRejectNote = (item: OpnameItem) =>
     item.alasan_penolakan_support || item.catatan || '';
 
 const isContractorMenuVisibleOpname = (item: OpnameItem) => {
-    if (isLegacyOpname(item)) return true;
-    return isRejectedOpnameStatus(item.status);
+    return true;
 };
 const withFallbackTimeout = async <T,>(promise: Promise<T>, fallback: T, timeoutMs = 15000): Promise<T> => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -308,6 +307,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     // Data
     const [rabList, setRabList] = useState<RABListItem[]>([]);
     const [selectedRab, setSelectedRab] = useState<RABListItem | null>(null);
+    const [selectedRabs, setSelectedRabs] = useState<RABListItem[]>([]);
+    const [selectedUlok, setSelectedUlok] = useState<string>("");
     const [rabItems, setRabItems] = useState<RABDetailItem[]>([]);
     const [tokoDetail, setTokoDetail] = useState<RABDetailToko | null>(null);
     const [existingOpname, setExistingOpname] = useState<OpnameItem[]>([]);
@@ -358,6 +359,15 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     // Expanded categories
     const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+    const [collapsedLingkup, setCollapsedLingkup] = useState<Set<string>>(new Set());
+    const toggleLingkup = (l: string) => {
+        setCollapsedLingkup(prev => {
+            const next = new Set(prev);
+            if (next.has(l)) next.delete(l);
+            else next.add(l);
+            return next;
+        });
+    };
     const [isOpnameFinalLocked, setIsOpnameFinalLocked] = useState(false);
 
     // Load RAB list
@@ -466,8 +476,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
 
     // Handle RAB selection
-    const handleSelectRab = async (rabId: string) => {
-        if (!rabId) {
+    const handleSelectUlok = async (ulok: string) => {
+        if (!ulok) {
+            setSelectedUlok("");
+            setSelectedRabs([]);
             setSelectedRab(null);
             setRabItems([]);
             setTokoDetail(null);
@@ -477,129 +489,81 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             return;
         }
 
-        const rab = rabList.find(r => r.id === parseInt(rabId));
-        if (!rab) return;
+        const rabs = rabList.filter(r => r.nomor_ulok === ulok);
+        if (rabs.length === 0) return;
 
-        setSelectedRab(rab);
+        setSelectedUlok(ulok);
+        setSelectedRabs(rabs);
+        setSelectedRab(rabs[0]); // fallback for any legacy code
         setIsLoadingDetail(true);
 
         try {
-            const isIlOnlyProject = (rab as any).source_type === 'IL_ONLY' || Number(rab.id) < 0;
             let workingItems: RABDetailItem[] = [];
-            let workflowForSelected: WorkflowVersion = 'legacy';
-            if (isIlOnlyProject) {
-                setTokoDetail({
-                    id: rab.id_toko,
-                    nomor_ulok: rab.nomor_ulok,
-                    lingkup_pekerjaan: (rab as any).lingkup_pekerjaan || '',
-                    nama_toko: rab.nama_toko,
-                    kode_toko: '',
-                    proyek: rab.proyek,
-                    cabang: rab.cabang,
-                    alamat: '',
-                    nama_kontraktor: ''
-                });
-            } else {
-                const detailRes = await fetchRABDetail(rab.id);
-                const { items, toko } = detailRes.data;
-                setTokoDetail(toko);
-                workingItems = (items || []).map((item: RABDetailItem) => ({
-                    ...item,
-                    source_type: item.source_type || 'RAB'
-                }));
-            }
-
-            // Check for existing opname data
             let existingData: OpnameItem[] = [];
-            try {
-                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
-                existingData = opnameRes.data || [];
-                const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []);
-                workingItems = [...workingItems, ...instruksiItems];
-                setRabItems(workingItems);
-                setExistingOpname(existingData);
+            let tokoMeta: any = null;
+            let currentWorkflow: WorkflowVersion = 'legacy';
 
-                const contractorFirstItemsForSelection = existingData.filter((item) => isContractorFirstOpname(item));
-                const latestContractorFirstForSelection = Array.from(buildLatestOpnameMap(contractorFirstItemsForSelection).values());
-                const inferredWorkflow: WorkflowVersion = contractorFirstItemsForSelection.length > 0
-                    ? 'contractor_first'
-                    : 'legacy';
-                workflowForSelected = inferredWorkflow;
-                setSupportFlowView(inferredWorkflow);
+            for (const rab of rabs) {
+                const isIlOnlyProject = (rab as any).source_type === 'IL_ONLY' || Number(rab.id) < 0;
+                let currentItems: RABDetailItem[] = [];
+                const lingkupPekerjaan = (rab as any).lingkup_pekerjaan || (isIlOnlyProject ? 'ME' : 'SIPIL');
 
-                // Initialize opnameInputs based on existing opname data (parsial)
-                const initialInputs: any = {};
-                const safeItems = workingItems;
-                safeItems.forEach((item: any) => {
-                    const itemKey = getWorkItemKey(item);
-                    const ex = existingData.filter(o => getOpnameItemKey(o) === itemKey).sort((a,b) => Number(b.id) - Number(a.id))[0];
-                    initialInputs[item.id] = {
-                        volume_akhir: ex ? String(ex.volume_akhir) : "0",
-                        desain: ex?.desain || '',
-                        kualitas: ex?.kualitas || '',
-                        spesifikasi: ex?.spesifikasi || '',
-                        catatan: ex?.catatan || '',
-                        file: null,
-                        existing_foto: ex?.foto || null
+                if (isIlOnlyProject) {
+                    if (!tokoMeta) tokoMeta = {
+                        id: rab.id_toko, nomor_ulok: rab.nomor_ulok, lingkup_pekerjaan: lingkupPekerjaan,
+                        nama_toko: rab.nama_toko, kode_toko: '', proyek: rab.proyek, cabang: rab.cabang, alamat: '', nama_kontraktor: ''
                     };
-                });
-                setOpnameInputs(initialInputs);
-            } catch {
-                setRabItems(workingItems);
-                setExistingOpname([]);
-                setOpnameInputs({});
-            }
-
-            // Check locked opname status
-            let lockedOpnameFinal = false;
-            try {
-                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci', workflow_version: workflowForSelected });
-                const finalData = finalRes.data as unknown;
-                let finalItems: OpnameFinalSummary[] = [];
-                if (Array.isArray(finalData)) {
-                    finalItems = finalData as OpnameFinalSummary[];
-                } else if (finalData && typeof finalData === 'object') {
-                    const opnameFinal = (finalData as { opname_final?: unknown }).opname_final;
-                    finalItems = Array.isArray(opnameFinal) ? opnameFinal as OpnameFinalSummary[] : [];
+                } else {
+                    const detailRes = await fetchRABDetail(rab.id);
+                    const { items, toko } = detailRes.data;
+                    if (!tokoMeta) tokoMeta = toko;
+                    currentItems = (items || []).map((item: RABDetailItem) => ({
+                        ...item,
+                        source_type: item.source_type || 'RAB',
+                        lingkup_pekerjaan: toko.lingkup_pekerjaan || lingkupPekerjaan,
+                        id_toko: rab.id_toko
+                    }));
                 }
 
-                const latestFinal = finalItems.reduce<OpnameFinalSummary | null>((latest, item) => {
-                    if (!latest) return item;
-                    const latestId = Number(latest.id) || 0;
-                    const itemId = Number(item.id) || 0;
-                    if (itemId !== latestId) return itemId > latestId ? item : latest;
+                // Opname & IL items
+                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
+                const currentOpname = (opnameRes.data || []).map((o: any) => ({ ...o, lingkup_pekerjaan: lingkupPekerjaan, id_toko: rab.id_toko }));
+                existingData.push(...currentOpname);
 
-                    const latestTime = new Date(latest.created_at || 0).getTime();
-                    const itemTime = new Date(item.created_at || 0).getTime();
-                    return itemTime > latestTime ? item : latest;
-                }, null);
+                const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((il: any) => ({
+                    ...il, lingkup_pekerjaan: `IL ${lingkupPekerjaan}`, id_toko: rab.id_toko
+                }));
+                currentItems = [...currentItems, ...instruksiItems];
+                workingItems.push(...currentItems);
 
-                if (latestFinal) {
-                    const status = String(latestFinal.status_opname_final || latestFinal.status || '').toUpperCase();
-                    const isRejected = status.includes('DITOLAK') || status.includes('TOLAK') || status.includes('REJECTED');
-                    lockedOpnameFinal = !isRejected;
-                }
-            } catch {
-                // ignore
+                const contractorFirstItemsForSelection = currentOpname.filter((item: any) => isContractorFirstOpname(item));
+                if (contractorFirstItemsForSelection.length > 0) currentWorkflow = 'contractor_first';
             }
-            setIsOpnameFinalLocked(lockedOpnameFinal);
 
-            // [REMOVED DUPLICATE] opnameInputs sudah diset di blok try atas dengan data existingOpname yang sudah difilter dan disort.
-            // Jangan set ulang di sini karena akan menimpa data yang sudah benar.
+            setTokoDetail(tokoMeta);
+            setRabItems(workingItems);
+            setExistingOpname(existingData);
+            setSupportFlowView(currentWorkflow);
 
-            // Expand all categories by default
-            const cats = new Set<string>();
-            (workingItems || []).forEach((item: RABDetailItem) => {
-                if (item.kategori_pekerjaan) cats.add(item.kategori_pekerjaan);
+            // Initialize opnameInputs
+            const initialInputs: any = {};
+            workingItems.forEach((item: any) => {
+                const itemKey = getWorkItemKey(item);
+                const ex = existingData.filter(o => getOpnameItemKey(o) === itemKey).sort((a,b) => Number(b.id) - Number(a.id))[0];
+                initialInputs[item.id] = {
+                    volume_akhir: ex ? String(ex.volume_akhir) : "0",
+                    desain: ex?.desain || '', kualitas: ex?.kualitas || '', spesifikasi: ex?.spesifikasi || '', catatan: ex?.catatan || '', file: null, existing_foto: ex?.foto || null
+                };
             });
-            setExpandedCats(cats);
-
-        } catch (err: any) {
-            showAlert({ message: `Gagal memuat detail RAB: ${err.message}`, type: "error" });
+            setOpnameInputs(initialInputs);
+        } catch (error) {
+            console.error("Error loading ulok details:", error);
+            setRabItems([]);
+            setExistingOpname([]);
         } finally {
             setIsLoadingDetail(false);
         }
-    };
+    };;
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -619,7 +583,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             setActiveView('form');
         }
         setSearchQuery(targetProject.nama_toko || targetProject.nomor_ulok || "");
-        handleSelectRab(String(targetProject.id));
+        handleSelectUlok(targetProject.nomor_ulok || "");
     }, [autoSelectedTokoId, isLoading, isWorkflowIndexLoading, rabList]);
 
     // Handle input change
@@ -682,6 +646,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         [latestOpnameByItemKey]
     );
 
+    const hasLegacyPendingILItem = useMemo(
+        () => Array.from(latestOpnameByItemKey.values()).some((item) => isPendingOpnameStatus(item.status) && (item.instruksi_lapangan_item != null || item.id_instruksi_lapangan_item != null)),
+        [latestOpnameByItemKey]
+    );
+
     // Check if all items are approved for KTK finalization and finalized read-only view.
     const legacyAllApproved = useMemo(() => {
         if (rabItems.length === 0) return false;
@@ -714,7 +683,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         : Array.from(activeLatestOpnameByItemKey.values()).filter((item) => isApprovedOpnameStatus(item.status)).length;
 
     const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || activeWorkflowAllApproved;
-    const shouldLockLegacyMenuInputForSupport = supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && !hasLegacyRejectedForReinput;
+    const shouldLockLegacyMenuInputForSupport = supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && !hasLegacyRejectedForReinput && !hasLegacyPendingILItem;
     const canEditOpnameMenu = supportFlowView === 'legacy' && !isReadOnly && !shouldShowReadOnlyOpnameItems && !shouldLockLegacyMenuInputForSupport;
 
     const contractorFirstMenuReviewItems = useMemo(() => {
@@ -736,32 +705,55 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         if (supportFlowView !== 'legacy') return [];
         if (shouldLockLegacyMenuInputForSupport) return [];
 
-        const map = new Map<string, RABDetailItem[]>();
+        const map = new Map<string, Map<string, RABDetailItem[]>>();
         rabItems.forEach(item => {
             const itemKey = getWorkItemKey(item);
             const latestOpname = latestOpnameByItemKey.get(itemKey);
             const status = latestOpname?.status;
 
             if (!shouldShowReadOnlyOpnameItems) {
-                if (!isRejectedOpnameStatus(status)) return;
+                const isRejected = isRejectedOpnameStatus(status);
+                const isPendingIL = isPendingOpnameStatus(status) && (item.source_type === 'IL' || item.instruksi_lapangan_item != null || item.id_instruksi_lapangan_item != null);
+                if (!isRejected && !isPendingIL) return;
             }
 
+            let lingkup = (item as any).lingkup_pekerjaan || 'SIPIL';
+            if (item.source_type === 'IL' && !lingkup.startsWith('IL ')) lingkup = `IL ${lingkup}`;
+
             const cat = item.kategori_pekerjaan;
-            if (!map.has(cat)) map.set(cat, []);
-            map.get(cat)!.push(item);
+            
+            if (!map.has(lingkup)) map.set(lingkup, new Map());
+            const catMap = map.get(lingkup)!;
+            if (!catMap.has(cat)) catMap.set(cat, []);
+            catMap.get(cat)!.push(item);
         });
-        return Array.from(map.entries()).map(([name, items]) => ({ name, items })).filter(g => g.items.length > 0);
+        
+        return Array.from(map.entries())
+            .sort((a, b) => {
+                if (a[0] === 'SIPIL') return -1;
+                if (b[0] === 'SIPIL') return 1;
+                if (a[0] === 'ME') return -1;
+                if (b[0] === 'ME') return 1;
+                return a[0].localeCompare(b[0]);
+            })
+            .map(([lingkup, catMap]) => ({
+                lingkup,
+                categories: Array.from(catMap.entries()).map(([name, items]) => ({ name, items }))
+            }));
     }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems, shouldLockLegacyMenuInputForSupport, supportFlowView]);
     const filteredGroupedItems = useMemo(() => {
         if (!opnameItemSearchQuery.trim()) return groupedItems;
         const term = opnameItemSearchQuery.toLowerCase();
-        return groupedItems.map(g => {
-            const matchCat = g.name.toLowerCase().includes(term);
-            const filteredItems = g.items.filter(item => 
-                item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
-            );
-            return { ...g, items: filteredItems };
-        }).filter(g => g.items.length > 0);
+        return groupedItems.map(lingkupGroup => {
+            const filteredCats = lingkupGroup.categories.map(g => {
+                const matchCat = g.name.toLowerCase().includes(term);
+                const filteredItems = g.items.filter(item => 
+                    item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
+                );
+                return { ...g, items: filteredItems };
+            }).filter(g => g.items.length > 0);
+            return { ...lingkupGroup, categories: filteredCats };
+        }).filter(lingkupGroup => lingkupGroup.categories.length > 0);
     }, [groupedItems, opnameItemSearchQuery]);
 
     // Helper: check if an item was previously rejected
@@ -847,7 +839,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                     : 'Proses Kerja Tambah Kurang berhasil difinalisasi dan dikirim untuk approval Koordinator.',
                 type: "success"
             });
-            handleSelectRab(selectedRab.id.toString());
+            handleSelectUlok(selectedUlok);
         } catch (err: any) {
             showAlert({ message: 'Gagal finalisasi Kerja Tambah Kurang: ' + err.message, type: "error" });
         } finally {
@@ -1004,9 +996,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: "Input opname dari menu ini dikunci untuk Branch Building Support. Untuk data legacy, isi opname melalui Gantt Chart.", type: "warning" });
             return;
         }
-        if (!selectedRab || rabItems.length === 0) return;
+        if (!selectedRabs || selectedRabs.length === 0 || rabItems.length === 0) return;
 
-        // Collect only legacy items rejected by contractor; initial legacy input remains in Gantt Chart.
         const itemsToSubmit = rabItems.filter(item => {
             const existing = latestOpnameByItemKey.get(getWorkItemKey(item));
             return isRejectedOpnameStatus(existing?.status);
@@ -1017,12 +1008,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             return;
         }
 
-        // Validate all items
         const validationErrors: string[] = [];
-        const payloadItems: any[] = [];
-        const files: File[] = [];
-        const fileIndexes: number[] = [];
-
+        
+        // Group items by id_toko
+        const payloadGroups = new Map();
+        
         itemsToSubmit.forEach((item) => {
             const input = opnameInputs[item.id];
             if (!input || !input.volume_akhir || !input.desain || !input.kualitas || !input.spesifikasi || (!input.file && !input.existing_foto)) {
@@ -1030,117 +1020,64 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 return;
             }
 
-            const volAkhir = parseDecimalInput(input.volume_akhir);
-            const volRab = Number(item.volume) || 0;
-            const selisihVol = Number((volAkhir - volRab).toFixed(4));
-            const price = (Number(item.harga_material) || 0) + (Number(item.harga_upah) || 0);
+            const idTokoStr = String((item as any).id_toko || selectedRab?.id_toko || selectedRabs[0].id_toko);
             
-            const existing = latestOpnameByItemKey.get(getWorkItemKey(item));
+            if (!payloadGroups.has(idTokoStr)) {
+                payloadGroups.set(idTokoStr, { items: [], files: [], fileIndexes: [] });
+            }
+            const group = payloadGroups.get(idTokoStr);
             
-            payloadItems.push({
-                id: existing?.id,
-                id_toko: selectedRab.id_toko,
-                id_rab_item: item.source_type === 'IL' ? undefined : item.id,
+            const itemData: any = {
+                id_rab_item: item.source_type !== 'IL' ? item.id : undefined,
                 id_instruksi_lapangan_item: item.source_type === 'IL' ? item.id_instruksi_lapangan_item : undefined,
-                status: 'pending',
-                volume_akhir: volAkhir,
-                selisih_volume: selisihVol,
-                total_selisih: Math.round(selisihVol * price),
-                total_harga_opname: Math.round(volAkhir * price),
-                desain: input.desain?.trim(),
-                kualitas: input.kualitas?.trim(),
-                spesifikasi: input.spesifikasi?.trim(),
-                catatan: input.catatan?.trim() || undefined,
-                foto: (!input.file && input.existing_foto) ? input.existing_foto : undefined,
-            });
-
+                volume_akhir: parseDecimalInput(input.volume_akhir),
+                desain: input.desain,
+                kualitas: input.kualitas,
+                spesifikasi: input.spesifikasi,
+                catatan: input.catatan || "",
+            };
+            
+            if (!input.file && input.existing_foto) {
+                itemData.existing_foto = input.existing_foto;
+            }
+            
+            group.items.push(itemData);
+            
             if (input.file) {
-                files.push(input.file);
-                fileIndexes.push(payloadItems.length - 1);
+                group.files.push(input.file);
+                group.fileIndexes.push(group.items.length - 1);
             }
         });
 
         if (validationErrors.length > 0) {
-            showAlert({ 
-                title: "Validasi Gagal",
-                message: `Beberapa item belum lengkap: ${validationErrors.slice(0, 3).join(', ')}${validationErrors.length > 3 ? '...' : ''}. Pastikan Volume, Verifikasi, dan Foto sudah terisi.`, 
-                type: "warning" 
+            showAlert({
+                message: `Silakan lengkapi semua field dan unggah foto untuk:\n${validationErrors.slice(0, 5).join('\n')}${validationErrors.length > 5 ? '\n...dan lainnya' : ''}`,
+                type: 'warning'
             });
             return;
         }
 
-        // Confirmation
-        showAlert({
-            title: "Submit Semua Item",
-            message: `Apakah Anda yakin ingin mensubmit ${payloadItems.length} item sekaligus?`,
-            type: "info",
-            confirmMode: true,
-            confirmText: "Ya, Submit Semua",
-            cancelText: "Batal",
-            onConfirm: async () => {
-                setIsSubmitting(true);
-                try {
-                    // Calculate totals
-                    let grandTotalRab = 0;
-                    let grandTotalOpname = 0;
-                    
-                    const submissionMap = new Map(payloadItems.map(p => [
-                        p.id_instruksi_lapangan_item ? `il:${p.id_instruksi_lapangan_item}` : `rab:${p.id_rab_item}`,
-                        p
-                    ]));
-                    
-                    rabItems.forEach(r => {
-                        const price = (Number(r.harga_material) || 0) + (Number(r.harga_upah) || 0);
-                        grandTotalRab += Math.round((Number(r.volume) || 0) * price);
-                        
-                        const sub = submissionMap.get(getWorkItemKey(r));
-                        if (sub) {
-                            grandTotalOpname += sub.total_harga_opname;
-                        } else {
-                            const existing = latestOpnameByItemKey.get(getWorkItemKey(r));
-                            if (existing) {
-                                grandTotalOpname += Math.round(Number(existing.total_harga_opname) || (Number(existing.volume_akhir) * price));
-                            }
-                        }
-                    });
+        setIsSubmitting(true);
+        try {
+            const promises = Array.from(payloadGroups.entries()).map(async ([idTokoStr, group]) => {
+                const formData = new FormData();
+                formData.append("id_toko", idTokoStr);
+                formData.append("items", JSON.stringify(group.items));
+                group.files.forEach((file: any) => formData.append("files", file));
+                formData.append("fileIndexes", JSON.stringify(group.fileIndexes));
+                
+                return await submitOpnameBulk(formData);
+            });
+            
+            await Promise.all(promises);
 
-                    const { submitOpnameBulk } = await import('@/lib/api');
-
-                    if (files.length > 0) {
-                        const formData = new FormData();
-                        formData.append('id_toko', String(selectedRab.id_toko));
-                        formData.append('email_pembuat', userInfo.email);
-                        formData.append('grand_total_opname', String(grandTotalOpname));
-                        formData.append('grand_total_rab', String(grandTotalRab));
-                        formData.append('items', JSON.stringify(payloadItems));
-                        files.forEach(f => formData.append('file_foto_opname', f));
-                        formData.append('file_foto_opname_indexes', JSON.stringify(fileIndexes));
-                        formData.append('tipe_opname', 'OPNAME');
-                        await submitOpnameBulk(formData);
-                    } else {
-                        await submitOpnameBulk({
-                            id_toko: Number(selectedRab.id_toko),
-                            email_pembuat: userInfo.email,
-                            tipe_opname: 'OPNAME',
-                            grand_total_opname: String(grandTotalOpname),
-                            grand_total_rab: String(grandTotalRab),
-                            items: payloadItems,
-                        });
-                    }
-
-                    setTimeout(() => {
-                        showAlert({ message: `${payloadItems.length} item berhasil disubmit!`, type: "success" });
-                        handleSelectRab(selectedRab.id.toString()); // Refresh
-                    }, 300);
-                } catch (err: any) {
-                    setTimeout(() => {
-                        showAlert({ message: `Gagal: ${err.message}`, type: "error" });
-                    }, 300);
-                } finally {
-                    setIsSubmitting(false);
-                }
-            }
-        });
+            showAlert({ message: "Semua opname berhasil disubmit.", type: "success" });
+            await reloadData();
+        } catch (err: any) {
+            showAlert({ message: err.message || "Terjadi kesalahan saat menyimpan bulk opname.", type: "error" });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     // Check if there's existing opname data for this project
@@ -1220,18 +1157,22 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 <div className="relative">
                                     <select
                                         className="w-full p-3 border rounded-lg bg-slate-50 outline-none font-semibold text-slate-700 cursor-pointer focus:bg-white focus:ring-2 focus:ring-emerald-500 appearance-none pr-10"
-                                        value={selectedRab?.id?.toString() || ''}
-                                        onChange={(e) => handleSelectRab(e.target.value)}
+                                        value={selectedUlok || ''}
+                                        onChange={(e) => handleSelectUlok(e.target.value)}
                                     >
                                         <option value="">— Pilih Proyek —</option>
                                         {filteredRabList.length === 0 && (
                                             <option value="" disabled>Tidak ada ULOK yang perlu diproses</option>
                                         )}
-                                        {filteredRabList.map(rab => (
-                                            <option key={rab.id} value={rab.id}>
-                                                {formatUlokWithDash(rab.nomor_ulok)} - {rab.nama_toko} ({(rab as any).source_type === 'IL_ONLY' ? `IL${(rab as any).lingkup_pekerjaan ? ` - ${(rab as any).lingkup_pekerjaan}` : ''}` : rab.proyek})
-                                            </option>
-                                        ))}
+                                        {Array.from(new Set(filteredRabList.map(r => r.nomor_ulok))).map(ulok => {
+                                            const rabs = filteredRabList.filter(r => r.nomor_ulok === ulok);
+                                            const first = rabs[0];
+                                            return (
+                                                <option key={ulok} value={ulok}>
+                                                    {formatUlokWithDash(ulok)} - {first.nama_toko}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                                 </div>
@@ -1324,97 +1265,37 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     </div>
                                 )}
 
-                                {/* Finalisasi Kerja Tambah Kurang */}
-                                {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
-                                    <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${activeWorkflowAllApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
-                                        <div>
-                                            <h4 className={`font-bold text-sm ${activeWorkflowAllApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
-                                                <Lock className="w-4 h-4 inline mr-1.5" />
-                                                Finalisasi Proses Kerja Tambah Kurang
-                                            </h4>
-                                            <p className={`text-xs mt-0.5 ${activeWorkflowAllApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                {activeWorkflowAllApproved
-                                                    ? (supportFlowView === 'contractor_first'
-                                                        ? 'Semua item contractor-first telah disetujui Support. Klik untuk finalisasi KTK.'
-                                                        : 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.')
-                                                    : `Semua item harus berstatus Disetujui (${activeApprovedCount}/${activeTotalCount} item disetujui oleh ${supportFlowView === 'contractor_first' ? 'Support' : 'Kontraktor'}).`
-                                                }
-                                            </p>
-                                        </div>
-                                        <Button
-                                            onClick={handleKunciOpnameFinal}
-                                            disabled={!activeWorkflowAllApproved || isSubmitting}
-                                            className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${activeWorkflowAllApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
-                                        >
-                                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-                                            Finalisasi Proses Kerja Tambah Kurang
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {supportFlowView === 'legacy' && hasExistingOpname && activeView === 'form' && (
-                                    <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
-                                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                                        <div>
-                                            <p className="text-sm font-bold text-amber-800">Data opname legacy sudah pernah disubmit ({legacyOpnameItems.length} item).</p>
-                                            <p className="text-xs text-amber-600 mt-0.5">Menu ini hanya membuka submit ulang untuk item legacy yang ditolak. Lihat tab <b>Riwayat</b> untuk data lengkap.</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeView === 'form' ? (
-                                    <>
-                                    {canLockOpnameFinal && approvedReadOnlyOpnameItems.length > 0 && (
-                                        <div className="mb-6 p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
-                                            <h3 className="font-bold text-emerald-800 flex items-center gap-2 mb-4 border-b border-emerald-200 pb-2">
-                                                <CheckCircle className="w-4 h-4" /> Data Opname Disetujui - Read Only ({approvedReadOnlyOpnameItems.length})
-                                            </h3>
-                                            <div className="space-y-3">
-                                                {approvedReadOnlyOpnameItems.map(item => {
-                                                    const itemKey = getOpnameItemKey(item);
-                                                    const rabRef = rabItems.find((r) => getWorkItemKey(r) === itemKey);
-                                                    const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
-                                                    const hargaSatuan = (Number((sourceRef as any)?.harga_material) || 0) + (Number((sourceRef as any)?.harga_upah) || 0);
-                                                    const volRab = Number((sourceRef as any)?.volume) || 0;
-                                                    const volAkhir = Number(item.volume_akhir) || 0;
-                                                    const totalRab = Math.round(volRab * hargaSatuan);
-                                                    const totalOpname = Math.round(volAkhir * hargaSatuan);
-                                                    const workflowLabel = isContractorFirstOpname(item) ? 'Contractor-first' : 'Legacy';
-                                                    return (
-                                                        <div key={item.id} className="p-4 bg-white border border-emerald-100 rounded-lg shadow-sm">
-                                                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                                                <div>
-                                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                                        <span className="font-bold text-slate-800 text-sm">{(sourceRef as any)?.jenis_pekerjaan || '-'}</span>
-                                                                        <Badge className="bg-slate-100 text-slate-700 border-none">{workflowLabel}</Badge>
-                                                                        <StatusBadge status={item.status} />
-                                                                    </div>
-                                                                    <p className="text-xs text-slate-500">{(sourceRef as any)?.kategori_pekerjaan || '-'}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-xs">
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume RAB</p><p className="font-bold text-slate-800 mt-1">{volRab} {(sourceRef as any)?.satuan || ''}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume Akhir</p><p className="font-bold text-slate-800 mt-1">{item.volume_akhir} {(sourceRef as any)?.satuan || ''}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total RAB</p><p className="font-bold text-slate-800 mt-1">{formatRp(totalRab)}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total Opname</p><p className="font-bold text-emerald-700 mt-1">{formatRp(totalOpname)}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Selisih</p><p className={`font-bold mt-1 ${totalOpname - totalRab > 0 ? 'text-blue-600' : totalOpname - totalRab < 0 ? 'text-red-600' : 'text-slate-700'}`}>{formatRp(totalOpname - totalRab)}</p></div>
-                                                            </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2 text-xs">
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Desain</p><p className="font-semibold text-slate-800 mt-1">{item.desain || '-'}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Kualitas</p><p className="font-semibold text-slate-800 mt-1">{item.kualitas || '-'}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Spesifikasi</p><p className="font-semibold text-slate-800 mt-1">{item.spesifikasi || '-'}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Catatan</p><p className="font-semibold text-slate-800 mt-1">{item.catatan || '-'}</p></div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
                                     {/* Support Re-Review Section */}
                                     {(() => {
                                         const pendingRevisions = contractorFirstMenuReviewItems;
+                                        
+                                        // Dynamic grouping for pendingRevisions
+                                        const groupedPendingRevisions = (() => {
+                                            const map = new Map<string, Map<string, any[]>>();
+                                            pendingRevisions.forEach(item => {
+                                                const sourceRef = item.rab_item || item.instruksi_lapangan_item;
+                                                let lingkup = item.lingkup_pekerjaan || sourceRef?.lingkup_pekerjaan || 'SIPIL';
+                                                if (sourceRef?.source_type === 'IL' && !lingkup.startsWith('IL ')) lingkup = `IL ${lingkup}`;
+                                                
+                                                const cat = sourceRef?.kategori_pekerjaan || 'Lainnya';
+                                                if (!map.has(lingkup)) map.set(lingkup, new Map());
+                                                const catMap = map.get(lingkup)!;
+                                                if (!catMap.has(cat)) catMap.set(cat, []);
+                                                catMap.get(cat)!.push(item);
+                                            });
+                                            return Array.from(map.entries())
+                                                .sort((a, b) => {
+                                                    if (a[0] === 'SIPIL') return -1;
+                                                    if (b[0] === 'SIPIL') return 1;
+                                                    if (a[0] === 'ME') return -1;
+                                                    if (b[0] === 'ME') return 1;
+                                                    return a[0].localeCompare(b[0]);
+                                                })
+                                                .map(([lingkup, catMap]) => ({
+                                                    lingkup,
+                                                    categories: Array.from(catMap.entries()).map(([name, items]) => ({ name, items }))
+                                                }));
+                                        })();
                                         if (supportFlowView !== 'contractor_first') return null;
                                         if (pendingRevisions.length === 0) {
                                             return (
@@ -1430,8 +1311,31 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                 <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-4 border-b border-blue-200 pb-2">
                                                     <Clock className="w-4 h-4" /> Review Opname Kontraktor - Menu Opname ({pendingRevisions.length})
                                                 </h3>
-                                                <div className="space-y-3">
-                                                    {pendingRevisions.map(item => {
+                                                <div className="space-y-6">
+                                                    {groupedPendingRevisions.map((lingkupGroup, li) => (
+                                                        <div key={li} className="space-y-4">
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => toggleLingkup(lingkupGroup.lingkup)}
+                                                                className="w-full flex items-center justify-between gap-2 mb-2 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <Building2 className="w-5 h-5 text-emerald-600" />
+                                                                    <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
+                                                                </div>
+                                                                <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
+                                                                    {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                                                                </div>
+                                                            </button>
+                                                            {!collapsedLingkup.has(lingkupGroup.lingkup) && (
+                                                                <div className="space-y-4">
+                                                                    {lingkupGroup.categories.map((group, gi) => (
+                                                                <div key={gi} className="space-y-3">
+                                                                    <h4 className="font-bold text-slate-700 uppercase tracking-wide text-sm flex items-center gap-2 mb-2">
+                                                                        <div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>
+                                                                        {group.name}
+                                                                    </h4>
+                                                                    {group.items.map(item => {
                                                         const sourceRef = item.rab_item || item.instruksi_lapangan_item;
                                                         const satuan = sourceRef?.satuan || '-';
                                                         const hargaMaterial = Number(sourceRef?.harga_material || 0);
@@ -1516,17 +1420,170 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                     </div>
                                                                     {/* Right: Actions */}
                                                                     <div className="shrink-0 w-full md:w-auto mt-2 md:mt-0">
-                                                                        <SupportReReviewActions item={item} onReviewed={() => handleSelectRab(selectedRab?.id?.toString() || '')} />
+                                                                        <SupportReReviewActions item={item} onReviewed={() => handleSelectUlok(selectedUlok || '')} />
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         );
                                                     })}
+                                                                </div>
+                                                            ))}
+                                                            </div>
+                                                        )}
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         );
                                     })()}
                                     
+
+                                {/* Finalisasi Kerja Tambah Kurang */}
+                                {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
+                                    <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${activeWorkflowAllApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
+                                        <div>
+                                            <h4 className={`font-bold text-sm ${activeWorkflowAllApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
+                                                <Lock className="w-4 h-4 inline mr-1.5" />
+                                                Finalisasi Proses Kerja Tambah Kurang
+                                            </h4>
+                                            <p className={`text-xs mt-0.5 ${activeWorkflowAllApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                {activeWorkflowAllApproved
+                                                    ? (supportFlowView === 'contractor_first'
+                                                        ? 'Semua item contractor-first telah disetujui Support. Klik untuk finalisasi KTK.'
+                                                        : 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.')
+                                                    : `Semua item harus berstatus Disetujui (${activeApprovedCount}/${activeTotalCount} item disetujui oleh ${supportFlowView === 'contractor_first' ? 'Support' : 'Kontraktor'}).`
+                                                }
+                                            </p>
+                                        </div>
+                                        <Button
+                                            onClick={handleKunciOpnameFinal}
+                                            disabled={!activeWorkflowAllApproved || isSubmitting}
+                                            className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${activeWorkflowAllApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
+                                        >
+                                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+                                            Finalisasi Proses Kerja Tambah Kurang
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {supportFlowView === 'legacy' && hasExistingOpname && activeView === 'form' && (
+                                    <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+                                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-sm font-bold text-amber-800">Data opname legacy sudah pernah disubmit ({legacyOpnameItems.length} item).</p>
+                                            <p className="text-xs text-amber-600 mt-0.5">Menu ini membuka form input untuk Instruksi Lapangan (IL) yang baru disetujui, dan submit ulang untuk item legacy yang ditolak. Lihat tab <b>Riwayat</b> untuk data lengkap.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeView === 'form' ? (
+                                    <>
+                                    {canLockOpnameFinal && approvedReadOnlyOpnameItems.length > 0 && (
+                                        <div className="mb-6 p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
+                                            <h3 className="font-bold text-emerald-800 flex items-center gap-2 mb-4 border-b border-emerald-200 pb-2">
+                                                <CheckCircle className="w-4 h-4" /> Data Opname Disetujui - Read Only ({approvedReadOnlyOpnameItems.length})
+                                            </h3>
+                                            <div className="space-y-6">
+                                                {(() => {
+                                                    const map = new Map<string, Map<string, any[]>>();
+                                                    approvedReadOnlyOpnameItems.forEach(item => {
+                                                        const itemKey = getOpnameItemKey(item);
+                                                        const rabRef = rabItems.find((r) => getWorkItemKey(r) === itemKey);
+                                                        const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
+                                                        
+                                                        let lingkup = item.lingkup_pekerjaan || sourceRef?.lingkup_pekerjaan || 'SIPIL';
+                                                        if (sourceRef?.source_type === 'IL' && !lingkup.startsWith('IL ')) lingkup = `IL ${lingkup}`;
+                                                        
+                                                        const cat = sourceRef?.kategori_pekerjaan || 'Lainnya';
+                                                        if (!map.has(lingkup)) map.set(lingkup, new Map());
+                                                        const catMap = map.get(lingkup)!;
+                                                        if (!catMap.has(cat)) catMap.set(cat, []);
+                                                        catMap.get(cat)!.push(item);
+                                                    });
+                                                    
+                                                    return Array.from(map.entries())
+                                                        .sort((a, b) => {
+                                                            if (a[0] === 'SIPIL') return -1;
+                                                            if (b[0] === 'SIPIL') return 1;
+                                                            if (a[0] === 'ME') return -1;
+                                                            if (b[0] === 'ME') return 1;
+                                                            return a[0].localeCompare(b[0]);
+                                                        })
+                                                        .map(([lingkup, catMap]) => ({
+                                                            lingkup,
+                                                            categories: Array.from(catMap.entries()).map(([name, items]) => ({ name, items }))
+                                                        }));
+                                                })().map((lingkupGroup, li) => (
+                                                    <div key={li} className="space-y-4">
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => toggleLingkup(lingkupGroup.lingkup)}
+                                                            className="w-full flex items-center justify-between gap-2 mb-2 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <Building2 className="w-5 h-5 text-emerald-600" />
+                                                                <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
+                                                            </div>
+                                                            <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
+                                                                {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                                                            </div>
+                                                        </button>
+                                                        {!collapsedLingkup.has(lingkupGroup.lingkup) && (
+                                                            <div className="space-y-4">
+                                                                {lingkupGroup.categories.map((group, gi) => (
+                                                            <div key={gi} className="space-y-3">
+                                                                <h4 className="font-bold text-slate-700 uppercase tracking-wide text-sm flex items-center gap-2 mb-2">
+                                                                    <div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>
+                                                                    {group.name}
+                                                                </h4>
+                                                                {group.items.map(item => {
+                                                    const itemKey = getOpnameItemKey(item);
+                                                    const rabRef = rabItems.find((r) => getWorkItemKey(r) === itemKey);
+                                                    const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
+                                                    const hargaSatuan = (Number((sourceRef as any)?.harga_material) || 0) + (Number((sourceRef as any)?.harga_upah) || 0);
+                                                    const volRab = Number((sourceRef as any)?.volume) || 0;
+                                                    const volAkhir = Number(item.volume_akhir) || 0;
+                                                    const totalRab = Math.round(volRab * hargaSatuan);
+                                                    const totalOpname = Math.round(volAkhir * hargaSatuan);
+                                                    const workflowLabel = isContractorFirstOpname(item) ? 'Contractor-first' : 'Legacy';
+                                                    return (
+                                                        <div key={item.id} className="p-4 bg-white border border-emerald-100 rounded-lg shadow-sm">
+                                                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                                                <div>
+                                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                                        <span className="font-bold text-slate-800 text-sm">{(sourceRef as any)?.jenis_pekerjaan || '-'}</span>
+                                                                        <Badge className="bg-slate-100 text-slate-700 border-none">{workflowLabel}</Badge>
+                                                                        <StatusBadge status={item.status} />
+                                                                    </div>
+                                                                    <p className="text-xs text-slate-500">{(sourceRef as any)?.kategori_pekerjaan || '-'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-xs">
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume RAB</p><p className="font-bold text-slate-800 mt-1">{volRab} {(sourceRef as any)?.satuan || ''}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume Akhir</p><p className="font-bold text-slate-800 mt-1">{item.volume_akhir} {(sourceRef as any)?.satuan || ''}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total RAB</p><p className="font-bold text-slate-800 mt-1">{formatRp(totalRab)}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total Opname</p><p className="font-bold text-emerald-700 mt-1">{formatRp(totalOpname)}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Selisih</p><p className={`font-bold mt-1 ${totalOpname - totalRab > 0 ? 'text-blue-600' : totalOpname - totalRab < 0 ? 'text-red-600' : 'text-slate-700'}`}>{formatRp(totalOpname - totalRab)}</p></div>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2 text-xs">
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Desain</p><p className="font-semibold text-slate-800 mt-1">{item.desain || '-'}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Kualitas</p><p className="font-semibold text-slate-800 mt-1">{item.kualitas || '-'}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Spesifikasi</p><p className="font-semibold text-slate-800 mt-1">{item.spesifikasi || '-'}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Catatan</p><p className="font-semibold text-slate-800 mt-1">{item.catatan || '-'}</p></div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                            </div>
+                                                        ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Section 2: Form Input */}
                                     {supportFlowView === 'legacy' && (
                                     <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -1584,16 +1641,34 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                 <p className="text-sm mt-1">Tidak ada item yang cocok dengan "{opnameItemSearchQuery}".</p>
                                             </div>
                                         ) : (
-                                            <div className="space-y-4">
-                                                {filteredGroupedItems.map((group, gi) => {
-                                                    const isExpanded = expandedCats.has(group.name);
-                                                    const isIlGroup = group.name.startsWith('[IL]');
-                                                    return (
-                                                        <div key={gi} className={`border rounded-xl overflow-hidden ${isIlGroup ? 'border-indigo-200' : 'border-slate-200'}`}>
-                                                            {/* Category header */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleCategory(group.name)}
+                                            <div className="space-y-8">
+                                                {filteredGroupedItems.map((lingkupGroup, li) => (
+                                                    <div key={li} className="space-y-4">
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => toggleLingkup(lingkupGroup.lingkup)}
+                                                            className="w-full flex items-center justify-between gap-2 mb-4 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <Building2 className="w-5 h-5 text-emerald-600" />
+                                                                <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
+                                                            </div>
+                                                            <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
+                                                                {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                                                            </div>
+                                                        </button>
+                                                        {!collapsedLingkup.has(lingkupGroup.lingkup) && (
+                                                            <div className="space-y-4">
+                                                                {lingkupGroup.categories.map((group, gi) => {
+                                                                const catKey = `${lingkupGroup.lingkup}-${group.name}`;
+                                                                const isExpanded = expandedCats.has(catKey);
+                                                                const isIlGroup = group.name.startsWith('[IL]');
+                                                                return (
+                                                                    <div key={gi} className={`border rounded-xl overflow-hidden ${isIlGroup ? 'border-indigo-200' : 'border-slate-200'}`}>
+                                                                        {/* Category header */}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleCategory(catKey)}
                                                                 className={`w-full px-5 py-3 flex justify-between items-center transition-colors ${isIlGroup ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-slate-100 hover:bg-slate-200'}`}
                                                             >
                                                                 <h4 className="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2">
@@ -1656,11 +1731,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hUpah)}</span>
                                                                                     </div>
                                                                                 </div>
-                                                                                {rejectedRecord?.catatan && (
+                                                                                {(rejectedRecord?.alasan_penolakan_support || rejectedRecord?.catatan) && (
                                                                                     <div className="mb-3 p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
                                                                                         <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                                                                                         <div>
-                                                                                            <span className="font-bold">Alasan penolakan:</span> {rejectedRecord.catatan}
+                                                                                            <span className="font-bold">Alasan penolakan:</span> {rejectedRecord.alasan_penolakan_support || rejectedRecord.catatan}
                                                                                         </div>
                                                                                     </div>
                                                                                 )}
@@ -1810,6 +1885,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                         </div>
                                                     );
                                                 })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
 
@@ -1948,7 +2027,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     // Data
     const [opnameList, setOpnameList] = useState<OpnameItem[]>([]);
     const [rabList, setRabList] = useState<RABListItem[]>([]);
-    const [selectedToko, setSelectedToko] = useState<{ id_toko: number; nomor_ulok: string; nama_toko: string } | null>(null);
+    const [selectedToko, setSelectedToko] = useState<{ id_tokos: number[]; nomor_ulok: string; nama_toko: string } | null>(null);
     const [filteredOpname, setFilteredOpname] = useState<OpnameItem[]>([]);
     const [rabItems, setRabItems] = useState<RABDetailItem[]>([]);
 
@@ -1958,6 +2037,15 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
     // UI
     const [isLoading, setIsLoading] = useState(true);
+    const [collapsedLingkup, setCollapsedLingkup] = useState<Set<string>>(new Set());
+    const toggleLingkup = (l: string) => {
+        setCollapsedLingkup(prev => {
+            const next = new Set(prev);
+            if (next.has(l)) next.delete(l);
+            else next.add(l);
+            return next;
+        });
+    };
     const [isLoadingItems, setIsLoadingItems] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('');
@@ -2031,26 +2119,31 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
     // Group opname by toko for project selection
     const tokoGroups = useMemo(() => {
-        const map = new Map<number, { id_toko: number; nomor_ulok: string; nama_toko: string; cabang: string; count: number; items: OpnameItem[] }>();
+        const map = new Map<string, { id_tokos: number[]; nomor_ulok: string; nama_toko: string; cabang: string; count: number; items: OpnameItem[] }>();
         opnameList.forEach(item => {
             const id = item.id_toko;
-            if (!map.has(id)) {
-                const rab = rabList.find(r => r.id_toko === id);
-                const ilToko = ilTokoMap.get(id);
-                map.set(id, {
-                    id_toko: id,
-                    nomor_ulok: rab?.nomor_ulok || ilToko?.nomor_ulok || item.toko?.nomor_ulok || '-',
+            const rab = rabList.find(r => r.id_toko === id);
+            const ilToko = ilTokoMap.get(id);
+            const ulok = rab?.nomor_ulok || ilToko?.nomor_ulok || item.toko?.nomor_ulok || '-';
+            
+            if (!map.has(ulok)) {
+                map.set(ulok, {
+                    id_tokos: [],
+                    nomor_ulok: ulok,
                     nama_toko: rab?.nama_toko || ilToko?.nama_toko || item.toko?.nama_toko || 'Toko',
                     cabang: (rab?.cabang || ilToko?.cabang || item.toko?.cabang || '').toUpperCase(),
                     count: 0,
                     items: [],
                 });
             }
-            const group = map.get(id)!;
-            group.count++;
+            const group = map.get(ulok)!;
+            if (!group.id_tokos.includes(id)) {
+                group.id_tokos.push(id);
+            }
+            if (item.status === 'pending') group.count++;
             group.items.push(item);
         });
-        return Array.from(map.values());
+        return Array.from(map.values()).sort((a, b) => b.count - a.count);
     }, [opnameList, rabList, ilTokoMap]);
 
     // Filter by search and branch
@@ -2071,39 +2164,59 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     }, [tokoGroups, searchQuery, allowedBranches, selectedCabangFilter, isHeadOfficeContractor]);
 
     // Handle toko selection
-    const handleSelectToko = async (tokoId: number) => {
-        const group = tokoGroups.find(g => g.id_toko === tokoId);
+    const handleSelectToko = async (ulok: string) => {
+        const group = tokoGroups.find(g => g.nomor_ulok === ulok);
         if (!group) return;
 
-        setSelectedToko({ id_toko: group.id_toko, nomor_ulok: group.nomor_ulok, nama_toko: group.nama_toko });
+        setSelectedToko({ id_tokos: group.id_tokos, nomor_ulok: group.nomor_ulok, nama_toko: group.nama_toko });
         setIsLoadingItems(true);
 
         try {
-            // Load fresh opname data by id_toko — response includes toko + rab_item relations
-            const opnameRes = await fetchOpnameList({ id_toko: tokoId, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
-            const opnameData = (opnameRes.data || []).filter(isContractorMenuVisibleOpname);
-            setFilteredOpname(opnameData);
+            let combinedOpname: OpnameItem[] = [];
+            let combinedRabItems: RABDetailItem[] = [];
+            let tokoMeta: any = null;
 
-            // Update toko info from response if available
-            if (opnameRes.toko) {
-                setSelectedToko({
-                    id_toko: opnameRes.toko.id,
-                    nomor_ulok: opnameRes.toko.nomor_ulok || group.nomor_ulok,
-                    nama_toko: opnameRes.toko.nama_toko || group.nama_toko,
-                });
-            }
+            for (const id_toko of group.id_tokos) {
+                const opnameRes = await fetchOpnameList({ id_toko, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
+                const currentOpname = (opnameRes.data || []).filter(isContractorMenuVisibleOpname);
+                
+                const rab = rabList.find(r => r.id_toko === id_toko);
+                const isIlOnlyProject = (rab as any)?.source_type === 'IL_ONLY' || Number(rab?.id) < 0;
+                const lingkup = (rab as any)?.lingkup_pekerjaan || (isIlOnlyProject ? 'ME' : 'SIPIL');
+                
+                // attach lingkup so the view groups it properly
+                currentOpname.forEach((o: any) => o.lingkup_pekerjaan = lingkup);
+                combinedOpname.push(...currentOpname);
 
-            // Load RAB items for reference (volume RAB, kategori, jenis pekerjaan)
-            const rab = rabList.find(r => r.id_toko === tokoId);
-            let reviewItems: RABDetailItem[] = [];
-            if (rab) {
-                const rabDetail = await fetchRABDetail(rab.id);
-                reviewItems = (rabDetail.data.items || []).map((item: RABDetailItem) => ({
-                    ...item,
-                    source_type: item.source_type || 'RAB'
+                if (opnameRes.toko && !tokoMeta) {
+                    tokoMeta = {
+                        nomor_ulok: opnameRes.toko.nomor_ulok || group.nomor_ulok,
+                        nama_toko: opnameRes.toko.nama_toko || group.nama_toko,
+                    };
+                }
+
+                if (rab && !isIlOnlyProject) {
+                    const rabDetail = await fetchRABDetail(rab.id);
+                    const items = (rabDetail.data.items || []).map((item: RABDetailItem) => ({
+                        ...item,
+                        source_type: item.source_type || 'RAB',
+                        lingkup_pekerjaan: lingkup
+                    }));
+                    combinedRabItems.push(...items);
+                }
+
+                const ilItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((il: any) => ({
+                    ...il,
+                    lingkup_pekerjaan: `IL ${lingkup}`
                 }));
+                combinedRabItems.push(...ilItems);
             }
-            setRabItems([...reviewItems, ...mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || [])]);
+
+            setFilteredOpname(combinedOpname);
+            if (tokoMeta) {
+                setSelectedToko({ ...tokoMeta, id_tokos: group.id_tokos });
+            }
+            setRabItems(combinedRabItems);
         } catch (err: any) {
             showAlert({ message: `Gagal memuat data: ${err.message}`, type: "error" });
         } finally {
@@ -2116,8 +2229,19 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         if (!selectedToko) return;
         setIsLoadingItems(true);
         try {
-            const opnameRes = await fetchOpnameList({ id_toko: selectedToko.id_toko, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
-            setFilteredOpname((opnameRes.data || []).filter(isContractorMenuVisibleOpname));
+            let combinedOpname: OpnameItem[] = [];
+            for (const id_toko of selectedToko.id_tokos) {
+                const opnameRes = await fetchOpnameList({ id_toko, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
+                const currentOpname = (opnameRes.data || []).filter(isContractorMenuVisibleOpname);
+                
+                const rab = rabList.find(r => r.id_toko === id_toko);
+                const isIlOnlyProject = (rab as any)?.source_type === 'IL_ONLY' || Number(rab?.id) < 0;
+                const lingkup = (rab as any)?.lingkup_pekerjaan || (isIlOnlyProject ? 'ME' : 'SIPIL');
+                
+                currentOpname.forEach((o: any) => o.lingkup_pekerjaan = lingkup);
+                combinedOpname.push(...currentOpname);
+            }
+            setFilteredOpname(combinedOpname);
         } catch (err) {
             console.error(err);
         } finally {
@@ -2139,28 +2263,55 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     }, [filteredOpname, filterStatus]);
     // Group by category for display
     const groupedOpname = useMemo(() => {
-        const map = new Map<string, (OpnameItem & { rabRef?: RABDetailItem })[]>();
+        // Group first by lingkup_pekerjaan, then by kategori_pekerjaan
+        const map = new Map<string, Map<string, (OpnameItem & { rabRef?: RABDetailItem })[]>>();
+        
         displayedOpname.forEach(item => {
             const rabRef = rabItems.find(r => getWorkItemKey(r) === getOpnameItemKey(item));
+            let lingkup = (item as any).lingkup_pekerjaan || (rabRef as any)?.lingkup_pekerjaan || 'SIPIL';
+            
+            // Format IL
+            if (rabRef?.source_type === 'IL' && !lingkup.startsWith('IL ')) {
+                lingkup = `IL ${lingkup}`;
+            }
+
             const cat = rabRef?.kategori_pekerjaan || item.rab_item?.kategori_pekerjaan || 'Lainnya';
-            if (!map.has(cat)) map.set(cat, []);
-            map.get(cat)!.push({ ...item, rabRef });
+            
+            if (!map.has(lingkup)) map.set(lingkup, new Map());
+            const catMap = map.get(lingkup)!;
+            
+            if (!catMap.has(cat)) catMap.set(cat, []);
+            catMap.get(cat)!.push({ ...item, rabRef });
         });
+
+        // Convert to nested array structure
         return Array.from(map.entries())
-            .map(([name, items]) => ({
-                name,
-                items: items.sort((a, b) => {
-                    const rankDiff = getOpnameReviewSortRank(a.status) - getOpnameReviewSortRank(b.status);
-                    if (rankDiff !== 0) return rankDiff;
-                    return Number(b.id) - Number(a.id);
-                })
-            }))
             .sort((a, b) => {
-                const aRank = Math.min(...a.items.map(item => getOpnameReviewSortRank(item.status)));
-                const bRank = Math.min(...b.items.map(item => getOpnameReviewSortRank(item.status)));
-                if (aRank !== bRank) return aRank - bRank;
-                return a.name.localeCompare(b.name);
-            });
+                // Ensure SIPIL comes first, then ME, then IL
+                if (a[0] === 'SIPIL') return -1;
+                if (b[0] === 'SIPIL') return 1;
+                if (a[0] === 'ME') return -1;
+                if (b[0] === 'ME') return 1;
+                return a[0].localeCompare(b[0]);
+            })
+            .map(([lingkup, catMap]) => ({
+                lingkup,
+                categories: Array.from(catMap.entries())
+                    .map(([name, items]) => ({
+                        name,
+                        items: items.sort((a, b) => {
+                            const rankDiff = getOpnameReviewSortRank(a.status) - getOpnameReviewSortRank(b.status);
+                            if (rankDiff !== 0) return rankDiff;
+                            return Number(b.id) - Number(a.id);
+                        })
+                    }))
+                    .sort((a, b) => {
+                        const aRank = Math.min(...a.items.map(item => getOpnameReviewSortRank(item.status)));
+                        const bRank = Math.min(...b.items.map(item => getOpnameReviewSortRank(item.status)));
+                        if (aRank !== bRank) return aRank - bRank;
+                        return a.name.localeCompare(b.name);
+                    })
+            }));
     }, [displayedOpname, rabItems]);
 
     // Handle approve — shows styled confirmation via GlobalAlert
@@ -2307,8 +2458,8 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                             const pendingCount = group.items.filter(i => i.status?.toLowerCase() === 'pending').length;
                                             return (
                                                 <button
-                                                    key={group.id_toko}
-                                                    onClick={() => handleSelectToko(group.id_toko)}
+                                                    key={group.nomor_ulok}
+                                                    onClick={() => handleSelectToko(group.nomor_ulok)}
                                                     className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all text-left group"
                                                 >
                                                     <div className="flex items-center justify-between mb-2">
@@ -2320,7 +2471,11 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                         )}
                                                     </div>
                                                     <h4 className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors mb-1">{group.nama_toko}</h4>
-                                                    <p className="text-xs text-slate-500">{group.count} item opname</p>
+                                                    {group.items.some(isContractorFirstOpname) && group.items.every(i => !i.status || ['belum_diajukan', 'draft', 'ditolak', 'revision_contractor'].includes(String(i.status).toLowerCase())) ? (
+                                                        <p className="text-xs font-medium text-amber-600 bg-amber-50 inline-block px-2 py-0.5 rounded border border-amber-200 mt-1">Kontraktor harus mengajukan item opname</p>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-500">{group.items.length} item opname</p>
+                                                    )}
                                                     <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors ml-auto mt-2" />
                                                 </button>
                                             );
@@ -2354,17 +2509,26 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                         <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Total Item</p>
                                     </div>
-                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'pending' ? '' : 'pending')}>
+                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center" onClick={() => setFilterStatus(filterStatus === 'pending' ? '' : 'pending')}>
                                         <p className="text-2xl font-bold text-amber-700">{stats.pending}</p>
-                                        <p className="text-xs font-bold text-amber-500 uppercase tracking-wider mt-1">Pending</p>
+                                        <div className="mt-1">
+                                            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Pending</p>
+                                            
+                                        </div>
                                     </div>
-                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'disetujui' ? '' : 'disetujui')}>
+                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center" onClick={() => setFilterStatus(filterStatus === 'disetujui' ? '' : 'disetujui')}>
                                         <p className="text-2xl font-bold text-green-700">{stats.disetujui}</p>
-                                        <p className="text-xs font-bold text-green-500 uppercase tracking-wider mt-1">Disetujui</p>
+                                        <div className="mt-1">
+                                            <p className="text-xs font-bold text-green-600 uppercase tracking-wider">Disetujui</p>
+                                            
+                                        </div>
                                     </div>
-                                    <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'ditolak' ? '' : 'ditolak')}>
+                                    <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center" onClick={() => setFilterStatus(filterStatus === 'ditolak' ? '' : 'ditolak')}>
                                         <p className="text-2xl font-bold text-red-700">{stats.ditolak}</p>
-                                        <p className="text-xs font-bold text-red-500 uppercase tracking-wider mt-1">Ditolak</p>
+                                        <div className="mt-1">
+                                            <p className="text-xs font-bold text-red-600 uppercase tracking-wider">Ditolak</p>
+                                            
+                                        </div>
                                     </div>
                                     <div className={`p-4 rounded-xl border shadow-sm text-center ${stats.totalSelisih >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}`}>
                                         <p className={`text-lg font-bold ${stats.totalSelisih >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatRp(stats.totalSelisih)}</p>
@@ -2403,14 +2567,34 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {groupedOpname.map((group, gi) => (
-                                            <div key={gi} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                                                <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
-                                                    <h4 className="font-bold text-slate-800 uppercase tracking-wide text-sm">{group.name}</h4>
-                                                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-xs">{group.items.length} Item</Badge>
+                                        {groupedOpname.map((lingkupGroup, li) => (
+                                        <div key={li} className="space-y-4 mb-8">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => toggleLingkup(lingkupGroup.lingkup)}
+                                                className="w-full flex items-center justify-between gap-2 mb-4 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Building2 className="w-5 h-5 text-emerald-600" />
+                                                    <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
                                                 </div>
-                                                <div className="divide-y divide-slate-100">
-                                                    {group.items.map((item, j) => {
+                                                <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
+                                                    {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                                                </div>
+                                            </button>
+                                            {!collapsedLingkup.has(lingkupGroup.lingkup) && (
+                                                <div className="space-y-4">
+                                                    {lingkupGroup.categories.map((group, gi) => (
+                                                <div key={gi} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                                    <div className="bg-slate-50 px-5 py-3 border-b flex justify-between items-center">
+                                                        <h4 className="font-bold text-slate-700 uppercase tracking-wide text-sm flex items-center gap-2">
+                                                            <div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>
+                                                            {group.name}
+                                                        </h4>
+                                                        <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs shadow-sm">{group.items.length} Item</Badge>
+                                                    </div>
+                                                    <div className="divide-y divide-slate-100">
+                                                        {group.items.map((item, j) => {
                                                         const rabRef = item.rabRef;
                                                         const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
                                                         const volRab = Number(sourceRef?.volume || 0);
@@ -2516,7 +2700,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                     </div>
 
                                                                     {/* Right: Actions */}
-                                                                    {isPending && (
+                                                                    {isPending && isLegacyOpname(item) && (
                                                                         <div className="flex flex-col gap-2 shrink-0">
                                                                             <Button
                                                                                 size="sm"
@@ -2542,12 +2726,16 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                 </div>
                                                             </div>
                                                         );
-                                                    })}
+                                                        })}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                            ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                             </div>
                         )}
                     </CardContent>
@@ -2695,7 +2883,7 @@ function ContractorRevisionForm({ item, sourceRef, onReviseSuccess }: { item: an
 
             <div className="space-y-4 p-4">
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                    <span className="font-bold">Alasan Penolakan:</span> {item.catatan || 'Tidak ada alasan.'}
+                    <span className="font-bold">Alasan Penolakan:</span> {item.alasan_penolakan_support || item.catatan || 'Tidak ada alasan.'}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">

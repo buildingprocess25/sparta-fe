@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, ThumbsUp, ThumbsDown, ArrowRight, TrendingUp, TrendingDown, Image, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -350,7 +350,7 @@ function getWorkspaceScopeLabel(workspace?: SupervisionWorkspace | null): string
 }
 
 function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
-    if (!scope.gantt_id || !scope.opname_final_id) return false;
+    if (!scope.gantt_id) return false;
 
     // Escape hatch untuk data migrasi V1: opname_final APPROVED dianggap sudah final.
     if (scope.status_opname_final === "APPROVED") {
@@ -360,15 +360,12 @@ function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
     const checkpointOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
     const opnameItems = Math.max(checkpointOpnameItems, Number(scope.opname_item_count || 0));
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
-    const unresolvedContractorOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => {
-        if (checkpoint.workflow_version !== 'contractor_first') return sum;
-        return sum + Math.max(0, Number(checkpoint.contractor_submitted_opname_items || 0) - Number(checkpoint.opname_items || 0));
-    }, 0);
+
     const missingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
     const totalExpected = Number(scope.total_expected_items || 0);
     const totalSelesai = Number(scope.total_selesai_items || 0);
 
-    return opnameItems > 0 && readyOpnameItems === 0 && unresolvedContractorOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai >= totalExpected;
+    return missingPengawasan === 0 && totalExpected > 0 && totalSelesai >= totalExpected && opnameItems > 0 && readyOpnameItems === 0;
 }
 const OPNAME_DRAFT_FIELDS = [
     'volume_akhir',
@@ -618,6 +615,7 @@ function GanttBoard() {
     const [showOpnameModal, setShowOpnameModal] = useState(false);
     const [showTargetStModal, setShowTargetStModal] = useState<{ dateString: string; dayIndex: number } | null>(null);
     const [showGrandOpeningModal, setShowGrandOpeningModal] = useState(false);
+    const [showSerahTerimaGabunganModal, setShowSerahTerimaGabunganModal] = useState(false);
     const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
     const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
     const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
@@ -2440,11 +2438,20 @@ function GanttBoard() {
             ?? supervisionWorkspace.scopes.find((s) => s.link_pdf_serah_terima)
         )?.berkas_serah_terima_id ?? null
         : null;
+    const isContractorFirstWorkflow = Boolean(supervisionWorkspace?.unified_checkpoints?.some((c: any) => c.workflow_version === 'contractor_first'));
+    const uCheckpoints = supervisionWorkspace?.unified_checkpoints || [];
+    const stGabunganSubmitted = supervisionWorkspace?.st_gabungan_progress?.filled || 0;
+    const stGabunganTotal = supervisionWorkspace?.st_gabungan_progress?.total || 125;
+
     const grandOpeningDocumentation = supervisionWorkspace?.grand_opening_documentation || null;
     const grandOpeningUploadedCount = Number(grandOpeningDocumentation?.uploaded_count || 0);
     const grandOpeningRequiredCount = Number(grandOpeningDocumentation?.required_count || 40);
-    const isGrandOpeningComplete = Boolean(grandOpeningDocumentation?.is_complete);
-    const grandOpeningProgressText = `${grandOpeningUploadedCount}/${grandOpeningRequiredCount} dokumen wajib`;
+    const isGrandOpeningComplete = isContractorFirstWorkflow 
+        ? Boolean(supervisionWorkspace?.st_gabungan_progress?.is_submitted)
+        : Boolean(grandOpeningDocumentation?.is_complete);
+    const grandOpeningProgressText = isContractorFirstWorkflow
+        ? `${stGabunganSubmitted}/${stGabunganTotal} item terisi`
+        : `${grandOpeningUploadedCount}/${grandOpeningRequiredCount} dokumen wajib`;
     const grandOpeningSpkStart = useMemo(() => {
         const dates = (supervisionWorkspace?.scopes || [])
             .map(scope => parseLocalDate(scope.spk_start_date))
@@ -2563,15 +2570,11 @@ function GanttBoard() {
             });
         });
 
-        const hasPendingFollowup = missingPengawasan > 0
-            || readyOpnameItems > 0
-            || unresolvedContractorOpnameItems > 0
-            || incompleteExpectedItems > 0
-            || pendingOpnameDates.length > 0;
+        const hasPendingFollowup = missingPengawasan > 0 || incompleteExpectedItems > 0 || readyOpnameItems > 0 || pendingOpnameDates.length > 0;
         const coreReady = !hasPendingFollowup && allScopesReady;
         const grandOpeningReady = hasGeneratedPdf || isGrandOpeningComplete;
         const isReady = coreReady && grandOpeningReady;
-        const isGenerated = hasGeneratedPdf && allOpnameDone && !hasPendingFollowup;
+        const isGenerated = hasGeneratedPdf && !hasPendingFollowup;
 
         return {
             isGenerated,
@@ -2594,7 +2597,7 @@ function GanttBoard() {
         if (handoverReadiness.isGenerated) return "ST selesai";
         if (handoverReadiness.isReady) return "Syarat ST terpenuhi";
         if (handoverReadiness.coreReady && !handoverReadiness.grandOpeningReady) {
-            return `Dokumentasi Grand Opening belum lengkap (${grandOpeningProgressText})`;
+            return `Dokumentasi Serah Terima belum lengkap (${grandOpeningProgressText})`;
         }
 
         const warnings: string[] = [];
@@ -2609,18 +2612,19 @@ function GanttBoard() {
 
         if (handoverReadiness.pendingOpnameDates.length > 0) {
             const datesStr = handoverReadiness.pendingOpnameDates.slice(0, 2).join(', ');
-            warnings.push(`Opname parsial belum diinput (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`);
+            warnings.push(`Opname parsial belum diajukan (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`);
         } else if (handoverReadiness.readyOpnameItems > 0 && warnings.length === 0) {
-            warnings.push(`${handoverReadiness.readyOpnameItems} item menunggu opname`);
-        } else if (handoverReadiness.unresolvedContractorOpnameItems > 0) {
-            warnings.push(`${handoverReadiness.unresolvedContractorOpnameItems} opname kontraktor belum disetujui support`);
-        } else if (warnings.length === 0) {
-            warnings.push("Menunggu opname selesai");
+            warnings.push(`${handoverReadiness.readyOpnameItems} item menunggu opname diajukan`);
+        }
+
+        if (warnings.length === 0) {
+            warnings.push("Menunggu pengawasan selesai");
         }
 
         return warnings.join(' | ');
     })();
     const utilityPanelAvailable = Boolean(supervisionWorkspace || activeNotesGanttId);
+    // isContractorFirstWorkflow moved up
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
     ));
@@ -3404,19 +3408,58 @@ function GanttBoard() {
                                                         <div className="flex items-start gap-2">
                                                             <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                                                             <div className="min-w-0 flex-1">
-                                                                <p className="font-black">Dokumentasi Grand Opening</p>
+                                                                <p className="font-black">Dokumentasi Serah Terima</p>
                                                                 <p className={`mt-1 text-xs font-semibold ${isGrandOpeningComplete ? "text-emerald-700" : "text-amber-800"}`}>Progress: {grandOpeningProgressText}</p>
                                                             </div>
                                                         </div>
-                                                        {!isGrandOpeningComplete && (
-                                                            <Button
-                                                                type="button"
-                                                                onClick={openGrandOpeningDocumentation}
-                                                                className="mt-3 h-10 w-full bg-red-600 font-bold text-white hover:bg-red-500"
-                                                            >
-                                                                <FileText className="mr-2 h-4 w-4" />
-                                                                Isi Dokumentasi Grand Opening
-                                                            </Button>
+                                                        {!isGrandOpeningComplete ? (
+                                                            isContractorFirstWorkflow ? (
+                                                                appMode === 'kontraktor' ? (
+                                                                    <Button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                                            if (targetUlok) {
+                                                                                setShowSerahTerimaGabunganModal(true);
+                                                                            }
+                                                                        }}
+                                                                        className="mt-3 h-10 w-full bg-red-600 font-bold text-white hover:bg-red-500"
+                                                                    >
+                                                                        <FileText className="mr-2 h-4 w-4" />
+                                                                        Isi Dokumentasi Serah Terima
+                                                                    </Button>
+                                                                ) : (
+                                                                    <div className="mt-3 rounded-md bg-amber-100 p-3 text-center text-xs font-bold text-amber-800">
+                                                                        Tunggu Kontraktor untuk isi Dokumentasi Serah Terima
+                                                                    </div>
+                                                                )
+                                                            ) : (
+                                                                <Button
+                                                                    type="button"
+                                                                    onClick={openGrandOpeningDocumentation}
+                                                                    className="mt-3 h-10 w-full bg-red-600 font-bold text-white hover:bg-red-500"
+                                                                >
+                                                                    <FileText className="mr-2 h-4 w-4" />
+                                                                    Isi Dokumentasi Serah Terima
+                                                                </Button>
+                                                            )
+                                                        ) : (
+                                                            isContractorFirstWorkflow && appMode === 'kontraktor' && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                                        if (targetUlok) {
+                                                                            setShowSerahTerimaGabunganModal(true);
+                                                                        }
+                                                                    }}
+                                                                    className="mt-3 h-10 w-full font-bold"
+                                                                >
+                                                                    <Eye className="mr-2 h-4 w-4" />
+                                                                    Lihat Dokumentasi Serah Terima
+                                                                </Button>
+                                                            )
                                                         )}
                                                     </div>
                                                 )}
@@ -3445,58 +3488,17 @@ function GanttBoard() {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col gap-2">
-                                                        {(() => {
-                                                            const anyScopeGenerated = handoverReadiness.isGenerated && supervisionWorkspace.scopes.some(s => Boolean(s.link_pdf_serah_terima));
-                                                            return supervisionWorkspace.scopes.map(scope => {
-                                                                if (!scope.gantt_id) return null;
-                                                                const scopeName = String(scope.lingkup_pekerjaan || "Lingkup").toUpperCase();
-                                                                if (handoverReadiness.isGenerated && scope.link_pdf_serah_terima) {
-                                                                    return (
-                                                                        <Button
-                                                                            key={scope.id_toko}
-                                                                            type="button"
-                                                                            onClick={() => handleDownloadPdf(scope.berkas_serah_terima_id || null)}
-                                                                            disabled={!scope.berkas_serah_terima_id || isDownloadingPdf[scope.berkas_serah_terima_id]}
-                                                                            className="flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500"
-                                                                        >
-                                                                            {scope.berkas_serah_terima_id && isDownloadingPdf[scope.berkas_serah_terima_id] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                                                                            Unduh Serah Terima {scopeName}
-                                                                        </Button>
-                                                                    );
-                                                                }
-
-                                                                if (anyScopeGenerated) return null;
-
-                                                                const isScopeReady = isScopeReadyForSt(scope);
-                                                                const isGenerating = generatingScopes[Number(scope.id_toko)];
-                                                                return (
-                                                                    <Button
-                                                                        key={scope.id_toko}
-                                                                        type="button"
-                                                                        onClick={() => handleGenerateIndividualHandover(Number(scope.id_toko))}
-                                                                        disabled={!isScopeReady || !handoverReadiness.grandOpeningReady || isGenerating}
-                                                                        className={`h-11 w-full font-bold text-white disabled:bg-slate-200 disabled:text-slate-400 ${scopeName === 'SIPIL' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
-                                                                    >
-                                                                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                                                                        Generate Serah Terima {scopeName}
-                                                                    </Button>
-                                                                );
-                                                            });
-                                                        })()}
-
-                                                        {supervisionWorkspace.scopes.filter(s => s.gantt_id).length > 1 && (
-                                                            <Button
-                                                                type="button"
-                                                                onClick={handleGenerateUnifiedHandover}
-                                                                disabled={!handoverReadiness.isReady || isGeneratingHandover}
-                                                                className="h-11 w-full bg-slate-800 font-bold text-white hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
-                                                            >
-                                                                {isGeneratingHandover
-                                                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                    : <FileText className="mr-2 h-4 w-4" />}
-                                                                Generate Serah Terima (SIPIL+ME)
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            type="button"
+                                                            onClick={handleGenerateUnifiedHandover}
+                                                            disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                                            className="h-11 w-full bg-slate-800 font-bold text-white hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                                                        >
+                                                            {isGeneratingHandover
+                                                                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                : <FileText className="mr-2 h-4 w-4" />}
+                                                            Generate Serah Terima (SIPIL+ME)
+                                                        </Button>
                                                     </div>
                                                 )}
 
@@ -4143,7 +4145,7 @@ function GanttBoard() {
                     <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
                         <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
                             <div className="min-w-0">
-                                <h2 className="text-lg font-black text-slate-900">Dokumentasi Grand Opening</h2>
+                                <h2 className="text-lg font-black text-slate-900">Dokumentasi Serah Terima</h2>
                                 <p className="mt-0.5 truncate text-sm font-semibold text-slate-500">
                                     {supervisionWorkspace?.nomor_ulok || '-'} - {grandOpeningProgressText}
                                 </p>
@@ -4152,14 +4154,41 @@ function GanttBoard() {
                                 type="button"
                                 onClick={() => setShowGrandOpeningModal(false)}
                                 className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                                aria-label="Tutup Dokumentasi Grand Opening"
+                                aria-label="Tutup Dokumentasi Serah Terima"
                             >
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
                         <iframe
-                            title="Dokumentasi Grand Opening"
+                            title="Dokumentasi Serah Terima"
                             src={grandOpeningDocumentationUrl}
+                            className="h-full w-full flex-1 border-0 bg-slate-50"
+                        />
+                    </div>
+                </div>
+            )}
+            {showSerahTerimaGabunganModal && (projectData?.ulokClean || supervisionWorkspace?.nomor_ulok) && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm">
+                    <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-black text-slate-900">Dokumentasi Serah Terima Gabungan</h2>
+                                <p className="mt-0.5 truncate text-sm font-semibold text-slate-500">
+                                    {supervisionWorkspace?.nomor_ulok || projectData?.ulokClean || '-'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowSerahTerimaGabunganModal(false)}
+                                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                                aria-label="Tutup Dokumentasi Serah Terima"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <iframe
+                            title="Dokumentasi Serah Terima Gabungan"
+                            src={`/serah-terima-gabungan/${projectData?.ulokClean || supervisionWorkspace?.nomor_ulok}?embedded=1`}
                             className="h-full w-full flex-1 border-0 bg-slate-50"
                         />
                     </div>
@@ -4200,16 +4229,18 @@ function GanttBoard() {
                                 <p className="text-xs font-black uppercase text-slate-500">Target ST</p>
                                 <p className={`mt-1 text-2xl font-black ${handoverReadiness.isGenerated ? "text-emerald-700" : "text-teal-700"}`}>{targetStText || showTargetStModal.dateString}</p>
                                 <p className="mt-1 text-sm font-semibold text-slate-600">
-                                    {handoverReadiness.isGenerated ? "PDF Serah Terima sudah tersedia." : handoverReadiness.isReady ? "Semua syarat sudah terpenuhi. Serah Terima bisa digenerate." : handoverReadiness.coreReady ? `Lengkapi Dokumentasi Grand Opening terlebih dahulu (${grandOpeningProgressText}).` : "Serah Terima belum bisa digenerate karena opname belum selesai."}
+                                    {handoverReadiness.isGenerated ? "PDF Serah Terima sudah tersedia." : handoverReadiness.isReady ? "Semua syarat sudah terpenuhi. Serah Terima bisa digenerate." : handoverReadiness.coreReady ? `Lengkapi Dokumentasi Serah Terima terlebih dahulu (${grandOpeningProgressText}).` : "Serah Terima belum bisa digenerate karena pengawasan belum selesai."}
                                 </p>
                             </div>
 
                             {!handoverReadiness.coreReady && !handoverReadiness.isGenerated && (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                    <p className="font-bold">Masih menunggu kelengkapan opname</p>
+                                    <p className="font-bold">Masih menunggu kelengkapan pengawasan/opname</p>
                                     <p className="mt-1 text-xs leading-relaxed">
-                                        {handoverReadiness.readyOpnameItems > 0
-                                            ? `${handoverReadiness.readyOpnameItems} item masih perlu masuk/selesai opname sebelum Generate Serah Terima aktif.`
+                                        {handoverReadiness.missingPengawasan > 0 || handoverReadiness.incompleteExpectedItems > 0
+                                            ? `Masih ada item yang belum selesai pengawasan sebelum Dokumentasi Serah Terima aktif.`
+                                            : handoverReadiness.readyOpnameItems > 0
+                                            ? `${handoverReadiness.readyOpnameItems} item opname masih belum diajukan (tapi tidak perlu sampai approved).`
                                             : "Belum ada item yang siap untuk Serah Terima pada lingkup aktif."}
                                     </p>
                                 </div>
@@ -4219,25 +4250,65 @@ function GanttBoard() {
                                 <div className={`rounded-lg border px-4 py-3 text-sm ${isGrandOpeningComplete ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
-                                            <p className="font-black">Dokumentasi Grand Opening</p>
+                                            <p className="font-black">Dokumentasi Serah Terima</p>
                                             <p className="mt-1 text-xs font-semibold">{grandOpeningProgressText}</p>
                                         </div>
                                         {isGrandOpeningComplete ? <CheckCircle className="h-5 w-5 text-emerald-600" /> : <ClipboardCheck className="h-5 w-5 text-amber-600" />}
                                     </div>
-                                    {!isGrandOpeningComplete && (
-                                        <Button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowTargetStModal(null);
-                                                openGrandOpeningDocumentation();
-                                            }}
-                                            className="mt-3 flex h-11 w-full items-center justify-center rounded-md bg-red-600 px-4 font-bold text-white transition hover:bg-red-500 shadow-sm"
-                                        >
-                                            <FileText className="mr-2 h-4 w-4" />
-                                            Isi Dokumentasi Grand Opening
-                                        </Button>
-                                    )}
-                                </div>
+                                    {!isGrandOpeningComplete ? (
+                                        isContractorFirstWorkflow ? (
+                                            appMode === 'kontraktor' ? (
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setShowTargetStModal(null);
+                                                        const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                        if (targetUlok) {
+                                                            setShowSerahTerimaGabunganModal(true);
+                                                        }
+                                                    }}
+                                                    className="mt-3 flex h-11 w-full items-center justify-center rounded-md bg-red-600 px-4 font-bold text-white transition hover:bg-red-500 shadow-sm"
+                                                >
+                                                    <FileText className="mr-2 h-4 w-4" />
+                                                    Isi Dokumentasi Serah Terima
+                                                </Button>
+                                            ) : (
+                                                <div className="mt-3 rounded-md bg-amber-100 p-3 text-center text-xs font-bold text-amber-800 shadow-sm">
+                                                    Tunggu Kontraktor untuk isi Dokumentasi Serah Terima
+                                                </div>
+                                            )
+                                        ) : (
+                                            <Button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowTargetStModal(null);
+                                                    openGrandOpeningDocumentation();
+                                                }}
+                                                className="mt-3 flex h-11 w-full items-center justify-center rounded-md bg-red-600 px-4 font-bold text-white transition hover:bg-red-500 shadow-sm"
+                                            >
+                                                <FileText className="mr-2 h-4 w-4" />
+                                                    Isi Dokumentasi Serah Terima
+                                                </Button>
+                                            )
+                                        ) : (
+                                            isContractorFirstWorkflow && appMode === 'kontraktor' && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                        if (targetUlok) {
+                                                            setShowSerahTerimaGabunganModal(true);
+                                                        }
+                                                    }}
+                                                    className="mt-3 h-10 w-full font-bold text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    Lihat Dokumentasi Serah Terima
+                                                </Button>
+                                            )
+                                        )}
+                                    </div>
                             )}
 
                             {(() => {
@@ -4583,59 +4654,175 @@ function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onRevi
     const fotoHref = opname.foto || '';
     const formatMoney = (value: number) => `Rp ${Math.round(value || 0).toLocaleString('id-ID')}`;
 
+    const isOverbudget = selisih > 0;
+    const isUnderbudget = selisih < 0;
+
     return (
-        <div className="mt-4 overflow-hidden rounded-xl border border-orange-200 bg-orange-50 shadow-sm animate-in slide-in-from-top-1">
-            <div className="border-b border-orange-200 bg-gradient-to-r from-orange-100 to-amber-100 px-4 py-3">
-                <div className="flex items-center gap-2">
-                    <div className="rounded-full bg-orange-500 p-1.5"><Clock className="h-4 w-4 text-white" /></div>
+        <div className="mt-6 mb-4 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm ring-1 ring-slate-900/5 transition-all">
+            {/* Header / Context */}
+            <div className="flex items-center justify-between border-b border-slate-300 bg-slate-50 px-5 py-3.5">
+                <div className="flex items-center gap-3">
+                    <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-20"></span>
+                        <ClipboardCheck className="relative h-4 w-4" />
+                    </div>
                     <div>
-                        <h5 className="text-sm font-bold text-orange-900">Review Opname Kontraktor</h5>
-                        <p className="mt-0.5 text-[10px] font-medium text-orange-700">Kontraktor telah mensubmit opname. Harap direview.</p>
+                        <h5 className="text-sm font-semibold tracking-tight text-slate-900">Inspeksi Opname: Menunggu Keputusan</h5>
+                        <p className="text-[11px] font-medium text-slate-500">Mohon verifikasi data aktual lapangan sebelum menyetujui progress.</p>
                     </div>
                 </div>
             </div>
-            <div className="space-y-4 p-4">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                    <InfoBox label="Volume RAB" value={`${volumeRab} ${sourceItem.satuan || ''}`.trim()} />
-                    <InfoBox label="Volume Akhir" value={`${opname.volume_akhir} ${sourceItem.satuan || ''}`.trim()} />
-                    <InfoBox label="Total RAB" value={formatMoney(totalRab)} />
-                    <InfoBox label="Total Opname" value={formatMoney(totalOpname)} />
-                    <InfoBox label="Selisih" value={`${selisih >= 0 ? '+' : '-'} ${formatMoney(Math.abs(selisih))}`} valueClassName={selisih > 0 ? 'text-red-700' : selisih < 0 ? 'text-emerald-700' : 'text-slate-800'} />
-                    <InfoBox label="Desain" value={opname.desain || '-'} />
-                    <InfoBox label="Kualitas" value={opname.kualitas || '-'} />
-                    <InfoBox label="Spesifikasi" value={opname.spesifikasi || '-'} />
+
+            <div className="p-0">
+                {/* Section A: Kuantitatif (Volume & Biaya) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-200 border-b border-slate-200">
+                    
+                    {/* Volume Comparison */}
+                    <div className="p-5 bg-white">
+                        <div className="mb-3 flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Volume</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div>
+                                <p className="text-[10px] font-semibold text-slate-500 mb-0.5">RAB (Rencana)</p>
+                                <p className="text-base font-semibold text-slate-800">{volumeRab} <span className="text-xs font-normal text-slate-500">{sourceItem.satuan || ''}</span></p>
+                            </div>
+                            <ArrowRight className="h-4 w-4 text-slate-300" />
+                            <div>
+                                <p className="text-[10px] font-semibold text-blue-600 mb-0.5">Aktual (Opname)</p>
+                                <p className="text-base font-bold text-blue-700">{opname.volume_akhir} <span className="text-xs font-normal text-blue-500">{sourceItem.satuan || ''}</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cost Comparison */}
+                    <div className="p-5 bg-white">
+                        <div className="mb-3 flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Biaya</span>
+                            <span className="text-[10px] font-medium text-slate-500 border border-slate-200 bg-slate-50 px-1.5 py-0.5 rounded">
+                                {formatMoney(hargaSatuan)} / {sourceItem.satuan || 'unit'}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-slate-500">RAB (Rencana)</span>
+                                <span className="text-xs font-semibold text-slate-700">{formatMoney(totalRab)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-blue-600">Aktual (Opname)</span>
+                                <span className="text-xs font-bold text-slate-900">{formatMoney(totalOpname)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Selisih Callout */}
+                    <div className="p-5 flex flex-col justify-center bg-slate-50">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Delta (Selisih Biaya)</span>
+                        <div className="flex items-baseline gap-2 mt-1">
+                            <span className={`text-xl font-bold tracking-tight ${isOverbudget ? 'text-red-600' : isUnderbudget ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                {isOverbudget ? '+' : isUnderbudget ? '-' : ''} {formatMoney(Math.abs(selisih))}
+                            </span>
+                        </div>
+                        <div className="mt-2">
+                            {isOverbudget ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+                                    <TrendingUp className="h-3 w-3" /> Overbudget
+                                </span>
+                            ) : isUnderbudget ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                    <TrendingDown className="h-3 w-3" /> Penghematan
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-300">
+                                    Sesuai Anggaran
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                    <div className="rounded-lg border bg-white p-3 shadow-sm">
-                        <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Catatan</span>
-                        <p className="whitespace-pre-wrap text-sm font-semibold text-slate-800">{opname.catatan || '-'}</p>
+                {/* Section B: Kualitatif (Verifikasi Lapangan) */}
+                <div className="border-b border-slate-200 px-5 py-4 bg-white">
+                    <span className="mb-3 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Verifikasi Lapangan</span>
+                    <div className="flex flex-wrap items-center gap-x-12 gap-y-3">
+                        <VerificationBadge label="Desain" value={opname.desain} expected="Sesuai" />
+                        <VerificationBadge label="Kualitas" value={opname.kualitas} expected="Baik" />
+                        <VerificationBadge label="Spesifikasi" value={opname.spesifikasi} expected="Sesuai" />
                     </div>
-                    {opname.foto && (
-                        <div className="flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm">
-                            <span className="text-xs font-bold text-slate-700">Foto Opname</span>
-                            <a href={fotoHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100">
-                                <FileText className="h-4 w-4" /> Lihat Foto
+                </div>
+
+                {/* Section C: Bukti & Catatan */}
+                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                    <div className="flex-1 p-5 bg-white">
+                        <span className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Catatan Kontraktor</span>
+                        {opname.catatan ? (
+                            <p className="relative pl-3 text-sm font-medium text-slate-700 before:absolute before:left-0 before:top-0.5 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-slate-300 italic">
+                                "{opname.catatan}"
+                            </p>
+                        ) : (
+                            <p className="text-sm text-slate-400 italic">Tidak ada catatan.</p>
+                        )}
+                    </div>
+                    
+                    {fotoHref && (
+                        <div className="p-5 md:w-72 flex flex-col justify-center bg-slate-50 border-l border-slate-200">
+                            <span className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Dokumentasi Foto</span>
+                            <a 
+                                href={fotoHref} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="group flex items-center justify-between rounded-lg border border-slate-300 bg-white p-3 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <div className="rounded bg-blue-100 p-1.5 text-blue-600 transition-colors group-hover:bg-blue-200">
+                                        <Image className="h-4 w-4" />
+                                    </div>
+                                    <span className="text-xs font-semibold text-slate-700 transition-colors group-hover:text-blue-700">Lihat Foto Lampiran</span>
+                                </div>
+                                <ExternalLink className="h-3 w-3 text-slate-400 transition-colors group-hover:text-blue-500" />
                             </a>
                         </div>
                     )}
                 </div>
 
-                <div className="flex justify-end border-t pt-3">
-                    {opname.status === 'pending'
-                        ? <SupportReReviewActions item={opname} onReviewed={onReviewed} />
-                        : <span className={`text-xs font-bold ${opname.status === 'disetujui' ? 'text-green-700' : 'text-red-600'}`}>{opname.status === 'disetujui' ? 'Disetujui Support' : 'Ditolak oleh Support'}</span>}
+                {/* Footer: Action Zone */}
+                <div className="flex items-center justify-between border-t border-slate-300 bg-slate-50 p-5">
+                    <div className="hidden md:block">
+                        <p className="text-xs font-medium text-slate-500">Keputusan ini akan membuka form pengawasan standar.</p>
+                    </div>
+                    <div className="flex w-full md:w-auto items-center justify-end gap-3">
+                        {opname.status === 'pending' ? (
+                            <SupportReReviewActions item={opname} onReviewed={onReviewed} />
+                        ) : (
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${opname.status === 'disetujui' ? 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-600/30' : 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/30'}`}>
+                                {opname.status === 'disetujui' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                                {opname.status === 'disetujui' ? 'Disetujui Support' : 'Ditolak oleh Support'}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
     );
 }
 
-function InfoBox({ label, value, valueClassName = 'text-slate-800' }: { label: string; value: React.ReactNode; valueClassName?: string }) {
+function VerificationBadge({ label, value, expected }: { label: string; value: string; expected: string }) {
+    if (!value) return null;
+    const isGood = value.toLowerCase() === expected.toLowerCase();
+    
     return (
-        <div className="rounded-lg border bg-white p-2.5 shadow-sm">
-            <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">{label}</span>
-            <div className={`text-sm font-semibold ${valueClassName}`}>{value}</div>
+        <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-semibold text-slate-500">{label}</span>
+            <div className="flex items-center gap-1.5">
+                {isGood ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                )}
+                <span className={`text-xs font-bold ${isGood ? 'text-slate-800' : 'text-amber-700'}`}>
+                    {value}
+                </span>
+            </div>
         </div>
     );
 }
@@ -4655,18 +4842,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [opnameItems, setOpnameItems] = useState<any[]>([]);
     const contractorOpnames = useMemo(() => {
         const map = new Map<string, any>();
-        const checkpointId = Number(activeCheckpointData?.id_pengawasan_gantt ?? activeCheckpointData?.id ?? 0);
         (opnameItems || []).forEach((op: any) => {
             if (op?.workflow_version !== 'contractor_first') return;
-            if (checkpointId && Number(op.id_pengawasan_gantt_target) !== checkpointId) return;
-            const targetStatus = String(op?.target_pengawasan_status || '').trim().toLowerCase();
-            if (!isContractorSubmit && op?.status === 'pending' && Number(op?.revision_no || 1) > 1 && targetStatus === 'selesai') return;
             map.set(getOpnameItemKey(op), op);
             const workTextKey = getOpnameWorkTextKey(op);
             if (workTextKey) map.set(workTextKey, op);
         });
         return map;
-    }, [activeCheckpointData, isContractorSubmit, opnameItems]);
+    }, [isContractorSubmit, opnameItems]);
 
     const handleContractorOpnameReviewed = useCallback((updated?: any) => {
         if (!updated?.id) return;
@@ -5306,6 +5489,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }).filter((d: any) => d.items.length > 0);
     }, [memoConfig, searchQuery]);
 
+
+
     const isWorkItemBlockedByOpname = useCallback((item: any, textKey?: string) => {
         if (!item) return textKey ? blockedOpnameItemKeys.has(textKey) : false;
 
@@ -5766,6 +5951,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const memoItem = findMemoItemForSubmit(cat.category.name, item.jenis_pekerjaan);
                         const opnameItemKey = memoItem ? getWorkItemKey(memoItem) : null;
                         const opname = opnameItemKey ? contractorOpnames.get(opnameItemKey) : null;
+
                         if (activeCheckpointData?.workflow_version === 'contractor_first') {
                             const opnameStatus = String(opname?.status || '').toLowerCase();
                             const revisionNo = Number(opname?.revision_no || 1);
@@ -5775,7 +5961,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum diisi kontraktor. (Wajib pada pengajuan pertama)`);
                                 continue;
                             }
-                            if (opnameStatus === 'pending' && revisionNo === 1) {
+                            const isPengajuanPertama = revisionNo === 1 && !opname?.alasan_penolakan_support;
+                            if (opnameStatus === 'pending' && isPengajuanPertama) {
                                 validationErrors.push(`Opname pengajuan pertama untuk "${item.jenis_pekerjaan}" belum di-review (Setuju/Tolak).`);
                                 continue;
                             }
@@ -6181,6 +6368,46 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
     };
 
+    const sortedMemoConfig = useMemo(() => {
+        return filteredMemoConfig.map((d: any, catIdx: number) => {
+            const itemsWithPriority = d.items.map((item: any, itemIdx: number) => {
+                const rItemForStatus = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
+                const opnameKeyForStatus = rItemForStatus ? getWorkItemKey(rItemForStatus) : null;
+                const opnameForStatus = opnameKeyForStatus ? contractorOpnames.get(opnameKeyForStatus) : null;
+                
+                let priority = 1; // Default low priority
+                if (isContractorSubmit) {
+                    if (!opnameForStatus || String(opnameForStatus.status).toLowerCase() === 'ditolak') {
+                        priority = 0; // High priority for unsubmitted or rejected
+                    }
+                } else {
+                    const key = `${String(d.category.name).toUpperCase()}|${String(item.jenis_pekerjaan || d.category.name).toUpperCase()}`;
+                    const isPendingOpnameReview = opnameForStatus && String(opnameForStatus.status).toLowerCase() === 'pending';
+                    const isNotSavedYet = !latestIdMapState.has(key);
+                    
+                    if (isPendingOpnameReview || isNotSavedYet) {
+                        priority = 0; // High priority for pending review OR not yet filled in
+                    }
+                }
+                return { ...item, _sortPriority: priority, _origIdx: itemIdx };
+            });
+            
+            // Sort items inside the category (High priority / 0 first)
+            itemsWithPriority.sort((a: any, b: any) => {
+                if (a._sortPriority !== b._sortPriority) return a._sortPriority - b._sortPriority;
+                return a._origIdx - b._origIdx;
+            });
+            
+            // The category priority is the highest priority among its items
+            const catPriority = itemsWithPriority.length > 0 ? itemsWithPriority[0]._sortPriority : 1;
+            
+            return { ...d, items: itemsWithPriority, _catPriority: catPriority, _origIdx: catIdx };
+        }).sort((a: any, b: any) => {
+            if (a._catPriority !== b._catPriority) return a._catPriority - b._catPriority;
+            return a._origIdx - b._origIdx;
+        }); // Sort categories (High priority / 0 first)
+    }, [filteredMemoConfig, findWorkItemForMemo, getWorkItemKey, contractorOpnames, isContractorSubmit, latestIdMapState]);
+
     return (
         <>
             <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -6276,14 +6503,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     <p className="font-medium">Tidak ada kategori pekerjaan yang sedang aktif pada hari ini.</p>
                                 </div>
                             )
-                        ) : filteredMemoConfig.length === 0 ? (
+                        ) : sortedMemoConfig.length === 0 ? (
                             <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
                                 <Search className="w-12 h-12 mb-3 text-slate-300" />
                                 <h3 className="text-base font-bold text-slate-600 mb-1">Pencarian Tidak Ditemukan</h3>
                                 <p className="font-medium text-sm">Tidak ada item atau kategori yang cocok dengan "{searchQuery}".</p>
                             </div>
                         ) : (
-                            filteredMemoConfig.map((d: any, i: number) => (
+                            sortedMemoConfig.map((d: any, i: number) => (
                                 <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-300">
                                     <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
                                         <h3 className="font-bold text-slate-800">{d.category.name}</h3>
@@ -6499,120 +6726,126 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                                                                             )}
                                                                             {!isReadOnly && !isContractorSubmit ? (
-                                                                                <>
-                                                                                    <div className="flex gap-2">
-                                                                                        {allowedStatuses.has('Selesai') && (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
-                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                            >
-                                                                                                Selesai
-                                                                                            </button>
-                                                                                        )}
-
-                                                                                        {allowedStatuses.has('Terlambat') && (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
-                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                            >
-                                                                                                Terlambat
-                                                                                            </button>
-                                                                                        )}
-
-                                                                                        {allowedStatuses.has('Progress') && (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
-                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                            >
-                                                                                                Progress
-                                                                                            </button>
-                                                                                        )}
-                                                                                    </div>
-
-                                                                                    {/* Input Hari Keterlambatan jika status Terlambat */}
-                                                                                    {currentStatus === 'Terlambat' && (
-                                                                                        <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                                                                                                className="w-16 rounded border border-slate-300 p-1 text-center text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white shadow-inner"
-                                                                                                min={0}
-                                                                                                value={lateDays === 0 ? '' : lateDays}
-                                                                                                onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
-                                                                                                placeholder="+ Hari"
-                                                                                                title="Masukkan tambahan hari keterlambatan dari hari ini"
-                                                                                            />
-                                                                                            <span className="text-xs text-slate-500">tambahan hari</span>
-                                                                                        </div>
-                                                                                    )}
-
-                                                                                    {isContractorFirstCheckpoint && opnameForStatus?.status === 'pending' && (!opnameForStatus?.revision_no || opnameForStatus.revision_no === 0) && (
-                                                                                        <SupportReviewOpnameInline opname={opnameForStatus} onReviewed={handleContractorOpnameReviewed} />
-                                                                                    )}
-
-                                                                                    {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
-                                                                                    {currentStatus ? (
+                                                                                (() => {
+                                                                                    const isPendingReview = isContractorFirstCheckpoint && opnameForStatus?.status === 'pending' && (!opnameForStatus?.revision_no || opnameForStatus.revision_no === 0);
+                                                                                    
+                                                                                    if (isPendingReview) {
+                                                                                        return <SupportReviewOpnameInline opname={opnameForStatus} onReviewed={handleContractorOpnameReviewed} />;
+                                                                                    }
+                                                                                    
+                                                                                    return (
                                                                                         <>
-                                                                                            {/* 1. Pengawasan Catatan & Foto Form (SELALU MUNCUL saat status diisi) */}
-                                                                                            <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
-                                                                                                {currentStatus === 'Selesai' && isWorkItemBlockedByOpname(item, key) && (
-                                                                                                    <div className={`mb-2 p-3 border rounded-lg flex items-center gap-2 ${opnameForStatus?.status === 'pending' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
-                                                                                                            opnameForStatus?.status === 'ditolak' ? 'bg-red-50 border-red-200 text-red-700' :
-                                                                                                                'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                                                                                        }`}>
-                                                                                                        {opnameForStatus?.status === 'pending' ? (
-                                                                                                            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                                                                                                        ) : opnameForStatus?.status === 'ditolak' ? (
-                                                                                                            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-                                                                                                        ) : (
-                                                                                                            <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                                                                                                        )}
-                                                                                                        <div>
-                                                                                                            {opnameForStatus?.status === 'pending' ? (
-                                                                                                                <>
-                                                                                                                    <p className="font-bold text-sm">Menunggu Review</p>
-                                                                                                                    <p className="text-xs">Kontraktor sudah mengajukan opname untuk item ini dan sedang menunggu persetujuan tim Support.</p>
-                                                                                                                </>
-                                                                                                            ) : opnameForStatus?.status === 'ditolak' ? (
-                                                                                                                <>
-                                                                                                                    <p className="font-bold text-sm">Opname Ditolak</p>
-                                                                                                                    <p className="text-xs">Pengajuan opname sebelumnya kamu tolak, silahkan beritahu Kontraktor untuk ajukan ulang</p>
-                                                                                                                </>
-                                                                                                            ) : (
-                                                                                                                <>
-                                                                                                                    <p className="font-bold text-sm">Opname Disetujui</p>
-                                                                                                                    <p className="text-xs">Pengajuan opname untuk item ini telah disetujui oleh tim Support.</p>
-                                                                                                                </>
-                                                                                                            )}
-                                                                                                        </div>
-                                                                                                    </div>
+                                                                                            <div className="flex gap-2">
+                                                                                                {allowedStatuses.has('Selesai') && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
+                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                                    >
+                                                                                                        Selesai
+                                                                                                    </button>
                                                                                                 )}
-                                                                                                <textarea
-                                                                                                    className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
-                                                                                                    placeholder="Tambahkan catatan/keterangan (opsional)..."
-                                                                                                    value={memoInputs[key]?.catatan || ''}
-                                                                                                    onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
-                                                                                                    rows={2}
-                                                                                                />
-                                                                                                <div className="flex items-center text-xs">
-                                                                                                    <span className="text-slate-600 font-medium w-32">Foto/Dok Pengawasan<span className="text-red-500">*</span>:</span>
-                                                                                                    <input
-                                                                                                        type="file"
-                                                                                                        accept="image/*,.pdf,application/pdf"
-                                                                                                        onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
-                                                                                                        className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
-                                                                                                    />
-                                                                                                </div>
+
+                                                                                                {allowedStatuses.has('Terlambat') && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
+                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                                    >
+                                                                                                        Terlambat
+                                                                                                    </button>
+                                                                                                )}
+
+                                                                                                {allowedStatuses.has('Progress') && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
+                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                                    >
+                                                                                                        Progress
+                                                                                                    </button>
+                                                                                                )}
                                                                                             </div>
 
-                                                                                            {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
-                                                                                            {renderOpnameForm()}
+                                                                                            {/* Input Hari Keterlambatan jika status Terlambat */}
+                                                                                            {currentStatus === 'Terlambat' && (
+                                                                                                <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
+                                                                                                    <input
+                                                                                                        type="number"
+                                                                                                        onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                                                                                        className="w-16 rounded border border-slate-300 p-1 text-center text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white shadow-inner"
+                                                                                                        min={0}
+                                                                                                        value={lateDays === 0 ? '' : lateDays}
+                                                                                                        onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
+                                                                                                        placeholder="+ Hari"
+                                                                                                        title="Masukkan tambahan hari keterlambatan dari hari ini"
+                                                                                                    />
+                                                                                                    <span className="text-xs text-slate-500">tambahan hari</span>
+                                                                                                </div>
+                                                                                            )}
+
+                                                                                            {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
+                                                                                            {currentStatus ? (
+                                                                                                <>
+                                                                                                    {/* 1. Pengawasan Catatan & Foto Form (SELALU MUNCUL saat status diisi) */}
+                                                                                                    <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
+                                                                                                        {currentStatus === 'Selesai' && isWorkItemBlockedByOpname(item, key) && (
+                                                                                                            <div className={`mb-2 p-3 border rounded-lg flex items-center gap-2 ${opnameForStatus?.status === 'pending' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+                                                                                                                    opnameForStatus?.status === 'ditolak' ? 'bg-red-50 border-red-200 text-red-700' :
+                                                                                                                        'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                                                                                                }`}>
+                                                                                                                {opnameForStatus?.status === 'pending' ? (
+                                                                                                                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                                ) : opnameForStatus?.status === 'ditolak' ? (
+                                                                                                                    <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                                                                                                                ) : (
+                                                                                                                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                                )}
+                                                                                                                <div>
+                                                                                                                    {opnameForStatus?.status === 'pending' ? (
+                                                                                                                        <>
+                                                                                                                            <p className="font-bold text-sm">Menunggu Review</p>
+                                                                                                                            <p className="text-xs">Kontraktor sudah mengajukan opname untuk item ini dan sedang menunggu persetujuan tim Support.</p>
+                                                                                                                        </>
+                                                                                                                    ) : opnameForStatus?.status === 'ditolak' ? (
+                                                                                                                        <>
+                                                                                                                            <p className="font-bold text-sm">Opname Ditolak</p>
+                                                                                                                            <p className="text-xs">Pengajuan opname sebelumnya kamu tolak, silahkan beritahu Kontraktor untuk ajukan ulang</p>
+                                                                                                                        </>
+                                                                                                                    ) : (
+                                                                                                                        <>
+                                                                                                                            <p className="font-bold text-sm">Opname Disetujui</p>
+                                                                                                                            <p className="text-xs">Pengajuan opname untuk item ini telah disetujui oleh tim Support.</p>
+                                                                                                                        </>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                        <textarea
+                                                                                                            className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
+                                                                                                            placeholder="Tambahkan catatan/keterangan (opsional)..."
+                                                                                                            value={memoInputs[key]?.catatan || ''}
+                                                                                                            onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
+                                                                                                            rows={2}
+                                                                                                        />
+                                                                                                        <div className="flex items-center text-xs">
+                                                                                                            <span className="text-slate-600 font-medium w-32">Foto/Dok Pengawasan<span className="text-red-500">*</span>:</span>
+                                                                                                            <input
+                                                                                                                type="file"
+                                                                                                                accept="image/*,.pdf,application/pdf"
+                                                                                                                onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
+                                                                                                                className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                                                                                                            />
+                                                                                                        </div>
+                                                                                                    </div>
+
+                                                                                                    {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
+                                                                                                    {renderOpnameForm()}
+                                                                                                </>
+                                                                                            ) : null}
                                                                                         </>
-                                                                                    ) : null}
-                                                                                </>
+                                                                                    );
+                                                                                })()
                                                                             ) : isContractorSubmit ? (
                                                                                 opnameForStatus && opnameForStatus.status === 'ditolak' && opnameForStatus.workflow_version === 'contractor_first' ? (
                                                                                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-center gap-2 text-center">

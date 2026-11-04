@@ -210,7 +210,7 @@ function FTDokumenContent() {
             showAlert({ message: 'ST harus dibuat terlebih dahulu untuk ULOK ini.', type: 'warning' });
             return;
         }
-        if (isGrandOpeningMode && !formData.tanggalGo) { showAlert({ message: 'Tanggal GO wajib dipilih sebelum lanjut ke denah dan foto.', type: 'warning' }); return; }
+
         if (!formData.tanggalSt) { showAlert({ message: 'Tanggal ST wajib terisi.', type: 'warning' }); return; }
         if (formData.jenisToko === 'FRANCHISE' && submittedUloks.has(formData.nomorUlok.trim().toUpperCase())) {
             showAlert({ message: 'Nomor ULOK ini sudah pernah dibuat dokumentasi.', type: 'warning' });
@@ -287,7 +287,7 @@ function FTDokumenContent() {
             } else {
                 await submitDokumentasiBangunan(payloadFields, photos);
             }
-            showAlert({ message: isGrandOpeningMode ? 'Dokumentasi Grand Opening lengkap. Serah Terima sudah bisa diproses.' : 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
+            showAlert({ message: isGrandOpeningMode ? 'Dokumentasi Serah Terima lengkap. Serah Terima sudah bisa diproses.' : 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
             
             // Reset form
             setFormData({ ...emptyForm, cabang: user?.cabang || '', tanggalAmbilFoto: todayLocalIso() });
@@ -306,7 +306,7 @@ function FTDokumenContent() {
     return (
         <>
             {!isEmbedded && (
-                <AppNavbar title={isGrandOpeningMode ? "Dokumentasi Grand Opening" : "Dokumentasi Bangunan Toko Baru"} showBackButton backHref={isGrandOpeningMode ? "/gantt" : "/dashboard"} />
+                <AppNavbar title={isGrandOpeningMode ? "Dokumentasi Serah Terima" : "Dokumentasi Bangunan Toko Baru"} showBackButton backHref={isGrandOpeningMode ? "/gantt" : "/dashboard"} />
             )}
 
             <main className={isEmbedded ? "p-4 md:p-5 pb-8" : "max-w-6xl mx-auto p-4 md:p-8 mt-4 pb-24"}>
@@ -589,10 +589,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                                 tabIndex={isFranchise ? 0 : -1}
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label>Tanggal GO <span className="text-red-500">*</span></Label>
-                            <DatePicker value={formData.tanggalGo} onChange={val => onChange('tanggalGo', val)} disabled={isReadOnly} />
-                        </div>
+
                         <div className="space-y-2">
                             <Label>Tanggal ST <span className="text-red-500">*</span></Label>
                             <DatePicker

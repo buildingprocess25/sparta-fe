@@ -37,7 +37,7 @@ export const clearApiAuthSession = () => {
     sessionStorage.removeItem(AUTH_EXPIRES_STORAGE_KEY);
 };
 
-const getApiAuthToken = (): string | null => {
+export const getApiAuthToken = (): string | null => {
     if (typeof window === "undefined") return null;
     return sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 };
@@ -4382,7 +4382,7 @@ export const processInstruksiLapanganApproval = async (
 };
 
 export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean> => {
-    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf?t=${Date.now()}`);
     if (!res.ok) throw new Error(`Gagal download PDF Instruksi Lapangan (${res.status})`);
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);

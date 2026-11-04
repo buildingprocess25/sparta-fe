@@ -121,9 +121,8 @@ function getGanttDurationFromDayItems(dayItems: Array<{ h_awal?: number | string
         .filter(item => Number.isFinite(item.start) && Number.isFinite(item.end) && item.start > 0 && item.end > 0);
 
     if (ranges.length === 0) return 0;
-    const minStart = Math.min(...ranges.map(item => item.start));
     const maxEnd = Math.max(...ranges.map(item => item.end));
-    return Math.max(0, maxEnd - minStart + 1);
+    return maxEnd;
 }
 
 function mapInstruksiLapanganCategories(items: any[] | undefined): Array<{ kategori_pekerjaan: string }> {
