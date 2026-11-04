@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchDashboardAll, viewGeneratedPdfOnline } from '@/lib/api';
 import { API_URL, formatProjectPlanningStatus } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
-import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown, ClipboardList } from 'lucide-react';
+import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown, ClipboardList, Building2 } from 'lucide-react';
 
 export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan, hideHeader }: { nomor_ulok: string; lingkup_pekerjaan?: string | null; hideHeader?: boolean }) {
     const [project, setProject] = useState<any>(null);
@@ -377,6 +377,37 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan, hideHeader }: { nom
         ] : []
     });
 
+    // 8.5 Dokumentasi Bangunan Toko Baru (Kondisional Opsi A, berlaku SIPIL + ME)
+    const dokList = (proj.dokumentasi_bangunan && Array.isArray(proj.dokumentasi_bangunan)) ? proj.dokumentasi_bangunan : [];
+    let dokData = dokList.length > 0 ? dokList[0] : null;
+    if (!dokData && projects && projects.length > 0) {
+        const counterpart = projects.find((p: any) => 
+            p.toko?.nomor_ulok === proj.toko?.nomor_ulok && p.dokumentasi_bangunan?.length > 0
+        );
+        if (counterpart) {
+            dokData = counterpart.dokumentasi_bangunan[0];
+        }
+    }
+
+    if (dokData) {
+        const statusUpper = String(dokData.status_validasi || 'SUBMITTED').toUpperCase();
+        nodes.push({
+            type: 'DOKUMENTASI_BANGUNAN',
+            title: 'Dokumentasi Bangunan Toko Baru',
+            desc: `Status: ${statusUpper}`,
+            icon: <Building2 className="w-5 h-5"/>,
+            color: 'amber',
+            data: dokData,
+            isActive: true,
+            isCompleted: true,
+            url: dokData.link_pdf || null,
+            dateList: [
+                { label: 'Ambil Foto', val: dokData.tanggal_ambil_foto },
+                { label: 'Grand Opening', val: dokData.tanggal_go }
+            ].filter((d: any) => Boolean(d.val))
+        });
+    }
+
     // 9. DONE
     const isFinalApproved = hasFinal && ['SELESAI', 'APPROVED', 'DONE', 'DISETUJUI'].includes(String(opnameFinal[0].status_opname_final || '').toUpperCase());
     const isProyekSelesai = hasST && hasFinal && isFinalApproved;
@@ -403,6 +434,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan, hideHeader }: { nom
             sky: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200 border-l-[6px] border-l-sky-500', dot: 'bg-sky-500' },
             emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200 border-l-[6px] border-l-emerald-500', dot: 'bg-emerald-500' },
             teal: { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200 border-l-[6px] border-l-teal-500', dot: 'bg-teal-500' },
+            amber: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200 border-l-[6px] border-l-amber-500', dot: 'bg-amber-500' },
             slate: { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200 border-l-[6px] border-l-slate-400', dot: 'bg-slate-500' }
         };
         return maps[color] || maps.slate;

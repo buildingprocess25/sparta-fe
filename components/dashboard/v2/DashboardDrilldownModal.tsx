@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ArrowLeft, Download, FileText, Activity, HardHat, FileCheck, Search, ChevronLeft, ChevronRight, Layers, Clock, AlertTriangle, CheckCircle2, Timer, ClipboardList, Camera } from 'lucide-react';
+import { X, ArrowLeft, Download, FileText, Activity, HardHat, FileCheck, Search, ChevronLeft, ChevronRight, Layers, Clock, AlertTriangle, CheckCircle2, Timer, ClipboardList, Camera, Building2, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatRupiah } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -1476,6 +1476,34 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             isCompleted: hasFinal
         });
 
+        // 8.5 Dokumentasi Bangunan Toko Baru (Hanya jika tersedia - Opsi A)
+        // Berlaku untuk kedua lingkup (SIPIL & ME)
+        const dokList = (proj.dokumentasi_bangunan && Array.isArray(proj.dokumentasi_bangunan)) ? proj.dokumentasi_bangunan : [];
+        let dokData = dokList.length > 0 ? dokList[0] : null;
+        if (!dokData && (allProjects || projects)) {
+            const projectListToSearch = allProjects || projects;
+            const counterpart = projectListToSearch.find((p: any) => 
+                p.toko?.nomor_ulok === proj.toko?.nomor_ulok && p.dokumentasi_bangunan?.length > 0
+            );
+            if (counterpart) {
+                dokData = counterpart.dokumentasi_bangunan[0];
+            }
+        }
+
+        if (dokData) {
+            const statusUpper = String(dokData.status_validasi || 'SUBMITTED').toUpperCase();
+            nodes.push({
+                type: 'DOKUMENTASI_BANGUNAN',
+                title: 'Dokumentasi Bangunan Toko Baru',
+                desc: `Status: ${statusUpper}`,
+                icon: <Building2 className="w-5 h-5" />,
+                color: 'amber',
+                data: dokData,
+                isActive: true,
+                isCompleted: ['APPROVED', 'SELESAI', 'VALID'].includes(statusUpper) || statusUpper === 'SUBMITTED'
+            });
+        }
+
         // 9. DONE
         const isFinalApproved = hasFinal && ['SELESAI', 'APPROVED', 'DONE', 'DISETUJUI'].includes(String(opnameFinal[0].status_opname_final || '').toUpperCase());
         const isProyekSelesai = hasST && hasFinal && isFinalApproved;
@@ -1636,6 +1664,141 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         };
 
         const commonExcluded = ['id_toko', 'lingkup_pekerjaan', 'proyek', 'nomor_ulok', 'nama_toko', 'kode_toko'];
+
+        if (type === 'DOKUMENTASI_BANGUNAN') {
+            const fotoItems = Array.isArray(data.items) ? data.items : [];
+            const statusBadgeClass = (status: string) => {
+                const upper = String(status || '').toUpperCase();
+                if (['APPROVED', 'SELESAI', 'VALID'].includes(upper)) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                if (['REVISI', 'REJECTED'].includes(upper)) return 'bg-rose-100 text-rose-700 border-rose-200';
+                return 'bg-amber-100 text-amber-700 border-amber-200';
+            };
+
+            return (
+                <div className="w-full h-full flex flex-col bg-slate-50/20 overflow-y-auto custom-scrollbar">
+                    {/* Header Action Banner */}
+                    <div className="px-8 pt-8 pb-4">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <h4 className="text-lg font-bold text-slate-800 tracking-tight">Dokumen Dokumentasi Bangunan Toko Baru</h4>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusBadgeClass(data.status_validasi)}`}>
+                                        {String(data.status_validasi || 'SUBMITTED').toUpperCase()}
+                                    </span>
+                                </div>
+                                <p className="text-xs font-semibold text-slate-400 mt-1">
+                                    Mencakup data fisik toko untuk kedua lingkup (SIPIL & ME)
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {data.link_pdf && (
+                                    <Button
+                                        className="bg-red-600 text-white hover:bg-red-700 font-semibold rounded-xl shrink-0 shadow-md shadow-red-500/20 hover:scale-105 transition-all h-11 px-6"
+                                        onClick={() => {
+                                            window.open(getProxyUrl(data.link_pdf), '_blank', 'noopener,noreferrer');
+                                        }}
+                                    >
+                                        <FileText className="w-4 h-4 mr-2" /> Lihat / Unduh Dokumen PDF
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Metadata Content Table */}
+                    <div className="px-8 pb-8 flex flex-col gap-6">
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between">
+                                <h5 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                    <Store className="w-4 h-4 text-amber-500" /> Informasi Bangunan & Kontraktor
+                                </h5>
+                                <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                                    Lingkup Gabungan (SIPIL + ME)
+                                </span>
+                            </div>
+                            <table className="w-full text-left border-collapse">
+                                <tbody>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">Nomor ULOK</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">{data.nomor_ulok || '-'}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">Nama Toko / Kode</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">{data.nama_toko || '-'} {data.kode_toko ? `(${data.kode_toko})` : ''}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">Cabang</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">{data.cabang || '-'}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors bg-amber-50/20">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-amber-700 w-1/3">Kontraktor SIPIL</th>
+                                        <td className="py-4 px-8 text-sm font-bold text-slate-900">{data.kontraktor_sipil || '-'}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors bg-amber-50/20">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-amber-700 w-1/3">Kontraktor ME</th>
+                                        <td className="py-4 px-8 text-sm font-bold text-slate-900">{data.kontraktor_me || '-'}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">Tanggal Pengambilan Foto</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">{data.tanggal_ambil_foto ? formatDateIndo(data.tanggal_ambil_foto).replace(/ pukul.*$/, '') : '-'}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">Tanggal Grand Opening (GO)</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">{data.tanggal_go ? formatDateIndo(data.tanggal_go).replace(/ pukul.*$/, '') : '-'}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">Tanggal Serah Terima (ST)</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">{data.tanggal_serah_terima ? formatDateIndo(data.tanggal_serah_terima).replace(/ pukul.*$/, '') : '-'}</td>
+                                    </tr>
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">Periode SPK</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">
+                                            {data.spk_awal && data.spk_akhir ? `${formatDateIndo(data.spk_awal).replace(/ pukul.*$/, '')} s/d ${formatDateIndo(data.spk_akhir).replace(/ pukul.*$/, '')}` : '-'}
+                                        </td>
+                                    </tr>
+                                    <tr className="hover:bg-slate-50/50 transition-colors">
+                                        <th className="py-4 px-8 text-xs font-bold uppercase text-slate-400 w-1/3">PIC Dokumentasi</th>
+                                        <td className="py-4 px-8 text-sm font-semibold text-slate-900">{data.pic_dokumentasi || '-'} {data.email_pengirim ? `(${data.email_pengirim})` : ''}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Photo Gallery Grid */}
+                        {fotoItems.length > 0 && (
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4">
+                                <h5 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                    <Camera className="w-4 h-4 text-amber-500" /> Galeri Foto Sudut Bangunan ({fotoItems.length} Foto)
+                                </h5>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {fotoItems.map((item: any, idx: number) => (
+                                        <div 
+                                            key={item.id || idx}
+                                            className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-50 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                                            onClick={() => {
+                                                if (item.link_foto) window.open(getProxyUrl(item.link_foto), '_blank', 'noopener,noreferrer');
+                                            }}
+                                        >
+                                            <div className="aspect-video w-full overflow-hidden bg-slate-100">
+                                                <img 
+                                                    src={getProxyUrl(item.link_foto)} 
+                                                    alt={item.sudut_foto || `Foto ${idx + 1}`}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                    loading="lazy"
+                                                />
+                                            </div>
+                                            <div className="p-2.5 bg-white border-t border-slate-100">
+                                                <p className="text-xs font-bold text-slate-700 truncate">{item.sudut_foto || `Sudut ${idx + 1}`}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
 
         if (type === 'PROJECT_PLANNING') {
             const lowerData: any = {};
