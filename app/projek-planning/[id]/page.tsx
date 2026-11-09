@@ -24,7 +24,6 @@ import {
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
 import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch, BRANCH_TO_ULOK } from "@/lib/constants";
-import Swal from "sweetalert2";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700" },
@@ -966,112 +965,6 @@ export default function DetailProjekPlanning() {
     setActionLoading(false);
   };
 
-  const handleUploadRab = async () => {
-    const activeRabs = revisiUlok ? rawBranchApprovedRabs.filter(r => {
-      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
-      return u === newUlok.trim().toUpperCase();
-    }) : approvedRabs;
-
-    const selectedRabSipil = activeRabs.find(r => getRabScope(r).includes("SIPIL"));
-    const selectedRabMe = activeRabs.find(r => getRabScope(r).includes("ME"));
-    const hasManualRabSipil = linkRabSipilManual.trim() || fileRabSipilManual.length > 0;
-    const hasManualRabMe = linkRabMeManual.trim() || fileRabMeManual.length > 0;
-    const sipilRabExists = revisiUlok
-      ? rawBranchApprovedRabs.some(r => {
-        const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
-        return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("SIPIL");
-      })
-      : allRabsForUlok.some(r => getRabScope(r).includes("SIPIL"));
-    const meRabExists = revisiUlok
-      ? rawBranchApprovedRabs.some(r => {
-        const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
-        return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("ME");
-      })
-      : allRabsForUlok.some(r => getRabScope(r).includes("ME"));
-
-    if (sipilRabExists && !selectedRabSipil) {
-      showAlert("RAB Belum Disetujui", `RAB Sipil sedang dalam proses approval. Silakan tunggu hingga disetujui.`);
-      return;
-    }
-    if (meRabExists && !selectedRabMe) {
-      showAlert("RAB Belum Disetujui", `RAB ME sedang dalam proses approval. Silakan tunggu hingga disetujui.`);
-      return;
-    }
-
-    const isSipilComplete = !!selectedRabSipil || (!sipilRabExists && hasManualRabSipil);
-    const isMeComplete = !!selectedRabMe || (!meRabExists && hasManualRabMe);
-
-    if (!isSipilComplete || !isMeComplete) {
-      showAlert("RAB Belum Lengkap", `RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ${revisiUlok ? newUlok : data?.nomor_ulok || ''} sebelum melanjutkan FPD. Silakan upload secara manual jika RAB belum diinput sama sekali.`);
-      return;
-    }
-    if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) {
-      showAlert("Peringatan", "File Gambar Kerja Final Sipil atau ME belum terisi! Silakan upload atau masukkan link.");
-      return;
-    }
-
-    // Wajib buka desain 3D jika ada
-    if (data?.link_desain_3d && !openedLinks.has("desain_3d")) {
-      showAlert("Peringatan", "Anda harus membuka dan melihat file Desain 3D terlebih dahulu sebelum mengupload RAB.");
-      return;
-    }
-
-    // Validasi re-upload saat ditolak
-    if (data?.pp2_alasan_penolakan || data?.pp_manager_alasan_penolakan) {
-      const noChange = fileGambarSipil.length === 0 && fileGambarMe.length === 0
-        && (selectedRabSipil?.id ?? null) === ((data as any).id_rab_sipil ?? null)
-        && (selectedRabMe?.id ?? null) === ((data as any).id_rab_me ?? null)
-        && linkGambarSipil.trim() === (((data as any).link_gambar_kerja_final_sipil || "")).trim()
-        && linkGambarMe.trim() === ((data as any).link_gambar_kerja_final_me || "").trim();
-      if (noChange) {
-        showAlert("Peringatan", "Minimal harus melakukan satu perubahan pada gambar final atau fasilitas.");
-        return;
-      }
-    }
-
-    const changedRabFields = [
-      ((selectedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null)) ? "rab_sipil_final" : null,
-      ((selectedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)) ? "rab_me_final" : null,
-      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim()) ? "gambar_kerja_final_sipil" : null,
-      (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
-    ].filter(Boolean) as string[];
-
-    setActionLoading(true);
-    try {
-      const payload: any = {
-        uploader_email: userEmail,
-        id_rab_sipil: selectedRabSipil?.id,
-        id_rab_me: selectedRabMe?.id,
-        link_rab_sipil: linkRabSipilManual.trim() ? linkRabSipilManual : undefined,
-        link_rab_me: linkRabMeManual.trim() ? linkRabMeManual : undefined,
-        fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
-        link_gambar_kerja_final_sipil: linkGambarSipil,
-        link_gambar_kerja_final_me: linkGambarMe,
-      };
-
-      if (revisiUlok) {
-        if (newUlok.trim()) payload.nomor_ulok = newUlok.trim();
-        if (newNamaToko.trim()) payload.nama_toko = newNamaToko.trim();
-        if (newProyek.trim()) payload.jenis_proyek = newProyek.trim();
-      }
-
-      await uploadRabGambarKerja(
-        id,
-        payload,
-        fileGambarSipil,
-        fileGambarMe,
-        fileRabSipilManual,
-        fileRabMeManual
-      );
-      clearViewedFields(changedRabFields);
-      showAlert("Berhasil", "Input tahap kedua berhasil dikirim ke B&M Manager.");
-      setLinkGambarSipil(""); setFileGambarSipil([]);
-      setLinkGambarMe(""); setFileGambarMe([]);
-      await load();
-    } catch (e: any) { showAlert("Gagal", e.message); }
-    setActionLoading(false);
-  };
-
   const handleFileChange = (setLink: React.Dispatch<React.SetStateAction<string>>, setFile: React.Dispatch<React.SetStateAction<File | null>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1240,17 +1133,8 @@ export default function DetailProjekPlanning() {
         </div>
       `;
 
-      Swal.fire({
-        title: "Persyaratan Belum Lengkap",
-        html: `<p style="font-size: 14px; color: #334155; text-align: left; margin: 0;">Mohon lengkapi persyaratan berikut sebelum mengirimkan pengajuan:</p>${htmlList}`,
-        icon: "warning",
-        confirmButtonText: "Saya Mengerti",
-        confirmButtonColor: "#ea580c",
-        customClass: {
-          popup: "border-2 border-slate-300",
-          confirmButton: "font-bold px-6 py-2.5 rounded-lg",
-        }
-      });
+      const errorSummary = missingRabUploadItems.map((item, idx) => `${idx + 1}. ${item.title}: ${item.failedText}`).join("\n");
+      showAlert("Persyaratan Belum Lengkap", `Mohon lengkapi persyaratan berikut:\n\n${errorSummary}`);
       return;
     }
 
@@ -1285,25 +1169,12 @@ export default function DetailProjekPlanning() {
         fileGambarMe
       );
       clearViewedFields(changedRabFields);
-      Swal.fire({
-        title: "Berhasil!",
-        text: "Input tahap kedua berhasil dikirim ke B&M Manager.",
-        icon: "success",
-        confirmButtonColor: "#ea580c",
-        customClass: {
-          confirmButton: "font-bold px-6 py-2.5 rounded-lg",
-        }
-      });
+      showAlert("Berhasil!", "Input tahap kedua berhasil dikirim ke B&M Manager.");
       setLinkGambarSipil(""); setFileGambarSipil([]);
       setLinkGambarMe(""); setFileGambarMe([]);
       await load();
     } catch (e: any) { 
-      Swal.fire({
-        title: "Gagal Mengirim",
-        text: e.message || "Terjadi kesalahan saat memproses data.",
-        icon: "error",
-        confirmButtonColor: "#dc2626",
-      });
+      showAlert("Gagal Mengirim", e.message || "Terjadi kesalahan saat memproses data.");
     }
     setActionLoading(false);
   };
