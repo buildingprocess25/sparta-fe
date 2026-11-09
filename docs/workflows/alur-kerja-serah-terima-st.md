@@ -128,6 +128,13 @@ flowchart TD
   - Logika `isNearestPengawasanAfter` telah diperbaiki agar selalu mengizinkan pengisian pada tanggal-tanggal setelah checkpoint terakhir meskipun belum ada data checkpoint tersimpan di database.
   - Logika `forcedStItems` dan `validForcedStBlockerItems` pada `app/gantt/page.tsx` telah diselaraskan agar seluruh pekerjaan tambahan non-RAB yang belum selesai pada tanggal sebelumnya otomatis ditarik dan disajikan di modal Serah Terima untuk diselesaikan.
 
+### Kasus C: "Pekerjaan Tambahan (Dari Riwayat) dipilih 'Selesai', tapi formulir Opname Parsial tidak muncul & gagal Simpan karena data belum lengkap"
+- **Penyebab**: Fungsi `findWorkItemForMemo` secara bawaan mencari data acuan harga dan volume di `rabItems`. Karena item histori/pekerjaan tambahan berasal dari catatan pengawasan terdahulu (`source_type === 'HISTORY'`) dan bukan item master RAB, pencarian ke `rabItems` menghasilkan `null`. Akibatnya, `renderOpnameForm()` mengembalikan `null` (form opname tersembunyi), sehingga pengguna tidak dapat mengisi kesesuaian desain, kualitas, spesifikasi, dan foto opname. Saat tombol **Simpan** diklik, validasi memblokir penyimpanan karena data opname wajib diisi untuk status `Selesai`.
+- **Solusi Sistem (Perbaikan Kode)**:
+  - Memperbarui `findWorkItemForMemo` di `app/gantt/page.tsx` agar memiliki mekanisme *fallback* ke `currentItem` ketika item tidak ditemukan di daftar RAB (menggunakan volume bawaan, satuan `Ls`, dan harga 0).
+  - Formulir Opname & Verifikasi Pekerjaan kini muncul seketika saat tombol status `Selesai` dipilih pada item riwayat pengawasan.
+  - Pengamanan ID Opname (`safeRabId` dan `safeIlId`): Nilai ID non-numerik (seperti ID string sintesis `forced-st-...`) dinormalisasi menjadi `undefined` agar tidak menghasilkan `NaN` pada payload dan mematuhi skema backend Zod.
+
 ---
 
 ## 6. Referensi File & Kode Sumber
