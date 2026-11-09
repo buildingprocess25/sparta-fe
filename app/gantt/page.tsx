@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, ClipboardList, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, MinusCircle, ArrowRight, CornerDownRight, CornerRightDown } from 'lucide-react';
 import { TakeoverMemoModal } from './TakeoverMemoModal';
+import { FileLimitWarningModal } from '@/components/FileLimitWarningModal';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -152,7 +153,7 @@ type GanttDetailResponse = Awaited<ReturnType<typeof fetchGanttDetail>>;
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 const PENGAWASAN_UPLOAD_BATCH_SIZE = 50;
-const PENGAWASAN_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function parseCalendarDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -609,6 +610,7 @@ function GanttBoard() {
         index: number;
         dayIndex: number;
         dateString: string;
+        fromSerahTerimaModal?: boolean;
     } | null>(null);
     const [unifiedOpnameFlow, setUnifiedOpnameFlow] = useState<{
         scopes: Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
@@ -763,7 +765,8 @@ function GanttBoard() {
 
     const openUnifiedCheckpoint = useCallback(async (
         checkpoint: SupervisionCheckpoint,
-        dayIndex: number
+        dayIndex: number,
+        options?: { fromSerahTerimaModal?: boolean }
     ) => {
         if (!supervisionWorkspace) return;
 
@@ -802,6 +805,7 @@ function GanttBoard() {
             index: 0,
             dayIndex,
             dateString: checkpoint.tanggal_pengawasan,
+            fromSerahTerimaModal: Boolean(options?.fromSerahTerimaModal),
         });
         await loadDataByToko(first.scope.id_toko);
         setActiveHeaderClick({
@@ -2913,7 +2917,7 @@ function GanttBoard() {
                                                 className="h-8 gap-1.5 rounded border border-blue-700 bg-blue-600 hover:bg-blue-700 px-3 text-xs font-bold text-white shadow-sm transition-all hover:scale-105"
                                             >
                                                 <ClipboardList className="h-3.5 w-3.5" />
-                                                Pre-inspeksi Takeover
+                                                Takeover
                                             </Button>
                                         )}
                                     </div>
@@ -3655,7 +3659,7 @@ function GanttBoard() {
                                         type="button"
                                         onClick={() => {
                                             setShowTargetStModal(null);
-                                            openUnifiedCheckpoint(stCheckpoint as any, showTargetStModal.dayIndex);
+                                            openUnifiedCheckpoint(stCheckpoint as any, showTargetStModal.dayIndex, { fromSerahTerimaModal: true });
                                         }}
                                         className="flex h-11 w-full items-center justify-center rounded-md bg-blue-600 px-4 font-bold text-white transition hover:bg-blue-500 shadow-sm"
                                     >
@@ -3733,6 +3737,7 @@ function GanttBoard() {
                     missingInOtherScopes={missingInOtherScopes}
                     targetStDate={targetStInfo?.date ? formatDateForPengawasan(targetStInfo.date) : null}
                     takeoverSequence={currentTs}
+                    fromSerahTerimaModal={Boolean(unifiedMemoFlow?.fromSerahTerimaModal)}
                     onDraftChange={(draft: any) => {
                         if (!activeMemoGanttId || !activeHeaderClick) return;
                         const key = `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
@@ -3907,8 +3912,9 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 }
 
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate, takeoverSequence }: any) {
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate, takeoverSequence, fromSerahTerimaModal }: any) {
     const { showAlert } = useGlobalAlert();
+    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
     const router = useRouter();
     const { user } = useSession();
     const canCreateInstruksiLapangan = (user?.isSuperHuman ?? false) || (user?.roles ?? []).includes('BRANCH BUILDING SUPPORT');
@@ -4067,7 +4073,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     setBlockedOpnameItemKeys(blockedOpnameIds);
 
                     const hasPengawasanDocument = (row: any) =>
-                        Boolean(String(row?.dokumentasi || '').trim() || String(row?.dokumentasi_base64 || '').trim());
+                        Boolean(String(row?.dokumentasi || '').trim());
                     const workKeyOf = (row: any) => `${String(row.kategori_pekerjaan || '').toUpperCase()}|${String(row.jenis_pekerjaan || '').toUpperCase()}`;
                     const comparePengawasanPriority = (a: any, b: any) => {
                         const aMissingDoc = hasPengawasanDocument(a) ? 1 : 0;
@@ -4117,14 +4123,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             const hasDocument = hasPengawasanDocument(p);
                             if (p.id) idMap.set(key, p.id);
                             if (p.status.toLowerCase() !== 'selesai' || !hasDocument) {
+                                const isProgressResolution = Boolean(
+                                    isTargetStMemo && fromSerahTerimaModal && p.status.toLowerCase() === 'progress'
+                                );
                                 initial[key] = {
-                                    status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
+                                    status: isProgressResolution ? '' : (p.status.charAt(0).toUpperCase() + p.status.slice(1)),
                                     lateDays: 0,
                                     catatan: p.catatan || '',
                                     file: null,
                                     dokumentasiUrl: p.dokumentasi || null,
                                     isSaved: hasDocument,
-                                    needsCurrentCheckpointCompletion: !hasDocument
+                                    needsCurrentCheckpointCompletion: !hasDocument,
+                                    previousStatus: p.status.charAt(0).toUpperCase() + p.status.slice(1),
                                 };
                             }
                         }
@@ -4311,6 +4321,49 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         return formatDateForInput(nextDate);
     }, [activeHeaderClick, getEffectiveWorkStart, maxLateDays]);
 
+    const { isLastSupervisionDay, lastSupervisionDateNumeric } = useMemo(() => {
+        if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) {
+            return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
+        }
+
+        const datesInNumeric = pengawasanHistory
+            .map((p: any) => p.tanggal_pengawasan)
+            .filter(Boolean)
+            .map((dStr: string) => {
+                const parts = dStr.split('/');
+                if (parts.length === 3) {
+                    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
+                }
+                return 0;
+            })
+            .filter((val: number) => val > 0)
+            .sort((a: number, b: number) => a - b);
+
+        if (datesInNumeric.length === 0) return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
+        const maxDate = datesInNumeric[datesInNumeric.length - 1];
+
+        const effectiveStart = getEffectiveWorkStart();
+        const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
+        const checkpointDate = parseDateAny(activeHeaderClick.dateString);
+        let offset = activeHeaderClick.dayIndex || 0;
+        if (checkpointDate && !isNaN(checkpointDate.getTime())) {
+            const diffTime = checkpointDate.getTime() - startD.getTime();
+            offset = Math.round(diffTime / (1000 * 3600 * 24));
+        }
+
+        const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
+        dDate.setDate(dDate.getDate() + offset);
+        const yyyy = dDate.getFullYear();
+        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(dDate.getDate()).padStart(2, '0');
+        const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
+
+        return {
+            isLastSupervisionDay: maxDate === currentNumeric,
+            lastSupervisionDateNumeric: maxDate
+        };
+    }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
+
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
         const effectiveStart = getEffectiveWorkStart();
@@ -4438,7 +4491,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             });
 
             // [Poin 1 & 2] Aturan visibilitas tombol status:
-            if (hasFutureHit) {
+            if (isTargetStMemo || isLastSupervisionDay) {
+                hideOnProgress = true;
+                hideOnTerlambat = false;
+            } else if (hasFutureHit) {
                 hideOnProgress = false;
                 hideOnTerlambat = true;
             } else {
@@ -4563,7 +4619,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, futureStatusItemKeys]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, futureStatusItemKeys, isTargetStMemo, isLastSupervisionDay]);
 
     const filteredMemoConfig = useMemo(() => {
         if (!searchQuery.trim()) return memoConfig;
@@ -4696,9 +4752,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             finalValue = await compressImage(value);
 
             if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
-                showAlert({
-                    message: `File "${finalValue.name}" masih lebih besar dari 10MB setelah proses kompresi. Pilih file yang lebih kecil.`,
-                    type: 'warning'
+                setFileLimitWarning({
+                    isOpen: true,
+                    fileName: finalValue.name,
+                    fileSizeMB: finalValue.size / (1024 * 1024)
                 });
                 return;
             }
@@ -4728,52 +4785,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }));
     };
 
-    const { isLastSupervisionDay, lastSupervisionDateNumeric } = useMemo(() => {
-        if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) {
-            return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
-        }
-
-        const datesInNumeric = pengawasanHistory
-            .map((p: any) => p.tanggal_pengawasan)
-            .filter(Boolean)
-            .map((dStr: string) => {
-                const parts = dStr.split('/');
-                if (parts.length === 3) {
-                    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
-                }
-                return 0;
-            })
-            .filter((val: number) => val > 0)
-            .sort((a: number, b: number) => a - b);
-
-        if (datesInNumeric.length === 0) return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
-        const maxDate = datesInNumeric[datesInNumeric.length - 1];
-
-        const effectiveStart = getEffectiveWorkStart();
-        const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
-        const checkpointDate = parseDateAny(activeHeaderClick.dateString);
-        let offset = activeHeaderClick.dayIndex || 0;
-        if (checkpointDate && !isNaN(checkpointDate.getTime())) {
-            const diffTime = checkpointDate.getTime() - startD.getTime();
-            offset = Math.round(diffTime / (1000 * 3600 * 24));
-        }
-
-        const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
-        dDate.setDate(dDate.getDate() + offset);
-        const yyyy = dDate.getFullYear();
-        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(dDate.getDate()).padStart(2, '0');
-        const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
-
-        return {
-            isLastSupervisionDay: maxDate === currentNumeric,
-            lastSupervisionDateNumeric: maxDate
-        };
-    }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
-
     const canCreateNextHandover = useMemo(() => {
         if (!hasLateItems) return false;
-        if (isLastSupervisionDay) return true;
+        if (isLastSupervisionDay || isTargetStMemo) return true;
 
         if (minNextHandoverDate && lastSupervisionDateNumeric > 0) {
             const parts = minNextHandoverDate.split('-');
@@ -4785,7 +4799,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }
         }
         return false;
-    }, [hasLateItems, isLastSupervisionDay, minNextHandoverDate, lastSupervisionDateNumeric]);
+    }, [hasLateItems, isLastSupervisionDay, isTargetStMemo, minNextHandoverDate, lastSupervisionDateNumeric]);
 
     useEffect(() => {
         if (!canCreateNextHandover || !minNextHandoverDate) return;
@@ -4822,7 +4836,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (isAlreadySelesai && !needsOpnameFill) continue;
 
                 const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
-                if (isSavedOnCurrentDate && !needsOpnameFill) continue;
+                const isResolvingFromSt = Boolean(fromSerahTerimaModal && ['Progress', 'Terlambat', 'progress', 'terlambat'].includes(latestStatusMapState.get(key) as string));
+                if (isSavedOnCurrentDate && !needsOpnameFill && !isResolvingFromSt) continue;
 
                 editableItemCount += 1;
 
@@ -4868,7 +4883,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
 
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isWorkItemBlockedByOpname, findWorkItemForMemo, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate]);
+    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isWorkItemBlockedByOpname, findWorkItemForMemo, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate, fromSerahTerimaModal]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -4909,13 +4924,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                         // Jika sudah disimpan hari ini dan BUKAN butuh opname, lewati (tidak bisa diedit lagi hari ini)
                         const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
-                        if (isSavedOnCurrentDate && !needsOpnameFill) continue;
+                        const isResolvingFromSt = Boolean(fromSerahTerimaModal && ['Progress', 'Terlambat', 'progress', 'terlambat'].includes(latestStatusMapState.get(key) as string));
+                        if (isSavedOnCurrentDate && !needsOpnameFill && !isResolvingFromSt) continue;
 
                         editableItemCount += 1;
 
                         const input = memoInputs[key] || ({} as any);
                         const existingStatus = latestStatusMapState.get(key);
-                        if (!input.status && existingStatus) {
+                        if (!input.status && existingStatus && !fromSerahTerimaModal) {
                             input.status = existingStatus as any;
                         }
 
@@ -4985,7 +5001,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             const entriesToSubmit = Object.entries(memoInputs).filter(([key, val]) => {
                 const existingStatus = latestStatusMapState.get(key);
-                const effectiveStatus = val.status || existingStatus;
+                const effectiveStatus = (fromSerahTerimaModal && val.status) ? val.status : (val.status || existingStatus);
                 if (!effectiveStatus) return false;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
             const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
@@ -4993,8 +5009,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const itemForKey = pipeIdx === -1 ? null : findMemoItemForSubmit(key.substring(0, pipeIdx), key.substring(pipeIdx + 1));
                 const needsOpnameFill = isAlreadySelesai && (itemForKey ? !isWorkItemBlockedByOpname(itemForKey, key) : !blockedOpnameItemKeys.has(key));
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
+                const isResolvingFromSt = Boolean(fromSerahTerimaModal && ['Progress', 'Terlambat', 'progress', 'terlambat'].includes(latestStatusMapState.get(key) as string));
                 
-                return needsOpnameFill ? isOpnameTouched(val) : !isSavedOnCurrentDate;
+                return needsOpnameFill ? isOpnameTouched(val) : (isResolvingFromSt ? true : !isSavedOnCurrentDate);
             });
             const shouldOpenOpname = false; // Option B: Standalone modal dinonaktifkan karena form opname sudah inline
             const hasNextHandoverAction = canCreateNextHandover && !!nextHandoverDate;
@@ -5043,7 +5060,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const existingId = latestIdMapState.get(upperKey);
 
                 const existingStatus = latestStatusMapState.get(key);
-                const effectiveStatus = val.status || existingStatus;
+                const effectiveStatus = (fromSerahTerimaModal && val.status) ? val.status : (val.status || existingStatus);
 
                 // [PERBAIKAN 1]: Mengubah status menjadi lowercase utuh agar lolos validasi strict enum backend
                 const statusLower = typeof effectiveStatus === 'string' ? effectiveStatus.toLowerCase().replace(/\s+/g, '_') : '';
@@ -5085,7 +5102,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
-                if (existingId) {
+                const isResolvingAsNewRow = Boolean(fromSerahTerimaModal && existingId);
+                if (existingId && !isResolvingAsNewRow) {
                     // [PERBAIKAN 2]: DILARANG mengirim keterlambatan, id_gantt, & tanggal_pengawasan pada API PUT
                     // [PERBAIKAN 3]: Hanya kirim catatan jika user mengisinya, hindari duplicate ID
                     const alreadyQueued = itemsArrayUpdate.some(i => i.id === Number(existingId));
@@ -5109,8 +5127,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         status: statusSafe,
                         // [PERBAIKAN 4]: DILARANG mengirim keterlambatan pada payload POST bulk
                     };
+                    if (isResolvingAsNewRow) {
+                        insertItem.append_resolution = true;
+                    }
                     if (val.catatan && String(val.catatan).trim()) insertItem.catatan = String(val.catatan).trim();
-                    if (!val.file && val.dokumentasiUrl) insertItem.dokumentasi = val.dokumentasiUrl;
+                    if (!val.file && (val.dokumentasiUrl || (memoInputs[key] as any)?.dokumentasiUrl)) {
+                        insertItem.dokumentasi = val.dokumentasiUrl || (memoInputs[key] as any)?.dokumentasiUrl;
+                    }
                     if (opnameData) insertItem.opname_data = opnameData;
                     itemsArrayInsert.push(insertItem);
                     if (val.file) {
@@ -5296,7 +5319,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             if (catsLate.size > 0) {
                 const { updateGanttDelay } = await import('@/lib/api');
                 const updates = Array.from(catsLate.entries()).map(([catName, totalLate]) => ({
-                    kategori_pekerjaan: catName.toUpperCase(),
+                    kategori_pekerjaan: catName,
                     keterlambatan: String(totalLate)
                 }));
                 const nextTanggalPengawasan = hasNextHandoverAction && nextHandoverDate
@@ -5488,8 +5511,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                     {d.items.map((item: any, j: number) => {
                                                         const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                                                         const latestStatusKey = latestStatusMapState.get(key);
-                                                        const currentStatus = memoInputs[key]?.status || latestStatusKey;
+                                                        const currentStatus = (memoInputs.hasOwnProperty(key) && memoInputs[key]?.status !== undefined)
+                                                            ? memoInputs[key].status
+                                                            : (latestStatusKey || '');
                                                         const lateDays = memoInputs[key]?.lateDays || 0;
+                                                        const isAlreadySavedToday = Boolean((memoInputs[key] as any)?.isSaved && latestIdMapState.has(key));
+                                                        const shouldLockAsSaved = isAlreadySavedToday && !fromSerahTerimaModal;
 
                                                         const renderOpnameForm = () => {
                                                             if (currentStatus !== 'Selesai' || isWorkItemBlockedByOpname(item, key)) return null;
@@ -5620,7 +5647,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                             )}
                                                                             {!isReadOnly && renderOpnameForm()}
                                                                         </div>
-                                                                    ) : (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
+                                                                    ) : shouldLockAsSaved ? (
                                                                         <div className={`flex items-center justify-between p-3 rounded-xl border shadow-sm w-full ${currentStatus === 'Terlambat' ? 'bg-red-50 border-red-200/60' : 'bg-blue-50 border-blue-200/60'}`}>
                                                                             <div className="flex items-center gap-2.5">
                                                                                 {currentStatus === 'Terlambat' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Clock className="w-5 h-5 text-blue-500" />}
@@ -5742,6 +5769,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                         onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
                                                                                                         className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
                                                                                                     />
+                                                                                                    {memoInputs[key]?.dokumentasiUrl && (
+                                                                                                        <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="ml-2 flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200 transition-colors shrink-0">
+                                                                                                            <FileText className="w-3.5 h-3.5" /> Foto Sebelumnya
+                                                                                                        </a>
+                                                                                                    )}
                                                                                                 </div>
                                                                                             </div>
 
@@ -5882,11 +5914,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         showInstruksiToast(message || "Gagal menyimpan Instruksi Lapangan.", "error");
                     }}
                     initialTokoId={id_toko}
+                    />
+                )}
+                
+                <FileLimitWarningModal
+                    isOpen={fileLimitWarning.isOpen}
+                    onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
+                    fileName={fileLimitWarning.fileName}
+                    fileSizeMB={fileLimitWarning.fileSizeMB}
                 />
-            )}
-        </>
-    );
-}
+            </>
+        );
+    }
 
 // Komponen OpnameModal
 function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose, selectedGanttId, onSuccess, spkInfo, scopeLabel, nextScopeLabel, flowStep, onNavigateScope }: any) {
@@ -5895,6 +5934,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
     const [isLoading, setIsLoading] = useState(true);
     const [opnameInputs, setOpnameInputs] = useState<Record<string, any>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
     const [hasOpnameFinal, setHasOpnameFinal] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [completedPengawasanCount, setCompletedPengawasanCount] = useState(0);
@@ -6098,12 +6138,26 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         };
     }, [selectedGanttId, activeHeaderClick?.dateString, rabItems, id_toko, nomorUlok]);
 
-    const handleSetOpname = (id: string | number, field: string, value: any) => {
+    const handleSetOpname = async (id: string | number, field: string, value: any) => {
+        let finalValue = value;
+        if (field === 'file' && value instanceof File) {
+            const { compressImage } = await import('@/lib/utils');
+            finalValue = await compressImage(value);
+            
+            if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
+                setFileLimitWarning({
+                    isOpen: true,
+                    fileName: finalValue.name,
+                    fileSizeMB: finalValue.size / (1024 * 1024)
+                });
+                return;
+            }
+        }
         setOpnameInputs(prev => ({
             ...prev,
             [id]: {
                 ...prev[id],
-                [field]: value
+                [field]: finalValue
             }
         }));
     };
@@ -6530,6 +6584,12 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     </Button>
                 </div>
             </div>
+            <FileLimitWarningModal
+                isOpen={fileLimitWarning.isOpen}
+                onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
+                fileName={fileLimitWarning.fileName}
+                fileSizeMB={fileLimitWarning.fileSizeMB}
+            />
         </div>
     );
 }

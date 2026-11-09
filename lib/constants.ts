@@ -480,7 +480,16 @@ export const hasStoreWorkspaceRole = (role: string | string[] | undefined | null
 export const canViewAllBranches = (
     role: string | string[] | undefined | null,
     isSuperHuman = false
-): boolean => isSuperHuman || hasRegionalManagerRole(role) || normalizeRoles(role).includes("HEAD OFFICE");
+): boolean => {
+    if (isSuperHuman) return true;
+    if (hasRegionalManagerRole(role)) return true;
+    const roles = normalizeRoles(role);
+    if (roles.includes("HEAD OFFICE")) return true;
+    if (roles.some((r) => r.includes("PROJECT PLANNING") || r.includes("PP SPECIALIST") || r.includes("PP MANAGER"))) {
+        return true;
+    }
+    return false;
+};
 
 export const canApproveAllBranches = (
     _role: string | string[] | undefined | null,
@@ -558,6 +567,7 @@ export const BRANCH_GROUPS: Record<string, string[]> = {
     LAMPUNG: ["LAMPUNG", "KOTABUMI"],
     PALEMBANG: ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
     SIDOARJO: ["SIDOARJO", "SIDOARJO BPN SMD", "MANOKWARI", "NTT", "SORONG"], // FIX: spasi bukan underscore
+    BANJARMASIN: ["BANJARMASIN", "PALANGKARAYA"],
 };
 
 export const normalizeBranchValue = (branch?: string | null): string =>
@@ -612,7 +622,7 @@ export const SUPPORTED_PRICE_BRANCHES = [
     "CIKOKOL", "BINTAN", "CILACAP", "CILEUNGSI", "GORONTALO", "JAMBI",
     "JEMBER", "KARAWANG", "KLATEN", "KOTABUMI", "LAMPUNG", "LOMBOK",
     "LUWU", "MADIUN", "MAKASSAR", "MALANG", "MANADO", "MANOKWARI",
-    "MEDAN", "NTT", "PALEMBANG", "PARUNG", "PEKANBARU", "PLUMBON",
+    "MEDAN", "NTT", "PALANGKARAYA", "PALEMBANG", "PARUNG", "PEKANBARU", "PLUMBON",
     "PONTIANAK", "REMBANG", "SEMARANG", "SERANG", "SIDOARJO",
     "SIDOARJO BPN SMD", "SORONG", "SUMBAWA", "TEGAL", "HEAD OFFICE"
 ];
@@ -723,6 +733,7 @@ export const BRANCH_TO_ULOK: Record<string, string> = {
     "BATAM": "2DZ1",
     "MADIUN": "2MZ1",
     "BINTAN": "KZ01",
+    "PALANGKARAYA": "1GZ1",
 };
 
 // -----------------------------------------------------------------------------
@@ -750,4 +761,105 @@ export const getPpRoles = (userRole: string | string[], email: string) => {
     const isPP = upperRoles.some(r => (r.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || r.includes("PP SPECIALIST") || (r.includes("PROJECT PLANNING") && !r.includes("MANAGER")))) || email === "wildan.pp@gmail.com";
 
     return { isCoor, isBM, isBMRegional, isPP, isPPMgr };
+};
+
+// -----------------------------------------------------------------------------
+// HELPER FORMAT STATUS PROJECT PLANNING
+// -----------------------------------------------------------------------------
+
+export const formatProjectPlanningStatus = (status: string | null | undefined): { label: string; badgeClass: string; timelineColor: string } => {
+    if (!status) {
+        return { label: 'Tersedia', badgeClass: 'bg-slate-50 text-slate-600 border-slate-200', timelineColor: 'slate' };
+    }
+
+    const key = String(status).trim().toUpperCase();
+
+    switch (key) {
+        case 'DRAFT':
+            return {
+                label: 'Draft',
+                badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+                timelineColor: 'slate',
+            };
+        case 'WAITING_BM_APPROVAL':
+            return {
+                label: 'Menunggu B&M Manager (Tahap 1)',
+                badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+                timelineColor: 'amber',
+            };
+        case 'WAITING_PP_APPROVAL_1':
+            return {
+                label: 'Menunggu PP Specialist (Tahap 1)',
+                badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+                timelineColor: 'blue',
+            };
+        case 'PP_DESIGN_3D_REQUIRED':
+            return {
+                label: 'Input Desain 3D',
+                badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+                timelineColor: 'purple',
+            };
+        case 'WAITING_RAB_UPLOAD':
+            return {
+                label: 'Input RAB & Gambar (Tahap 2)',
+                badgeClass: 'bg-orange-50 text-orange-700 border-orange-200',
+                timelineColor: 'orange',
+            };
+        case 'WAITING_BM_APPROVAL_2':
+            return {
+                label: 'Menunggu B&M Manager (Tahap 2)',
+                badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+                timelineColor: 'amber',
+            };
+        case 'WAITING_BM_REGIONAL_APPROVAL':
+            return {
+                label: 'Menunggu B&M Regional',
+                badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+                timelineColor: 'sky',
+            };
+        case 'WAITING_PP_APPROVAL_2':
+            return {
+                label: 'Menunggu PP Specialist (Tahap 2)',
+                badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+                timelineColor: 'cyan',
+            };
+        case 'WAITING_PP_MANAGER_APPROVAL':
+            return {
+                label: 'Menunggu PP Manager (Final)',
+                badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                timelineColor: 'indigo',
+            };
+        case 'COMPLETED':
+        case 'SELESAI':
+        case 'APPROVED':
+            return {
+                label: 'Disetujui (Selesai)',
+                badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                timelineColor: 'emerald',
+            };
+        case 'REJECTED':
+        case 'DITOLAK':
+            return {
+                label: 'Ditolak',
+                badgeClass: 'bg-red-50 text-red-700 border-red-200',
+                timelineColor: 'rose',
+            };
+        case 'REVISION_REQUESTED':
+            return {
+                label: 'Perlu Revisi',
+                badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+                timelineColor: 'amber',
+            };
+        default: {
+            const humanized = key
+                .replace(/_/g, ' ')
+                .toLowerCase()
+                .replace(/\b\w/g, (c) => c.toUpperCase());
+            return {
+                label: humanized,
+                badgeClass: 'bg-violet-50 text-violet-700 border-violet-200',
+                timelineColor: 'violet',
+            };
+        }
+    }
 };

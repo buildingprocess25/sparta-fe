@@ -8,11 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X, Calendar } from 'lucide-react';
 import { apiFetch, fetchPengawasanList, fetchRABList, fetchRABDetail, fetchGanttDetail } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
+import { FileLimitWarningModal } from '@/components/FileLimitWarningModal';
+
+const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
     const [tanggalTakeover, setTanggalTakeover] = useState('');
     const [items, setItems] = useState<any[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
 
     useEffect(() => {
         if (!workspace) return;
@@ -34,7 +38,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                             if (!workspace.scopes.some((s: any) => s.id_toko === tokoId)) {
                                 continue;
                             }
-                            
+
                             const lingkup = detailRes.data.toko?.lingkup_pekerjaan;
                             const itemsWithLingkup = detailRes.data.items.map(item => ({
                                 ...item,
@@ -51,19 +55,19 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
             // 2. Process each scope to find remaining unfinished items
             for (const scope of workspace.scopes) {
                 if (!scope.gantt_id) continue;
-                
+
                 try {
                     const ganttRes = await fetchGanttDetail(scope.gantt_id);
                     const listRes = await fetchPengawasanList({ id_gantt: scope.gantt_id });
-                    
+
                     if (ganttRes.status === 'success' && ganttRes.data) {
                         const supervisedItems = (listRes.status === 'success' && listRes.data) ? listRes.data : [];
                         const ilItems = ganttRes.data.instruksi_lapangan_items || [];
-                        
+
                         // Filter RAB items that belong to this scope
                         const scopeRabItems = rabItems
-                    .filter(item => String(item.lingkup_pekerjaan).toUpperCase() === String(scope.lingkup_pekerjaan).toUpperCase())
-                    .map(item => ({ ...item, id_gantt: scope.gantt_id }));
+                            .filter(item => String(item.lingkup_pekerjaan).toUpperCase() === String(scope.lingkup_pekerjaan).toUpperCase())
+                            .map(item => ({ ...item, id_gantt: scope.gantt_id }));
 
                         // Map IL items to RAB-like format
                         const mappedIlItems = ilItems.map((item: any) => ({
@@ -77,7 +81,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
 
                         for (const rabItem of combinedItems) {
                             // Check if this RAB item is already 'Selesai' in pengawasan history
-                            const historyMatch = supervisedItems.find((h: any) => 
+                            const historyMatch = supervisedItems.find((h: any) =>
                                 isSameWorkText(h.kategori_pekerjaan, rabItem.kategori_pekerjaan) &&
                                 isSameWorkText(h.jenis_pekerjaan, rabItem.jenis_pekerjaan || rabItem.kategori_pekerjaan)
                             );
@@ -88,7 +92,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                 const hargaMaterial = Number(rabItem.harga_material || 0);
                                 const hargaUpah = Number(rabItem.harga_upah || 0);
                                 const volumeRAB = Number(rabItem.volume || 0);
-                                
+
                                 allItems.push({
                                     id_pengawasan: historyMatch?.id,
                                     id_gantt: scope.gantt_id,
@@ -134,8 +138,22 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
         }));
     };
 
-    const handleOpnameFieldChange = (index: number, field: string, value: any) => {
-        setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    const handleOpnameFieldChange = async (index: number, field: string, value: any) => {
+        let finalValue = value;
+        if ((field === 'file_opname' || field === 'file_dokumentasi') && value instanceof File) {
+            const { compressImage } = await import('@/lib/utils');
+            finalValue = await compressImage(value);
+            
+            if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
+                setFileLimitWarning({
+                    isOpen: true,
+                    fileName: finalValue.name,
+                    fileSizeMB: finalValue.size / (1024 * 1024)
+                });
+                return;
+            }
+        }
+        setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: finalValue } : item));
     };
 
     const handleSubmit = async () => {
@@ -150,8 +168,8 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
             return;
         }
 
-        const incompleteOpname = items.find(i => 
-            i.status === 'Selesai' && 
+        const incompleteOpname = items.find(i =>
+            i.status === 'Selesai' &&
             (!i.volume_akhir || !i.desain || !i.kualitas || !i.spesifikasi || !i.file_opname)
         );
 
@@ -173,12 +191,12 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                     jenis_pekerjaan: item.jenis || null,
                     status: item.status
                 };
-                
+
                 if (item.status === 'Selesai') {
                     const totalHargaOpname = Math.round(Number(item.volume_akhir) * item.hargaSatuan);
                     const totalSelisih = Math.round(item.volumeRAB * item.hargaSatuan) - totalHargaOpname;
                     const selisihVolume = item.volumeRAB - Number(item.volume_akhir);
-                    
+
                     payloadItem.opname_data = {
                         id_rab_item: item.source_type === 'RAB' ? Number(item.id_rab_item) : undefined,
                         id_instruksi_lapangan_item: item.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item) : undefined,
@@ -191,7 +209,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                         spesifikasi: item.spesifikasi || '',
                         catatan: item.catatan || ''
                     };
-                    
+
                     if (item.file_opname) {
                         formData.append(`file_opname_${idx}`, item.file_opname);
                     }
@@ -226,7 +244,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
             <div className="w-full max-w-3xl max-h-[90vh] bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col">
                 <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Pre-inspeksi Takeover</h2>
+                        <h2 className="text-xl font-bold text-slate-800">Takeover</h2>
                         <p className="text-sm text-slate-500">Tentukan status akhir setiap pekerjaan sebelum proyek diambil alih.</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5" /></button>
@@ -237,11 +255,11 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                         <Label className="text-slate-700 font-bold">Tanggal Takeover <span className="text-red-500">*</span></Label>
                         <div className="relative mt-2">
                             <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                            <Input 
-                                type="date" 
-                                value={tanggalTakeover} 
+                            <Input
+                                type="date"
+                                value={tanggalTakeover}
                                 onChange={(e) => setTanggalTakeover(e.target.value)}
-                                className="pl-9 h-10 border-slate-300 w-full md:w-1/2" 
+                                className="pl-9 h-10 border-slate-300 w-full md:w-1/2"
                                 required
                             />
                         </div>
@@ -261,8 +279,8 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                                 {String(item.lingkup).toUpperCase()}
                                             </span>
                                         </div>
-                                        <Select 
-                                            value={item.status || ''} 
+                                        <Select
+                                            value={item.status || ''}
                                             onValueChange={(val) => handleItemChange(idx, val)}
                                         >
                                             <SelectTrigger className="w-32 h-8 text-xs bg-white">
@@ -277,10 +295,10 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                         {item.status && (
                                             <div className="mt-3 bg-white p-3 rounded border border-slate-200 shadow-inner">
                                                 <Label className="text-[10px] text-slate-500 font-bold uppercase">Upload Foto Pengawasan (Opsional)</Label>
-                                                <Input 
-                                                    type="file" 
-                                                    accept="image/*" 
-                                                    className="h-8 text-xs mt-1 py-1" 
+                                                <Input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="h-8 text-xs mt-1 py-1"
                                                     onChange={(e) => handleOpnameFieldChange(idx, 'file_dokumentasi', e.target.files?.[0] || null)}
                                                 />
                                             </div>
@@ -291,52 +309,52 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
                                                         <Label className="text-[10px] text-slate-500 font-bold uppercase">Volume Akhir (RAB: {item.volumeRAB} {item.satuan}) <span className="text-red-500">*</span></Label>
-                                                        <Input 
-                                                            type="number" 
-                                                            className="h-8 text-xs mt-1" 
-                                                            value={item.volume_akhir ?? ''} 
+                                                        <Input
+                                                            type="number"
+                                                            className="h-8 text-xs mt-1"
+                                                            value={item.volume_akhir ?? ''}
                                                             onChange={(e) => handleOpnameFieldChange(idx, 'volume_akhir', e.target.value)}
                                                         />
                                                     </div>
                                                     <div>
                                                         <Label className="text-[10px] text-slate-500 font-bold uppercase">Desain <span className="text-red-500">*</span></Label>
                                                         <Select value={item.desain || ''} onValueChange={(v) => handleOpnameFieldChange(idx, 'desain', v)}>
-                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..."/></SelectTrigger>
+                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..." /></SelectTrigger>
                                                             <SelectContent><SelectItem value="Sesuai">Sesuai</SelectItem><SelectItem value="Tidak Sesuai">Tidak Sesuai</SelectItem></SelectContent>
                                                         </Select>
                                                     </div>
                                                     <div>
                                                         <Label className="text-[10px] text-slate-500 font-bold uppercase">Kualitas <span className="text-red-500">*</span></Label>
                                                         <Select value={item.kualitas || ''} onValueChange={(v) => handleOpnameFieldChange(idx, 'kualitas', v)}>
-                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..."/></SelectTrigger>
+                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..." /></SelectTrigger>
                                                             <SelectContent><SelectItem value="Baik">Baik</SelectItem><SelectItem value="Tidak Baik">Tidak Baik</SelectItem></SelectContent>
                                                         </Select>
                                                     </div>
                                                     <div>
                                                         <Label className="text-[10px] text-slate-500 font-bold uppercase">Material <span className="text-red-500">*</span></Label>
                                                         <Select value={item.spesifikasi || ''} onValueChange={(v) => handleOpnameFieldChange(idx, 'spesifikasi', v)}>
-                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..."/></SelectTrigger>
+                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..." /></SelectTrigger>
                                                             <SelectContent><SelectItem value="Sesuai">Sesuai</SelectItem><SelectItem value="Tidak Sesuai">Tidak Sesuai</SelectItem></SelectContent>
                                                         </Select>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div>
                                                     <Label className="text-[10px] text-slate-500 font-bold uppercase">Upload Foto <span className="text-red-500">*</span></Label>
-                                                    <Input 
-                                                        type="file" 
-                                                        accept="image/*" 
-                                                        className="h-8 text-xs mt-1 py-1" 
+                                                    <Input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="h-8 text-xs mt-1 py-1"
                                                         onChange={(e) => handleOpnameFieldChange(idx, 'file_opname', e.target.files?.[0] || null)}
                                                     />
                                                 </div>
 
                                                 <div>
                                                     <Label className="text-[10px] text-slate-500 font-bold uppercase">Catatan Tambahan (Opsional)</Label>
-                                                    <Input 
-                                                        className="h-8 text-xs mt-1" 
-                                                        placeholder="Catatan masalah, selisih..." 
-                                                        value={item.catatan || ''} 
+                                                    <Input
+                                                        className="h-8 text-xs mt-1"
+                                                        placeholder="Catatan masalah, selisih..."
+                                                        value={item.catatan || ''}
                                                         onChange={(e) => handleOpnameFieldChange(idx, 'catatan', e.target.value)}
                                                     />
                                                 </div>
@@ -356,6 +374,13 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                     </Button>
                 </div>
             </div>
+            
+            <FileLimitWarningModal
+                isOpen={fileLimitWarning.isOpen}
+                onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
+                fileName={fileLimitWarning.fileName}
+                fileSizeMB={fileLimitWarning.fileSizeMB}
+            />
         </div>
     );
 }

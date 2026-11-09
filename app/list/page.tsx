@@ -490,6 +490,7 @@ const canAccessSuratPeringatanDocs = (role: string, isSuperHuman: boolean) => {
     if (isSuperHuman) return true;
     const roles = getRoleParts(role);
     if (roles.some(roleName => roleName === 'KONTRAKTOR' || roleName.includes('DIREKTUR KONTRAKTOR'))) return true;
+    if (roles.some(roleName => roleName.includes('PROJECT PLANNING') || roleName.includes('PP SPECIALIST') || roleName.includes('PP MANAGER'))) return true;
     return roles.some(roleName =>
         roleName.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
         roleName.includes('BRANCH BUILDING COORDINATOR') ||
@@ -672,10 +673,6 @@ type RabDisplayTotalSource = {
 };
 
 const getRabDisplayTotal = (rab: RabDisplayTotalSource) => {
-    const cabang = (rab?.cabang || rab?.toko?.cabang || '').trim().toUpperCase();
-    if (cabang === 'BATAM' || cabang === 'BINTAN') {
-        return parseCurrency(rab?.grand_total);
-    }
     return parseCurrency(rab?.grand_total_final ?? rab?.grand_total);
 };
 
@@ -888,8 +885,12 @@ type ProjectPlanningAttachment = {
 
 const hasLink = (url?: string | null) => !!url && url.trim() !== '';
 
-const firstAttachmentUrl = (url?: string | null) =>
-    String(url || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || '';
+const firstAttachmentUrl = (url?: string | null) => {
+    let u = String(url || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || '';
+    if (u.startsWith('http:/') && !u.startsWith('http://')) u = u.replace('http:/', 'http://');
+    if (u.startsWith('https:/') && !u.startsWith('https://')) u = u.replace('https:/', 'https://');
+    return u;
+};
 
 const isUploadedDriveFileLink = (url: string) => {
     const lower = firstAttachmentUrl(url).toLowerCase();
@@ -1386,8 +1387,8 @@ export default function DaftarDokumenPage() {
         setIsDirektur(direkturFlag);
         setIsSuperHuman(superHumanFlag);
         const ppRoles = getPpRoles(role, email);
-        const ppOnlyFlag = ppRoles.isPP && !ppRoles.isPPMgr && !ppRoles.isCoor && !ppRoles.isBM && !contractorFlag && !direkturFlag;
-        setIsPPOnly(ppOnlyFlag);
+        // PP Specialist dan Manager kini memiliki akses penuh ke seluruh dokumen
+        setIsPPOnly(false);
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email, nama_pt });
     }, [router]);
 
@@ -2834,8 +2835,6 @@ export default function DaftarDokumenPage() {
                                 // Hide PERTAMBAHAN_SPK, PENGAWASAN, BERKAS_SERAH_TERIMA and INSTRUKSI_LAPANGAN from KONTRAKTOR and DIREKTUR
                                 // KTK dan PENGAWASAN sekarang sudah difilter per kontraktor di backend, jadi boleh ditampilkan
                                 if ((kat === 'BERKAS_SERAH_TERIMA' || kat === 'INSTRUKSI_LAPANGAN') && (isContractor || isDirektur)) return false;
-                                // PP-only roles: hanya tampilkan card PROJECT_PLANNING
-                                if (isPPOnly && kat !== 'PROJECT_PLANNING') return false;
                                 // Hide PROJECT_PLANNING dari KONTRAKTOR dan DIREKTUR
                                 if (kat === 'PROJECT_PLANNING' && (isContractor || isDirektur)) return false;
                                 if (kat === 'PROJECT_PLANNING' && !canViewAllBranches(userInfo.role, isSuperHuman) && !canAccessProjectPlanningByCabang(userInfo.cabang)) return false;
@@ -3227,18 +3226,27 @@ export default function DaftarDokumenPage() {
                                                                         </Badge>
                                                                     )}
                                                                 </div>
-                                                                <p className="text-sm text-slate-600 truncate mt-0.5">
-                                                                    {selectedKategori === 'RAB'
-                                                                        ? doc.nama_toko
-                                                                        : (selectedKategori === 'SPK' ? (doc.nama_kontraktor || doc.nama_toko) : doc.nama_toko)
+                                                                <p className="text-sm font-medium text-slate-700 truncate mt-0.5">
+                                                                    {selectedKategori === 'SPK' || selectedKategori === 'PERTAMBAHAN_SPK'
+                                                                        ? (doc.nama_kontraktor || doc.nama_toko)
+                                                                        : doc.nama_toko
                                                                     }
-                                                                    {doc.cabang && doc.cabang !== '-' && ` • Cabang: ${doc.cabang}`}
                                                                 </p>
-                                                                <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                                                                <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+                                                                    {(selectedKategori === 'SPK' || selectedKategori === 'PERTAMBAHAN_SPK') && doc.nama_toko && doc.nama_toko !== '-' && (
+                                                                        <span className="text-[11px] font-semibold text-slate-700 bg-slate-100/80 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                                                                            <Building2 className="w-3 h-3 text-slate-500" /> {doc.nama_toko}
+                                                                        </span>
+                                                                    )}
+                                                                    {doc.cabang && doc.cabang !== '-' && (
+                                                                        <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md">
+                                                                            <MapPin className="w-3 h-3 text-slate-400" /> {doc.cabang}
+                                                                        </span>
+                                                                    )}
                                                                     <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                         <CalendarDays className="w-3 h-3" />
                                                                         {doc.tipe === 'OPNAME_FINAL'
-                                                                            ? `Tanggal KTK: ${doc.tanggal_kerja_tambah_kurang ? formatDate(doc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
+                                                                            ? `KTK: ${doc.tanggal_kerja_tambah_kurang ? formatDate(doc.tanggal_kerja_tambah_kurang) : 'Pending'}`
                                                                             : formatDate(doc.created_at)}
                                                                     </span>
                                                                     {doc.email_pembuat !== '-' && (
@@ -3248,7 +3256,7 @@ export default function DaftarDokumenPage() {
                                                                     )}
                                                                     {doc.proyek && doc.proyek !== '-' && (
                                                                         <span className="text-xs text-slate-400 flex items-center gap-1">
-                                                                            <Building2 className="w-3 h-3" /> {doc.proyek}
+                                                                            <Hash className="w-3 h-3" /> {doc.proyek}
                                                                         </span>
                                                                     )}
                                                                 </div>

@@ -80,7 +80,7 @@ export default function ContractorPerformanceDashboard() {
                                 Contractor Performance
                             </h1>
                             <p className="text-slate-500 mt-1 font-medium">
-                                Evaluasi performa mitra kerja berdasarkan Denda, SP, dan Kualitas.
+                                Evaluasi performa kontraktor berdasarkan Denda, SP, dan Kualitas.
                             </p>
                         </div>
                     </div>
@@ -317,7 +317,6 @@ export default function ContractorPerformanceDashboard() {
             <ContractorDrilldownModal 
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                token={""}
                 initialLayer={modalLayer}
                 initialMetric={modalMetric}
                 initialKontraktor={modalKontraktor}

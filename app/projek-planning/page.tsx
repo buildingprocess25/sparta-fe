@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AppNavbar from "@/components/AppNavbar";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  ChevronLeft, Plus, Search, Eye, Clock, CheckCircle2, XCircle,
+  ChevronLeft, ChevronDown, Plus, Search, Eye, Clock, CheckCircle2, XCircle,
   FileText, AlertTriangle, Filter, RefreshCw, ClipboardList,
 } from "lucide-react";
 import Link from "next/link";
@@ -42,22 +42,44 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const JENIS_FILTER_OPTIONS = [
+  "BEAN SPOT",
+  "FASADE",
+  "DARK STORE",
+  "DRIVE THRU",
+  "LAINNYA",
+] as const;
+
 export default function ProjekPlanningPage() {
   const router = useRouter();
   const [items, setItems] = useState<ProjekPlanningItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [selectedJenis, setSelectedJenis] = useState<string[]>([]);
+  const [isJenisOpen, setIsJenisOpen] = useState(false);
+  const jenisDropdownRef = useRef<HTMLDivElement>(null);
   const [userEmail, setUserEmail] = useState("");
   const [userCabang, setUserCabang] = useState("");
   const [userRole, setUserRole] = useState("");
   const [visibleCount, setVisibleCount] = useState(10);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (jenisDropdownRef.current && !jenisDropdownRef.current.contains(event.target as Node)) {
+        setIsJenisOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const filters: Record<string, string> = {};
       if (statusFilter) filters.status = statusFilter;
+      if (selectedJenis.length > 0) filters.jenis = selectedJenis.join(",");
       
       const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
       const canSeeAllBranches = canViewAllBranches(userRole);
@@ -105,6 +127,15 @@ export default function ProjekPlanningPage() {
           }
         }
 
+        if (selectedJenis.length > 0) {
+          const rowJenis = (d.jenis_pengajuan || "")
+            .toUpperCase()
+            .split(",")
+            .map((s: string) => s.trim());
+          const matches = selectedJenis.every((j) => rowJenis.includes(j));
+          if (!matches) return false;
+        }
+
         if (isSuperHuman) return true;
         if (isBMRegional) return BM_REGIONAL_VISIBLE_STATUSES.includes(d.status);
         if (isPP || isPPMgr) return true;
@@ -123,7 +154,7 @@ export default function ProjekPlanningPage() {
       localStorage.setItem("last_checked_fpd", new Date().toISOString());
     } catch (e: any) { console.error(e); }
     setLoading(false);
-  }, [statusFilter, search, userRole, userEmail, userCabang]);
+  }, [statusFilter, selectedJenis, search, userRole, userEmail, userCabang]);
 
   useEffect(() => {
     const email = sessionStorage.getItem("loggedInUserEmail") || "";
@@ -182,6 +213,77 @@ export default function ProjekPlanningPage() {
               <option key={k} value={k}>{v.label}</option>
             ))}
           </select>
+
+          {/* Multi-Select Jenis Filter */}
+          <div className="relative" ref={jenisDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsJenisOpen(!isJenisOpen)}
+              className={`h-9 px-3 border rounded-md text-sm bg-white flex items-center gap-2 transition-colors min-w-36 justify-between ${
+                selectedJenis.length > 0
+                  ? "border-red-400 text-red-700 font-medium bg-red-50/50"
+                  : "text-slate-700 border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">
+                  {selectedJenis.length === 0
+                    ? "Semua Jenis"
+                    : selectedJenis.length === 1
+                    ? selectedJenis[0]
+                    : `${selectedJenis.length} Jenis`}
+                </span>
+              </div>
+              {selectedJenis.length > 0 ? (
+                <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              )}
+            </button>
+
+            {isJenisOpen && (
+              <div className="absolute right-0 sm:left-0 sm:right-auto mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-2 space-y-1">
+                <div className="flex items-center justify-between pb-1.5 px-2 border-b border-slate-100 text-xs font-semibold text-slate-600">
+                  <span className="flex items-center gap-1">
+                    Filter Jenis <span className="text-[10px] bg-slate-100 text-slate-500 px-1 py-0.2 rounded font-mono font-medium">AND</span>
+                  </span>
+                  {selectedJenis.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedJenis([])}
+                      className="text-red-600 hover:underline text-[11px] font-normal"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <div className="py-1 space-y-0.5">
+                  {JENIS_FILTER_OPTIONS.map((opt) => {
+                    const checked = selectedJenis.includes(opt);
+                    return (
+                      <label
+                        key={opt}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 cursor-pointer text-xs text-slate-700 transition-colors select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setSelectedJenis((prev) =>
+                              checked ? prev.filter((x) => x !== opt) : [...prev, opt]
+                            );
+                          }}
+                          className="rounded border-slate-300 text-red-600 focus:ring-red-500 w-3.5 h-3.5 accent-red-600"
+                        />
+                        <span className={checked ? "font-semibold text-red-700" : ""}>{opt}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
           <Button variant="outline" size="sm" onClick={load} className="h-9 gap-1">
             <RefreshCw className="w-3.5 h-3.5" /> Refresh
           </Button>

@@ -18,7 +18,8 @@ import {
   File,
   Plus,
   History,
-  Clock
+  Clock,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -28,8 +29,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, logDcCategoryEdit, getDcCategoryEditLogs, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType, type DcCategoryActivityLog } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, getDcDocumentProxyUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, logDcCategoryEdit, getDcCategoryEditLogs, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType, type DcCategoryActivityLog } from "@/lib/api";
 import { DC_DOCUMENT_LEGENDS, getDcDocumentConfigForStage, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
+import { compressDocumentFile, isCompressibleFile, formatBytes } from "@/lib/document-compressor";
 
 const CUSTOM_SLOT_OPTIONS: DcDocumentUploadSlotType[] = ["PDF/JPEG", "AUTOCAD", "WORD", "EXCEL", "PPT"];
 
@@ -61,6 +63,9 @@ export default function DcDocumentDetailPage() {
   const [draftFiles, setDraftFiles] = useState<Record<string, File[]>>({});
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [savingCategory, setSavingCategory] = useState<string | null>(null);
+  const [compressingKeys, setCompressingKeys] = useState<Record<string, boolean>>({});
+  const [compressProgress, setCompressProgress] = useState<Record<string, { percent: number; current?: number; total?: number; message?: string }>>({});
+  const [compressedMeta, setCompressedMeta] = useState<Record<string, { originalSize: number; compressedSize: number; ratioPercent: number }>>({});
   
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedCategoryForHistory, setSelectedCategoryForHistory] = useState<{ id: string; name: string } | null>(null);
@@ -293,6 +298,18 @@ export default function DcDocumentDetailPage() {
         allJenis.forEach(j => delete next[j.key]);
         return next;
       });
+      setCompressedMeta(prev => {
+        const next = { ...prev };
+        allJenis.forEach(j => {
+          j.slots.forEach(s => {
+            const prefix = `${formatKey(j.key, s.type)}_`;
+            Object.keys(next).forEach(k => {
+              if (k.startsWith(prefix)) delete next[k];
+            });
+          });
+        });
+        return next;
+      });
       
       const action_details: string[] = [];
       if (uploadedDocsCount > 0) action_details.push(`${uploadedDocsCount} Dokumen Diunggah`);
@@ -347,8 +364,8 @@ export default function DcDocumentDetailPage() {
 
   const getAcceptString = (type: string) => {
     const t = type.toUpperCase();
-    if (t.includes('PDF/JPEG')) return 'application/pdf,image/jpeg,image/png,image/jpg';
-    if (t.includes('AUTOCAD')) return '.dwg,.dxf';
+    if (t.includes('PDF/JPEG')) return 'application/pdf,image/jpeg,image/png,image/jpg,.pdf,.jpg,.jpeg,.png';
+    if (t.includes('AUTOCAD')) return '.dwg,.dxf,application/acad,image/vnd.dwg';
     if (t.includes('WORD')) return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     if (t.includes('EXCEL')) return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     if (t.includes('PPT')) return '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -402,6 +419,76 @@ export default function DcDocumentDetailPage() {
       newFiles.splice(index, 1);
       return { ...prev, [compKey]: newFiles };
     });
+
+    setCompressedMeta(prev => {
+      const next = { ...prev };
+      delete next[`${compKey}_${index}`];
+      Object.keys(prev).forEach(k => {
+        if (k.startsWith(`${compKey}_`)) {
+          const idx = parseInt(k.replace(`${compKey}_`, ""), 10);
+          if (idx > index) {
+            next[`${compKey}_${idx - 1}`] = prev[k];
+            delete next[k];
+          }
+        }
+      });
+      return next;
+    });
+
+    setCompressProgress(prev => {
+      const next = { ...prev };
+      delete next[`${compKey}_${index}`];
+      Object.keys(prev).forEach(k => {
+        if (k.startsWith(`${compKey}_`)) {
+          const idx = parseInt(k.replace(`${compKey}_`, ""), 10);
+          if (idx > index) {
+            next[`${compKey}_${idx - 1}`] = prev[k];
+            delete next[k];
+          }
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleCompressDraft = async (compKey: string, index: number) => {
+    const file = draftFiles[compKey]?.[index];
+    if (!file || !isCompressibleFile(file)) return;
+
+    const taskKey = `${compKey}_${index}`;
+    setCompressingKeys(prev => ({ ...prev, [taskKey]: true }));
+    setCompressProgress(prev => ({
+      ...prev,
+      [taskKey]: { percent: 0, message: "Mempersiapkan..." }
+    }));
+
+    try {
+      const result = await compressDocumentFile(file, {
+        onProgress: (p) => {
+          setCompressProgress(prev => ({ ...prev, [taskKey]: p }));
+        }
+      });
+
+      setDraftFiles(prev => {
+        const files = [...(prev[compKey] || [])];
+        files[index] = result.file;
+        return { ...prev, [compKey]: files };
+      });
+
+      setCompressedMeta(prev => ({
+        ...prev,
+        [taskKey]: {
+          originalSize: result.originalSize,
+          compressedSize: result.compressedSize,
+          ratioPercent: result.ratioPercent,
+        }
+      }));
+    } catch (err) {
+      console.error("Gagal kompresi dokumen:", err);
+      alert(getErrorMessage(err, "Gagal mengompresi dokumen. Silakan coba kembali."));
+    } finally {
+      setCompressingKeys(prev => ({ ...prev, [taskKey]: false }));
+    }
   };
 
   const handleDelete = async (docId: number) => {
@@ -429,7 +516,7 @@ export default function DcDocumentDetailPage() {
               {slotDocuments.map((doc, index) => (
                 <div key={doc.id} className="flex flex-col gap-1 w-full sm:w-[260px] shrink-0">
                   <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm hover:border-emerald-300 hover:shadow-md transition-all group/doc">
-                    <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
+                    <a href={doc.link_dokumen ? getDcDocumentProxyUrl(doc.link_dokumen, "view") : buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
                       <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
                         <FileText className="w-3.5 h-3.5" />
                       </div>
@@ -457,7 +544,7 @@ export default function DcDocumentDetailPage() {
         <div className="flex flex-col gap-2 w-full sm:items-end">
           {slotDocuments.map((doc, index) => (
             <div key={doc.id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm w-full sm:w-[260px] shrink-0">
-              <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1">
+              <a href={doc.link_dokumen ? getDcDocumentProxyUrl(doc.link_dokumen, "view") : buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1">
                 <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
                   <FileText className="w-3.5 h-3.5" />
                 </div>
@@ -471,22 +558,100 @@ export default function DcDocumentDetailPage() {
               </button>
             </div>
           ))}
-          {localFiles.map((file, index) => (
-            <div key={`local-${index}`} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-blue-200 bg-blue-50/50 shadow-sm w-full sm:w-[260px] shrink-0">
-              <div className="flex items-center gap-2 overflow-hidden flex-1 px-1">
-                <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-blue-100 text-blue-600">
-                  <FileText className="w-3.5 h-3.5" />
+          {localFiles.map((file, index) => {
+            const taskKey = `${compKey}_${index}`;
+            const isCompressing = !!compressingKeys[taskKey];
+            const progress = compressProgress[taskKey];
+            const meta = compressedMeta[taskKey];
+            const compressible = isCompressibleFile(file);
+            const currentSizeStr = formatBytes(file.size);
+
+            return (
+              <div key={`local-${index}`} className="flex flex-col gap-1.5 p-2 rounded-xl border border-blue-200 bg-blue-50/50 shadow-sm w-full sm:w-[260px] shrink-0 transition-all">
+                {/* Info Dokumen Draft */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+                    <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded-lg bg-blue-100 text-blue-600">
+                      <FileText className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-xs font-semibold text-slate-800 truncate" title={file.name}>{file.name}</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[9px] text-blue-600 font-bold uppercase tracking-wider bg-blue-100/80 px-1 py-0.2 rounded">DRAFT {type}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">{currentSizeStr}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDraftFile(compKey, index)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                    title="Hapus Draft"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-slate-700 truncate">{file.name}</span>
-                  <span className="text-[9px] text-blue-500 font-bold uppercase tracking-wider">DRAFT {type}</span>
-                </div>
+
+                {/* Di Bawah Dokumen: Fitur Kompres Dokumen */}
+                {compressible && (
+                  <div className="pt-1.5 mt-0.5 border-t border-blue-100/90 flex items-center justify-between gap-2">
+                    {meta ? (
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-md px-1.5 py-0.5 flex-1 min-w-0" title={`Ukuran asli: ${formatBytes(meta.originalSize)} → ${formatBytes(meta.compressedSize)}`}>
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">
+                          {meta.ratioPercent > 0
+                            ? `${formatBytes(meta.originalSize)} → ${formatBytes(meta.compressedSize)} (-${meta.ratioPercent}%)`
+                            : `Sudah Optimal (${formatBytes(meta.compressedSize)})`}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-medium italic">Hemat bandwidth upload</span>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isCompressing}
+                      onClick={() => handleCompressDraft(compKey, index)}
+                      className={`h-6 px-2 text-[10px] font-bold shrink-0 transition-all ${
+                        meta
+                          ? "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+                          : "bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-xs"
+                      }`}
+                      title={meta ? "Kompres ulang dokumen" : "Kompres dokumen untuk memperkecil ukuran file"}
+                    >
+                      {isCompressing ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin shrink-0" />
+                          <span className="truncate max-w-[85px]">
+                            {progress?.message || (progress?.percent !== undefined ? `${progress.percent}%` : "Mengompres...")}
+                          </span>
+                        </>
+                      ) : meta ? (
+                        meta.ratioPercent > 0 ? (
+                          <>
+                            <Sparkles className="w-2.5 h-2.5 mr-1 text-amber-500" />
+                            Kompres Ulang
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-2.5 h-2.5 mr-1 text-emerald-600" />
+                            Sudah Optimal
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <Sparkles className="w-2.5 h-2.5 mr-1" />
+                          Kompres Dokumen
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
-              <button type="button" onClick={() => handleRemoveDraftFile(compKey, index)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Draft">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           <div className="flex justify-end w-full mt-1">
             <button type="button" onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-1.5 text-[10px] font-semibold text-red-600 hover:text-red-700 transition-colors bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-md">
               <UploadCloud className="w-3 h-3" />

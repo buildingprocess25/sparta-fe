@@ -11,7 +11,8 @@ import {
     Loader2, Search, CheckSquare, AlertCircle, CheckCircle,
     Info, Hash, Send, X, Eye, ChevronDown, ChevronRight,
     Camera, FileText, ThumbsUp, ThumbsDown, Clock, Filter,
-    Building2, ClipboardList, ArrowLeft, ExternalLink, RefreshCw, Lock, Database
+    Building2, ClipboardList, ArrowLeft, ExternalLink, RefreshCw, Lock, Database,
+    CheckCheck
 } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
@@ -19,7 +20,7 @@ import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import {
     fetchRABList, fetchRABDetail, fetchTokoList,
     fetchOpnameList, fetchOpnameDetail, updateOpname, submitOpnameBulk, kunciOpnameFinal,
-    downloadOpnameFoto, fetchOpnameFinalList,
+    downloadOpnameFoto, fetchOpnameFinalList, bulkApproveOpname,
     fetchGanttList, fetchGanttDetailByToko, fetchPengawasanList, fetchInstruksiLapanganList,
     type OpnameItem, type RABDetailItem, type RABDetailToko, type RABListItem,
 } from '@/lib/api';
@@ -1909,9 +1910,38 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         return { total, pending, disetujui, ditolak, totalSelisih };
     }, [filteredOpname]);
 
+    // Handle bulk approve — setujui semua item pending pada proyek yang dipilih
+    const handleBulkApprove = () => {
+        if (!selectedToko || stats.pending === 0) return;
 
-
-
+        showAlert({
+            title: 'Setujui Semua Opname',
+            message: `Apakah Anda yakin ingin menyetujui seluruh ${stats.pending} item opname pending pada proyek ${selectedToko.nama_toko}?`,
+            type: 'info',
+            confirmMode: true,
+            confirmText: 'Ya, Setujui Semua',
+            cancelText: 'Batal',
+            onConfirm: async () => {
+                setIsProcessing(true);
+                try {
+                    const res = await bulkApproveOpname(selectedToko.id_toko);
+                    setTimeout(() => {
+                        showAlert({
+                            message: res.message || `${stats.pending} item opname berhasil disetujui.`,
+                            type: "success"
+                        });
+                        refreshData();
+                    }, 500);
+                } catch (err: any) {
+                    setTimeout(() => {
+                        showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                    }, 500);
+                } finally {
+                    setIsProcessing(false);
+                }
+            },
+        });
+    };
 
     return (
         <>
@@ -2000,21 +2030,37 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                         ) : (
                             /* Detail View */
                             <div className="space-y-4">
-                                {/* Back + Title */}
-                                <div className="flex items-center gap-3 mb-2">
+                                {/* Back + Title + Actions */}
+                                <div className="flex flex-wrap items-center gap-3 mb-2">
                                     <button
                                         onClick={() => { setSelectedToko(null); setFilteredOpname([]); setRabItems([]); setFilterStatus(''); }}
-                                        className="p-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                                        className="p-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shrink-0"
+                                        title="Kembali ke daftar proyek"
                                     >
                                         <ArrowLeft className="w-4 h-4 text-slate-600" />
                                     </button>
-                                    <div className="flex-1">
+                                    <div className="flex-1 min-w-[200px]">
                                         <h3 className="font-bold text-slate-800">{selectedToko.nama_toko}</h3>
                                         <p className="text-xs text-slate-500">{formatUlokWithDash(selectedToko.nomor_ulok)}</p>
                                     </div>
-                                    <button onClick={refreshData} className="p-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" title="Refresh">
-                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${isLoadingItems ? 'animate-spin' : ''}`} />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            onClick={handleBulkApprove}
+                                            disabled={isProcessing || isLoadingItems || stats.pending === 0}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                            title={stats.pending === 0 ? "Tidak ada item pending" : `Setujui semua ${stats.pending} item pending`}
+                                        >
+                                            {isProcessing ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <CheckCheck className="w-4 h-4" />
+                                            )}
+                                            <span>Setujui Semua ({stats.pending})</span>
+                                        </Button>
+                                        <button onClick={refreshData} className="p-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" title="Refresh">
+                                            <RefreshCw className={`w-4 h-4 text-slate-500 ${isLoadingItems ? 'animate-spin' : ''}`} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Stats */}

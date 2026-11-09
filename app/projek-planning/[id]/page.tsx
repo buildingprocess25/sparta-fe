@@ -20,6 +20,7 @@ import {
   fetchProjekPlanningDetail, processBmApproval, processBmRegionalApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
   downloadProjekPlanningPdf, downloadProjekPlanningPhotosPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
+  extractGdriveFileId, getGdriveDirectDownloadUrl,
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
 import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch, BRANCH_TO_ULOK } from "@/lib/constants";
@@ -156,7 +157,7 @@ const isDirectUserLink = (url?: string | null) => {
 
 function FpdTimeline({ currentStatus, cabang }: { currentStatus: string, cabang?: string | null }) {
   const isRejected = currentStatus === "REJECTED";
-  
+
   const isSkipBm = (cabang || "").toUpperCase() === "BATAM";
   const steps = FPD_STEPS.filter(s => {
     if (isSkipBm && (s.id === "WAITING_BM_APPROVAL" || s.id === "WAITING_BM_APPROVAL_2")) return false;
@@ -217,7 +218,7 @@ function FileProxyRow({
 }) {
   const [loading, setLoading] = React.useState<"view" | "download" | null>(null);
   const [viewed, setViewed] = React.useState(false);
-  const showDownload = !isDirectUserLink(fileUrl);
+  const showDownload = !!firstFileUrl(fileUrl);
 
   React.useEffect(() => {
     const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
@@ -257,38 +258,35 @@ function FileProxyRow({
   if (!hasFile) return null;
 
   const handle = async (mode: "view" | "download") => {
-    setLoading(mode);
-    let newWindow: Window | null = null;
-    if (mode === "view") {
-        newWindow = window.open("about:blank", "_blank");
-        if (newWindow) {
-             newWindow.document.write("<html><body style='font-family:sans-serif;padding:20px;text-align:center;'><h3 style='color:#666'>Memuat dokumen, harap tunggu...</h3></body></html>");
-        }
-    }
+    const directUrl = firstFileUrl(fileUrl);
+    if (!directUrl) return;
 
-    try {
-      const directUrl = firstFileUrl(fileUrl);
-      if (directUrl && !shouldUseDriveProxy(directUrl)) {
-        if (mode === "view" && newWindow) {
-            newWindow.location.href = directUrl;
-        } else {
-            if (newWindow) newWindow.close();
-            window.open(directUrl, "_blank", "noopener,noreferrer");
-        }
-      } else {
-        await proxyProjekPlanningFile(projektId, field, mode, undefined, newWindow);
-      }
+    if (mode === "view") {
+      // Langsung buka link asli dokumen di tab baru (dapat diakses oleh akun @sat.co.id)
+      window.open(directUrl, "_blank", "noopener,noreferrer");
       setViewed(true);
       onViewed(field);
       const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
       const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
-      // Lihat atau unduh sama-sama dihitung sudah membuka dokumen untuk approval.
       localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
-    } catch (e: any) { 
-        if (newWindow) newWindow.close();
-        alert(`Gagal: ${e.message}`); 
+      return;
     }
-    setLoading(null);
+
+    if (mode === "download") {
+      setLoading("download");
+      try {
+        await proxyProjekPlanningFile(projektId, field, "download");
+        setViewed(true);
+        onViewed(field);
+        const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
+        const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
+        localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
+      } catch (e: any) {
+        alert(`Gagal mengunduh: ${e.message}`);
+      } finally {
+        setLoading(null);
+      }
+    }
   };
 
   return (
@@ -347,16 +345,16 @@ function PhotosPdfRow({
     setLoading(mode);
     let newWindow: Window | null = null;
     if (mode === "view") {
-        newWindow = window.open("about:blank", "_blank");
-        if (newWindow) {
-             newWindow.document.write("<html><body style='font-family:sans-serif;padding:20px;text-align:center;'><h3 style='color:#666'>Memuat dokumen, harap tunggu...</h3></body></html>");
-        }
+      newWindow = window.open("about:blank", "_blank");
+      if (newWindow) {
+        newWindow.document.write("<html><body style='font-family:sans-serif;padding:20px;text-align:center;'><h3 style='color:#666'>Memuat dokumen, harap tunggu...</h3></body></html>");
+      }
     }
     try {
-        await downloadProjekPlanningPhotosPdf(projektId, mode, newWindow);
+      await downloadProjekPlanningPhotosPdf(projektId, mode, newWindow);
     } catch (e: any) {
-        if (newWindow) newWindow.close();
-        alert(`Gagal: ${e.message}`);
+      if (newWindow) newWindow.close();
+      alert(`Gagal: ${e.message}`);
     }
     setLoading(null);
   };
@@ -414,8 +412,8 @@ function ReviewSelect({
           onClick={() => onChange("APPROVE")}
           className={`
             relative flex items-center justify-center gap-2 h-10 px-5 rounded-lg border text-sm font-bold transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500
-            ${value === "APPROVE" 
-              ? "bg-green-600 text-white border-green-600 shadow-md shadow-green-600/20 scale-[1.02]" 
+            ${value === "APPROVE"
+              ? "bg-green-600 text-white border-green-600 shadow-md shadow-green-600/20 scale-[1.02]"
               : "bg-white text-slate-600 border-slate-200 hover:bg-green-50 hover:border-green-200 hover:text-green-700"}
           `}
         >
@@ -427,8 +425,8 @@ function ReviewSelect({
           onClick={() => onChange("REJECT")}
           className={`
             relative flex items-center justify-center gap-2 h-10 px-5 rounded-lg border text-sm font-bold transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500
-            ${value === "REJECT" 
-              ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20 scale-[1.02]" 
+            ${value === "REJECT"
+              ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20 scale-[1.02]"
               : "bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-700"}
           `}
         >
@@ -470,13 +468,13 @@ function RabRejectEditor({
       <div className="border-b border-red-100 bg-red-50/80 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2 min-w-0">
-          <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
             <div className="min-w-0">
-            <p className="text-sm font-bold text-red-800">Detail Revisi RAB</p>
-            <p className="text-xs text-red-700 mt-0.5">
-              Isi catatan general untuk revisi umum, atau tambahkan item RAB jika koreksi hanya pada pekerjaan tertentu.
-            </p>
-          </div>
+              <p className="text-sm font-bold text-red-800">Detail Revisi RAB</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                Isi catatan general untuk revisi umum, atau tambahkan item RAB jika koreksi hanya pada pekerjaan tertentu.
+              </p>
+            </div>
           </div>
           <span className="shrink-0 rounded-full border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700">
             {selectedIds.size}/{rabItems.length} item
@@ -493,126 +491,126 @@ function RabRejectEditor({
             </div>
             <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-200">Opsional</span>
           </div>
-        <Textarea
-          value={generalNote}
-          onChange={e => onGeneralNoteChange(e.target.value)}
+          <Textarea
+            value={generalNote}
+            onChange={e => onGeneralNoteChange(e.target.value)}
             placeholder="Tulis catatan revisi umum di sini..."
-          rows={2}
+            rows={2}
             className="bg-white"
-        />
-      </div>
+          />
+        </div>
 
         <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div>
               <Label className="text-xs font-semibold text-slate-700">Item Spesifik</Label>
               <p className="text-[11px] text-slate-500">
                 Pilih item dari RAB asli. Item yang sudah dipilih tidak bisa dipilih lagi.
               </p>
             </div>
-        </div>
-        {rows.length === 0 ? (
+          </div>
+          {rows.length === 0 ? (
             <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
               <p className="text-xs font-semibold text-slate-600">Belum ada item spesifik</p>
               <p className="text-[11px] text-slate-500 mt-0.5">Kalau revisinya hanya umum, cukup isi catatan general di atas.</p>
             </div>
-        ) : rows.map((row, idx) => (
+          ) : rows.map((row, idx) => (
             <div key={idx} className="rounded-md border border-slate-200 bg-white p-3 space-y-3">
               {(() => {
                 const selectedItem = rabItems.find(item => String(item.id) === row.itemId);
                 return (
                   <>
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                <span className="text-xs font-bold text-slate-600">Item Revisi #{idx + 1}</span>
-                <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50">
-                  Hapus
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-500">Item RAB</Label>
-                <select
-                  value={row.itemId}
-                  onChange={e => updateRow(idx, { itemId: e.target.value })}
-                    className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-slate-700 min-w-0"
-                >
-                  <option value="">Pilih item RAB...</option>
-                  {rabItems.map(item => {
-                    const itemId = String(item.id);
-                    const disabled = selectedIds.has(itemId) && row.itemId !== itemId;
-                    return (
-                      <option key={`${item.rabScope || "RAB"}-${item.id}`} value={itemId} disabled={disabled}>
-                        {formatRabItemSelectOption(item)}
-                      </option>
-                    );
-                  })}
-                </select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-500">Catatan Item</Label>
-                <Input
-                  value={row.note}
-                  onChange={e => updateRow(idx, { note: e.target.value })}
-                  placeholder="Catatan untuk item ini..."
-                  className="bg-white"
-                />
-                </div>
-              </div>
-              {selectedItem && (
-                <div className="rounded-md bg-slate-50 border border-slate-100 p-3">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 break-words">{selectedItem.jenis_pekerjaan}</p>
-                      <p className="text-[11px] text-slate-500 break-words">{selectedItem.kategori_pekerjaan}</p>
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <span className="text-xs font-bold text-slate-600">Item Revisi #{idx + 1}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50">
+                        Hapus
+                      </Button>
                     </div>
-                    <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      #{selectedItem.id}{selectedItem.rabScope ? ` - ${selectedItem.rabScope}` : ""}
-                    </span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Volume</p>
-                      <p className="text-xs font-semibold text-slate-700">{Number(selectedItem.volume || 0).toLocaleString("id-ID")} {selectedItem.satuan || ""}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-500">Item RAB</Label>
+                        <select
+                          value={row.itemId}
+                          onChange={e => updateRow(idx, { itemId: e.target.value })}
+                          className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-slate-700 min-w-0"
+                        >
+                          <option value="">Pilih item RAB...</option>
+                          {rabItems.map(item => {
+                            const itemId = String(item.id);
+                            const disabled = selectedIds.has(itemId) && row.itemId !== itemId;
+                            return (
+                              <option key={`${item.rabScope || "RAB"}-${item.id}`} value={itemId} disabled={disabled}>
+                                {formatRabItemSelectOption(item)}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-500">Catatan Item</Label>
+                        <Input
+                          value={row.note}
+                          onChange={e => updateRow(idx, { note: e.target.value })}
+                          placeholder="Catatan untuk item ini..."
+                          className="bg-white"
+                        />
+                      </div>
                     </div>
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Material</p>
-                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_material)}</p>
-                    </div>
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Upah</p>
-                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_upah)}</p>
-                    </div>
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Total</p>
-                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.total_harga)}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                    {selectedItem && (
+                      <div className="rounded-md bg-slate-50 border border-slate-100 p-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 break-words">{selectedItem.jenis_pekerjaan}</p>
+                            <p className="text-[11px] text-slate-500 break-words">{selectedItem.kategori_pekerjaan}</p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                            #{selectedItem.id}{selectedItem.rabScope ? ` - ${selectedItem.rabScope}` : ""}
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Volume</p>
+                            <p className="text-xs font-semibold text-slate-700">{Number(selectedItem.volume || 0).toLocaleString("id-ID")} {selectedItem.satuan || ""}</p>
+                          </div>
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Material</p>
+                            <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_material)}</p>
+                          </div>
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Upah</p>
+                            <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_upah)}</p>
+                          </div>
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Total</p>
+                            <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.total_harga)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 );
               })()}
+            </div>
+          ))}
+          <div className="flex justify-end pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              disabled={!canAddItem}
+              className="h-8 text-xs bg-white border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={hasEmptyRow ? "Pilih item pada baris kosong dulu" : selectedIds.size >= rabItems.length ? "Semua item sudah dipilih" : undefined}
+            >
+              + Tambah Item
+            </Button>
           </div>
-        ))}
-        <div className="flex justify-end pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addRow}
-            disabled={!canAddItem}
-            className="h-8 text-xs bg-white border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={hasEmptyRow ? "Pilih item pada baris kosong dulu" : selectedIds.size >= rabItems.length ? "Semua item sudah dipilih" : undefined}
-          >
-            + Tambah Item
-          </Button>
+          {rabItems.length === 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md p-2">
+              Item RAB belum berhasil dimuat. Revisi general tetap bisa digunakan.
+            </p>
+          )}
         </div>
-        {rabItems.length === 0 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md p-2">
-            Item RAB belum berhasil dimuat. Revisi general tetap bisa digunakan.
-          </p>
-        )}
-      </div>
       </div>
     </div>
   );
@@ -643,6 +641,10 @@ export default function DetailProjekPlanning() {
   const [fileGambarSipil, setFileGambarSipil] = useState<File[]>([]);
   const [linkGambarMe, setLinkGambarMe] = useState("");
   const [fileGambarMe, setFileGambarMe] = useState<File[]>([]);
+  const [linkRabSipilManual, setLinkRabSipilManual] = useState("");
+  const [fileRabSipilManual, setFileRabSipilManual] = useState<File[]>([]);
+  const [linkRabMeManual, setLinkRabMeManual] = useState("");
+  const [fileRabMeManual, setFileRabMeManual] = useState<File[]>([]);
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
   const [allRabsForUlok, setAllRabsForUlok] = useState<any[]>([]);
@@ -765,10 +767,10 @@ export default function DetailProjekPlanning() {
           ]);
           setApprovedRabs(rabApprovedRes.data || []);
           setAllRabsForUlok(rabAllRes.data || []);
-          
+
           const rawBranchRabs = branchRabsRes.data || [];
           setRawBranchApprovedRabs(rawBranchRabs);
-          
+
           const mergedMap = new Map<string, any>();
           rawBranchRabs.forEach((r: any) => {
             const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "";
@@ -964,6 +966,112 @@ export default function DetailProjekPlanning() {
     setActionLoading(false);
   };
 
+  const handleUploadRab = async () => {
+    const activeRabs = revisiUlok ? rawBranchApprovedRabs.filter(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase();
+    }) : approvedRabs;
+
+    const selectedRabSipil = activeRabs.find(r => getRabScope(r).includes("SIPIL"));
+    const selectedRabMe = activeRabs.find(r => getRabScope(r).includes("ME"));
+    const hasManualRabSipil = linkRabSipilManual.trim() || fileRabSipilManual.length > 0;
+    const hasManualRabMe = linkRabMeManual.trim() || fileRabMeManual.length > 0;
+    const sipilRabExists = revisiUlok
+      ? rawBranchApprovedRabs.some(r => {
+        const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+        return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("SIPIL");
+      })
+      : allRabsForUlok.some(r => getRabScope(r).includes("SIPIL"));
+    const meRabExists = revisiUlok
+      ? rawBranchApprovedRabs.some(r => {
+        const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+        return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("ME");
+      })
+      : allRabsForUlok.some(r => getRabScope(r).includes("ME"));
+
+    if (sipilRabExists && !selectedRabSipil) {
+      showAlert("RAB Belum Disetujui", `RAB Sipil sedang dalam proses approval. Silakan tunggu hingga disetujui.`);
+      return;
+    }
+    if (meRabExists && !selectedRabMe) {
+      showAlert("RAB Belum Disetujui", `RAB ME sedang dalam proses approval. Silakan tunggu hingga disetujui.`);
+      return;
+    }
+
+    const isSipilComplete = !!selectedRabSipil || (!sipilRabExists && hasManualRabSipil);
+    const isMeComplete = !!selectedRabMe || (!meRabExists && hasManualRabMe);
+
+    if (!isSipilComplete || !isMeComplete) {
+      showAlert("RAB Belum Lengkap", `RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ${revisiUlok ? newUlok : data?.nomor_ulok || ''} sebelum melanjutkan FPD. Silakan upload secara manual jika RAB belum diinput sama sekali.`);
+      return;
+    }
+    if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) {
+      showAlert("Peringatan", "File Gambar Kerja Final Sipil atau ME belum terisi! Silakan upload atau masukkan link.");
+      return;
+    }
+
+    // Wajib buka desain 3D jika ada
+    if (data?.link_desain_3d && !openedLinks.has("desain_3d")) {
+      showAlert("Peringatan", "Anda harus membuka dan melihat file Desain 3D terlebih dahulu sebelum mengupload RAB.");
+      return;
+    }
+
+    // Validasi re-upload saat ditolak
+    if (data?.pp2_alasan_penolakan || data?.pp_manager_alasan_penolakan) {
+      const noChange = fileGambarSipil.length === 0 && fileGambarMe.length === 0
+        && (selectedRabSipil?.id ?? null) === ((data as any).id_rab_sipil ?? null)
+        && (selectedRabMe?.id ?? null) === ((data as any).id_rab_me ?? null)
+        && linkGambarSipil.trim() === (((data as any).link_gambar_kerja_final_sipil || "")).trim()
+        && linkGambarMe.trim() === ((data as any).link_gambar_kerja_final_me || "").trim();
+      if (noChange) {
+        showAlert("Peringatan", "Minimal harus melakukan satu perubahan pada gambar final atau fasilitas.");
+        return;
+      }
+    }
+
+    const changedRabFields = [
+      ((selectedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null)) ? "rab_sipil_final" : null,
+      ((selectedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)) ? "rab_me_final" : null,
+      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim()) ? "gambar_kerja_final_sipil" : null,
+      (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
+    ].filter(Boolean) as string[];
+
+    setActionLoading(true);
+    try {
+      const payload: any = {
+        uploader_email: userEmail,
+        id_rab_sipil: selectedRabSipil?.id,
+        id_rab_me: selectedRabMe?.id,
+        link_rab_sipil: linkRabSipilManual.trim() ? linkRabSipilManual : undefined,
+        link_rab_me: linkRabMeManual.trim() ? linkRabMeManual : undefined,
+        fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
+        link_gambar_kerja_final_sipil: linkGambarSipil,
+        link_gambar_kerja_final_me: linkGambarMe,
+      };
+
+      if (revisiUlok) {
+        if (newUlok.trim()) payload.nomor_ulok = newUlok.trim();
+        if (newNamaToko.trim()) payload.nama_toko = newNamaToko.trim();
+        if (newProyek.trim()) payload.jenis_proyek = newProyek.trim();
+      }
+
+      await uploadRabGambarKerja(
+        id,
+        payload,
+        fileGambarSipil,
+        fileGambarMe,
+        fileRabSipilManual,
+        fileRabMeManual
+      );
+      clearViewedFields(changedRabFields);
+      showAlert("Berhasil", "Input tahap kedua berhasil dikirim ke B&M Manager.");
+      setLinkGambarSipil(""); setFileGambarSipil([]);
+      setLinkGambarMe(""); setFileGambarMe([]);
+      await load();
+    } catch (e: any) { showAlert("Gagal", e.message); }
+    setActionLoading(false);
+  };
+
   const handleFileChange = (setLink: React.Dispatch<React.SetStateAction<string>>, setFile: React.Dispatch<React.SetStateAction<File | null>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1040,8 +1148,25 @@ export default function DetailProjekPlanning() {
   }) : approvedRabs;
   const selectedApprovedRabSipil = currentActiveRabs.find(r => getRabScope(r).includes("SIPIL"));
   const selectedApprovedRabMe = currentActiveRabs.find(r => getRabScope(r).includes("ME"));
+  const sipilRabExists = revisiUlok
+    ? rawBranchApprovedRabs.some(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("SIPIL");
+    })
+    : allRabsForUlok.some(r => getRabScope(r).includes("SIPIL"));
+  const meRabExists = revisiUlok
+    ? rawBranchApprovedRabs.some(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("ME");
+    })
+    : allRabsForUlok.some(r => getRabScope(r).includes("ME"));
+
   const hasCompleteApprovedRab = !!selectedApprovedRabSipil && !!selectedApprovedRabMe;
-  const hasRabUploadInput = hasCompleteApprovedRab && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
+
+  const isSipilComplete = !!selectedApprovedRabSipil || (!sipilRabExists && (linkRabSipilManual.trim() || fileRabSipilManual.length > 0));
+  const isMeComplete = !!selectedApprovedRabMe || (!meRabExists && (linkRabMeManual.trim() || fileRabMeManual.length > 0));
+
+  const hasRabUploadInput = isSipilComplete && isMeComplete && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
   const hasRabUploadChange = !!(
     fileGambarSipil.length > 0 ||
     fileGambarMe.length > 0 ||
@@ -1236,7 +1361,7 @@ export default function DetailProjekPlanning() {
         <Card>
           <CardHeader className="pb-2 border-b border-slate-100 mb-3"><CardTitle className="text-sm font-bold flex items-center gap-2"><Building2 className="w-4 h-4 text-red-600" /> Informasi Toko</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            
+
             <div>
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Informasi Utama</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -1282,18 +1407,23 @@ export default function DetailProjekPlanning() {
             <div>
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Lokasi & Keterangan</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                <InfoRow 
-                  label="Link Google Maps" 
+                <InfoRow
+                  label="Link Google Maps"
                   value={(data as any).link_google_maps ? (
-                    <a 
-                      href={String((data as any).link_google_maps).startsWith('http') ? (data as any).link_google_maps : `https://${(data as any).link_google_maps}`} 
-                      target="_blank" 
+                    <a
+                      href={(() => {
+                        let u = String((data as any).link_google_maps);
+                        if (u.startsWith('http:/') && !u.startsWith('http://')) u = u.replace('http:/', 'http://');
+                        if (u.startsWith('https:/') && !u.startsWith('https://')) u = u.replace('https:/', 'https://');
+                        return u.startsWith('http') ? u : `https://${u}`;
+                      })()}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline break-all"
                     >
                       Buka Google Maps
                     </a>
-                  ) : null} 
+                  ) : null}
                 />
                 <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
               </div>
@@ -1312,7 +1442,7 @@ export default function DetailProjekPlanning() {
                 if (label === 'AIR_BERSIH') label = "Sumber Air Bersih";
                 else if (label === 'DRAINASE') label = "Drain Air Kotor";
                 else if (label === 'LAINNYA') label = f.nama_fasilitas_lainnya || "Lainnya";
-                
+
                 return <InfoRow key={idx} label={label} value={f.is_tersedia ? `Ya — ${f.keterangan || ""}` : "Tidak"} />;
               })}
             </CardContent>
@@ -1346,7 +1476,7 @@ export default function DetailProjekPlanning() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-1">
-            
+
             {/* Kategori 1: Dokumen Pengajuan Awal */}
             <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
               <div className="flex justify-between items-center bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-4 py-3">
@@ -1414,7 +1544,7 @@ export default function DetailProjekPlanning() {
         </Card>
 
         {/* ACTION PANELS */}
-        
+
         {/* DRAFT (Ditolak) -> Revisi Form */}
         {data.status === "DRAFT" && canActAsSubmitter && (data.bm_alasan_penolakan || data.pp1_alasan_penolakan) && (
           <Card className="border-red-300 bg-red-50/50">
@@ -1439,14 +1569,14 @@ export default function DetailProjekPlanning() {
               {data.bm_alasan_penolakan && (
                 <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">
                   <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Revisi Pengajuan:</span>
-                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br/>
+                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br />
                   <span className="italic">"{data.bm_alasan_penolakan}"</span>
                 </div>
               )}
               {data.pp1_alasan_penolakan && (
                 <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">
                   <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Catatan PP Specialist:</span>
-                  Pengajuan ini pernah ditolak oleh PP Specialist tahap 1. Pastikan revisi berikut sudah menjawab catatan ini sebelum disetujui kembali:<br/>
+                  Pengajuan ini pernah ditolak oleh PP Specialist tahap 1. Pastikan revisi berikut sudah menjawab catatan ini sebelum disetujui kembali:<br />
                   <span className="italic">"{data.pp1_alasan_penolakan}"</span>
                 </div>
               )}
@@ -1531,7 +1661,7 @@ export default function DetailProjekPlanning() {
               {data.pp1_alasan_penolakan && (
                 <div className="text-sm text-blue-800 bg-blue-100/50 p-3 rounded-lg border border-blue-200 mb-2">
                   <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Revisi Pengajuan:</span>
-                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br/>
+                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br />
                   <span className="italic">"{data.pp1_alasan_penolakan}"</span>
                 </div>
               )}
@@ -1620,9 +1750,8 @@ export default function DetailProjekPlanning() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Option 1: Dropdown */}
                         <div
-                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${
-                            revisiUlokMode === "dropdown" ? "border-blue-500 bg-blue-50 shadow-sm" : "border-slate-200 hover:border-blue-300 bg-white"
-                          }`}
+                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${revisiUlokMode === "dropdown" ? "border-blue-500 bg-blue-50 shadow-sm" : "border-slate-200 hover:border-blue-300 bg-white"
+                            }`}
                           onClick={() => setRevisiUlokMode("dropdown")}
                         >
                           <div className={`p-2.5 w-max rounded-full transition-colors ${revisiUlokMode === "dropdown" ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
@@ -1637,9 +1766,8 @@ export default function DetailProjekPlanning() {
 
                         {/* Option 2: Manual */}
                         <div
-                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${
-                            revisiUlokMode === "manual" ? "border-amber-500 bg-amber-50 shadow-sm" : "border-slate-200 hover:border-amber-300 bg-white"
-                          }`}
+                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${revisiUlokMode === "manual" ? "border-amber-500 bg-amber-50 shadow-sm" : "border-slate-200 hover:border-amber-300 bg-white"
+                            }`}
                           onClick={() => setRevisiUlokMode("manual")}
                         >
                           <div className={`p-2.5 w-max rounded-full transition-colors ${revisiUlokMode === "manual" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
@@ -1700,15 +1828,15 @@ export default function DetailProjekPlanning() {
                                     return ulok.includes(searchLower) || tokoName.includes(searchLower);
                                   })
                                   .map(r => {
-                                  const scope = r.lingkup_gabungan || r.lingkup_pekerjaan || r.scope || "";
-                                  const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "-";
-                                  const tokoName = r.nama_toko || (r.toko && r.toko.nama_toko) || "-";
-                                  return (
-                                    <option key={r.id} value={r.id}>
-                                      [{scope}] {ulok} - {tokoName}
-                                    </option>
-                                  );
-                                })}
+                                    const scope = r.lingkup_gabungan || r.lingkup_pekerjaan || r.scope || "";
+                                    const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "-";
+                                    const tokoName = r.nama_toko || (r.toko && r.toko.nama_toko) || "-";
+                                    return (
+                                      <option key={r.id} value={r.id}>
+                                        [{scope}] {ulok} - {tokoName}
+                                      </option>
+                                    );
+                                  })}
                               </select>
                             </div>
                           )}
@@ -1733,18 +1861,18 @@ export default function DetailProjekPlanning() {
                               <div className="flex gap-2 items-center">
                                 <Input value={manualCabang} readOnly className="w-20 text-center h-9 bg-slate-50 text-slate-500 font-mono text-sm cursor-not-allowed" />
                                 <span className="text-slate-400 font-bold">-</span>
-                                <Input 
-                                  value={manualTanggal} 
-                                  onChange={e => setManualTanggal(e.target.value.replace(/\D/g, '').slice(0, 4))} 
-                                  placeholder="MMYY" 
+                                <Input
+                                  value={manualTanggal}
+                                  onChange={e => setManualTanggal(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                  placeholder="MMYY"
                                   className="w-20 text-center h-9 font-mono text-sm"
                                   maxLength={4}
                                 />
                                 <span className="text-slate-400 font-bold">-</span>
-                                <Input 
-                                  value={manualUrutan} 
-                                  onChange={e => setManualUrutan(e.target.value.replace(/\D/g, '').slice(0, 4))} 
-                                  placeholder="0001" 
+                                <Input
+                                  value={manualUrutan}
+                                  onChange={e => setManualUrutan(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                  placeholder="0001"
                                   className="w-20 text-center h-9 font-mono text-sm"
                                   maxLength={4}
                                 />
@@ -1759,7 +1887,6 @@ export default function DetailProjekPlanning() {
                               <select value={newProyek} onChange={e => setNewProyek(e.target.value)} className="w-full h-9 rounded-md border border-slate-200 bg-white text-sm px-3">
                                 <option value="">-- Tetap ({data.proyek}) --</option>
                                 <option value="Reguler">Toko Baru (Reguler)</option>
-                                <option value="Renovasi">Renovasi (Umum)</option>
                                 <option value="Renovasi Perluasan">Renovasi Perluasan</option>
                                 <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
                                 <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
@@ -1809,9 +1936,8 @@ export default function DetailProjekPlanning() {
                     <span className={`font-semibold block mb-2 ${hasCompleteApprovedRab ? 'text-green-800' : 'text-red-800'}`}>RAB Sparta Approved</span>
                     <div className="space-y-2">
                       {/* Penawaran Sipil */}
-                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${
-                        sipilApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
-                      }`}>
+                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${sipilApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
+                        }`}>
                         <span className="text-xs font-semibold text-slate-600">Penawaran Sipil</span>
                         <div className="flex items-center gap-2">
                           {sipilApproved && selectedApprovedRabSipil?.grand_total_final && (
@@ -1823,9 +1949,8 @@ export default function DetailProjekPlanning() {
                         </div>
                       </div>
                       {/* Penawaran ME */}
-                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${
-                        meApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
-                      }`}>
+                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${meApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
+                        }`}>
                         <span className="text-xs font-semibold text-slate-600">Penawaran ME</span>
                         <div className="flex items-center gap-2">
                           {meApproved && selectedApprovedRabMe?.grand_total_final && (
@@ -1838,9 +1963,44 @@ export default function DetailProjekPlanning() {
                       </div>
                     </div>
                     {!hasCompleteApprovedRab && (
-                      <p className="text-xs text-red-600 mt-2 pt-2 border-t border-red-100">
-                        Pastikan RAB Sipil DAN RAB ME sudah berstatus <b>Approved</b> sebelum dapat mengajukan FPD.
-                      </p>
+                      <div className="mt-4 space-y-4 pt-4 border-t border-red-100">
+                        {(sipilRabExists || meRabExists) && (
+                          <p className="text-xs text-red-600 mb-2">
+                            RAB yang sedang dalam proses approval tidak dapat diupload manual. Silakan tunggu hingga disetujui untuk melanjutkan.
+                          </p>
+                        )}
+                        {(!sipilRabExists && !meRabExists) && (
+                          <p className="text-xs text-red-600 mb-2">
+                            RAB Sipil atau RAB ME belum pernah <b>di input</b>. Silakan upload dokumen RAB final secara manual untuk melanjutkan.
+                          </p>
+                        )}
+                        {/* RAB Sipil Final Manual */}
+                        {!sipilRabExists && (
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">RAB Sipil Final (Manual)</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <Input placeholder="Link RAB Sipil Final (GDrive)..." value={linkRabSipilManual} onChange={e => { setLinkRabSipilManual(e.target.value); setFileRabSipilManual([]); }} className="bg-white" disabled={fileRabSipilManual.length > 0} />
+                              <div>
+                                <Input type="file" accept="application/pdf" onChange={handleFileChange(setLinkRabSipilManual, (file) => setFileRabSipilManual(file ? [file as any] : []))} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                                {fileRabSipilManual.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabSipilManual[0].name}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {/* RAB ME Final Manual */}
+                        {!meRabExists && (
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">RAB ME Final (Manual)</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <Input placeholder="Link RAB ME Final (GDrive)..." value={linkRabMeManual} onChange={e => { setLinkRabMeManual(e.target.value); setFileRabMeManual([]); }} className="bg-white" disabled={fileRabMeManual.length > 0} />
+                              <div>
+                                <Input type="file" accept="application/pdf" onChange={handleFileChange(setLinkRabMeManual, (file) => setFileRabMeManual(file ? [file as any] : []))} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                                {fileRabMeManual.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabMeManual[0].name}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

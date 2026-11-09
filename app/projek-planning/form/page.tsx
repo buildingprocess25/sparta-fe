@@ -16,11 +16,13 @@ import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardLi
 import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList, fetchRABDetail } from "@/lib/api";
 import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches, getAccessibleBranchesForUser, getSessionBranchCoverage, getParentBranch } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
+import { PhotoOversizeDialog } from "@/components/projek-planning/PhotoOversizeDialog";
+import { compressImageToJpeg, formatFileSize } from "@/lib/client-image-compressor";
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
 
-const JENIS_OPTIONS = ["DRIVE THRU", "BEAN SPOT", "FASADE", "DARK STORE", "LAINNYA"];
-const DARK_STORE_OPTION = "DARK STORE";
+const JENIS_OPTIONS = ["DRIVE THRU", "BEAN SPOT", "FASADE", "LAINNYA"];
+
 const BEANSPOT_TIPE_OPTIONS = ["RTD ONLY", "Medium", "Advance"];
 
 type ProjectFileState = File[];
@@ -130,7 +132,6 @@ function FormProjekPlanningInner() {
   const [isSeatingArea, setIsSeatingArea] = useState(false);
   const [isDarkStore, setIsDarkStore] = useState(false);
   const [beanspotTipe, setBeanspotTipe] = useState("");
-  const isDarkStoreDesign = jenisSelected.includes(DARK_STORE_OPTION);
 
   // New RAB Option Feature States
   const [rabSelectionOption, setRabSelectionOption] = useState<"approved" | "manual" | null>(null);
@@ -290,17 +291,75 @@ function FormProjekPlanningInner() {
     }
   }, [isManualUlok, manualCabang, manualTanggal, manualUrutan, resubmitId]);
 
-  useEffect(() => {
-    if (!isDarkStoreDesign) return;
-    setIsHeadToHead(false);
-    setIsSeatingArea(false);
-    setIsDarkStore(false);
-  }, [isDarkStoreDesign]);
 
   // Foto State
   const [fotoFiles, setFotoFiles] = useState<{ [key: number]: File | null }>({});
   const [fotoExistingUrls, setFotoExistingUrls] = useState<{ [key: number]: string }>({});
   const [activeFotoTab, setActiveFotoTab] = useState<number>(1);
+
+  // Oversize Photo Dialog & Compressing State
+  const [oversizeModal, setOversizeModal] = useState<{
+    open: boolean;
+    pointId: number | null;
+    pointLabel: string;
+    file: File | null;
+    isCompressing: boolean;
+  }>({
+    open: false,
+    pointId: null,
+    pointLabel: "",
+    file: null,
+    isCompressing: false,
+  });
+  const [compressingPoints, setCompressingPoints] = useState<{ [key: number]: boolean }>({});
+  const [submitStage, setSubmitStage] = useState<"IDLE" | "PREPARING" | "UPLOADING">("IDLE");
+
+  const handlePhotoFileSelect = (pointId: number, pointLabel: string, file: File | null) => {
+    if (!file) return;
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    if (file.size > MAX_SIZE) {
+      setOversizeModal({
+        open: true,
+        pointId,
+        pointLabel,
+        file,
+        isCompressing: false,
+      });
+      return;
+    }
+    setFotoFiles(prev => ({ ...prev, [pointId]: file }));
+  };
+
+  const handleCompressOversizePhoto = async () => {
+    const { file, pointId } = oversizeModal;
+    if (!file || pointId === null) return;
+
+    setOversizeModal(prev => ({ ...prev, isCompressing: true }));
+    setCompressingPoints(prev => ({ ...prev, [pointId]: true }));
+
+    try {
+      const compressed = await compressImageToJpeg(file, { maxDimension: 1920, quality: 0.8 });
+      setFotoFiles(prev => ({ ...prev, [pointId]: compressed }));
+      setOversizeModal({
+        open: false,
+        pointId: null,
+        pointLabel: "",
+        file: null,
+        isCompressing: false,
+      });
+    } catch (err) {
+      console.error("Gagal kompresi canvas:", err);
+      setAlertMsg({
+        title: "Gagal Kompresi",
+        desc: "Gagal mengompres foto secara otomatis di browser. Silakan kompres manual atau pilih file lain.",
+        type: "error",
+      });
+      setAlertOpen(true);
+      setOversizeModal(prev => ({ ...prev, isCompressing: false }));
+    } finally {
+      setCompressingPoints(prev => ({ ...prev, [pointId]: false }));
+    }
+  };
 
   // Camera modal state
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -424,6 +483,18 @@ function FormProjekPlanningInner() {
     if (selectedFiles.length > MAX_FILES_PER_FIELD) {
       setAlertMsg({ title: "Maksimal 2 File", desc: "Setiap kolom upload hanya bisa berisi maksimal 2 file. File selebihnya tidak ikut dipilih.", type: "error" });
       setAlertOpen(true);
+    }
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    const oversized = files.find(f => f.size > MAX_SIZE);
+    if (oversized) {
+      setAlertMsg({
+        title: "Ukuran File Melebihi 10 MB",
+        desc: `File "${oversized.name}" (${formatFileSize(oversized.size)}) melebihi batas maksimal 10 MB. Silakan kompres atau pilih file lain.`,
+        type: "error"
+      });
+      setAlertOpen(true);
+      e.target.value = "";
+      return;
     }
     setter(files);
     if (files.length > 0) clearLink();
@@ -613,6 +684,7 @@ function FormProjekPlanningInner() {
       }
     }
     setSubmitting(true);
+    setSubmitStage("PREPARING");
     try {
       let finalIdToko = 0;
       let finalCabang = manualCabangNama || manualCabang;
@@ -659,10 +731,10 @@ function FormProjekPlanningInner() {
         spd: !isManualUlok ? parseRupiahInput(String((f as any).spd || "")) : undefined,
         link_ba_tidak_sesuai_standar: !isManualUlok ? (f as any).link_ba_tidak_sesuai_standar : undefined,
         // New fields
-        is_head_to_head: isDarkStoreDesign ? false : isHeadToHead,
-        is_seating_area: isDarkStoreDesign ? false : isSeatingArea,
-        is_dark_store: isDarkStoreDesign ? false : isDarkStore,
-        jarak_head_to_head: isDarkStoreDesign || !isHeadToHead || !(f as any).jarak_head_to_head ? undefined : Number((f as any).jarak_head_to_head),
+        is_head_to_head: isHeadToHead,
+        is_seating_area: isSeatingArea,
+        is_dark_store: isDarkStore,
+        jarak_head_to_head: !isHeadToHead || !(f as any).jarak_head_to_head ? undefined : Number((f as any).jarak_head_to_head),
         beanspot_tipe: jenisSelected.includes("BEAN SPOT") ? beanspotTipe : "",
         ketentuan: JSON.stringify(ketentuan.filter(k => k.trim() !== "")),
         catatan_design: JSON.stringify(catatanDesign.filter(c => c.trim() !== "")),
@@ -674,6 +746,7 @@ function FormProjekPlanningInner() {
         if (file) validFotoFiles[Number(key)] = file;
       });
 
+      setSubmitStage("UPLOADING");
       let res;
       if (resubmitId) {
         res = await resubmitProjekPlanning(Number(resubmitId), payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
@@ -692,8 +765,10 @@ function FormProjekPlanningInner() {
     } catch (err: any) {
       setAlertMsg({ title: "Gagal", desc: err.message || "Terjadi kesalahan", type: "error" });
       setAlertOpen(true);
+    } finally {
+      setSubmitting(false);
+      setSubmitStage("IDLE");
     }
-    setSubmitting(false);
   };
 
   const SectionTitle = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
@@ -891,7 +966,6 @@ function FormProjekPlanningInner() {
                         <Label className="text-sm font-bold text-slate-700">Proyek *</Label>
                         <select value={f.jenis_proyek} onChange={e => set("jenis_proyek", e.target.value)} required className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
                           <option value="">Pilih proyek...</option>
-                          <option value="Renovasi">Renovasi (Umum)</option>
                           <option value="Renovasi Perluasan">Renovasi Perluasan</option>
                           <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
                           <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
@@ -1214,31 +1288,17 @@ function FormProjekPlanningInner() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {JENIS_OPTIONS.map(j => {
                   const isActive = jenisSelected.includes(j);
-                  const isDisabled = isDarkStoreDesign && j !== DARK_STORE_OPTION;
                   return (
                     <button key={j} type="button"
-                      disabled={isDisabled}
                       onClick={() => {
                         setJenisSelected(prev => {
-                          if (j === DARK_STORE_OPTION) {
-                            const next = isActive ? [] : [DARK_STORE_OPTION];
-                            if (!isActive) {
-                              setIsHeadToHead(false);
-                              setIsSeatingArea(false);
-                              setFileGambarKompetitor([]);
-                              set("link_gambar_kompetitor", "");
-                            }
-                            return next;
-                          }
-                          return isActive ? prev.filter(x => x !== j) : [...prev.filter(x => x !== DARK_STORE_OPTION), j];
+                          return isActive ? prev.filter(x => x !== j) : [...prev, j];
                         });
                       }}
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
                         isActive
                           ? "bg-red-600 text-white border-red-600 shadow-sm"
-                          : isDisabled
-                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-red-300"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-red-300"
                       }`}>
                       {isActive && <span className="text-xs">✓</span>} {j}
                     </button>
@@ -1295,7 +1355,6 @@ function FormProjekPlanningInner() {
                   </div>
                 </div>
 
-                {!isDarkStoreDesign && (
                   <div className="pt-2 border-t border-slate-100">
                     <Label className="text-sm font-bold text-slate-700 mb-2 block">Kategori Toko</Label>
                     <div className="flex gap-4">
@@ -1309,26 +1368,24 @@ function FormProjekPlanningInner() {
                       </label>
                     </div>
                   </div>
-                )}
               </div>
 
               {/* === SECTION: Head to Head & Seating Area === */}
-              {!isDarkStoreDesign && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                 {/* Head to Head */}
                 <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-3">
                   <Label className="text-sm font-bold text-slate-700">🏪 Apakah Toko Head to Head?</Label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="is_head_to_head" checked={!isHeadToHead || isDarkStoreDesign} onChange={() => setIsHeadToHead(false)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                      <input type="radio" name="is_head_to_head" checked={!isHeadToHead} onChange={() => setIsHeadToHead(false)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm">Tidak</span>
                     </label>
-                    <label className={`flex items-center gap-2 ${isDarkStoreDesign ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-                      <input type="radio" name="is_head_to_head" checked={isHeadToHead && !isDarkStoreDesign} onChange={() => setIsHeadToHead(true)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="is_head_to_head" checked={isHeadToHead} onChange={() => setIsHeadToHead(true)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm font-semibold text-red-700">Ya</span>
                     </label>
                   </div>
-                  {isHeadToHead && !isDarkStoreDesign && (
+                  {isHeadToHead && (
                     <div className="space-y-2 pt-2 border-t border-slate-100">
                       <Label className="text-xs font-semibold text-slate-600">Jarak Head to Head *</Label>
                       <div className="flex items-center gap-2">
@@ -1357,17 +1414,16 @@ function FormProjekPlanningInner() {
                   <Label className="text-sm font-bold text-slate-700">🪑 Apakah Ada Seating Area?</Label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="is_seating_area" checked={!isSeatingArea || isDarkStoreDesign} onChange={() => setIsSeatingArea(false)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                      <input type="radio" name="is_seating_area" checked={!isSeatingArea} onChange={() => setIsSeatingArea(false)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm">Tidak</span>
                     </label>
-                    <label className={`flex items-center gap-2 ${isDarkStoreDesign ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-                      <input type="radio" name="is_seating_area" checked={isSeatingArea && !isDarkStoreDesign} onChange={() => setIsSeatingArea(true)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="is_seating_area" checked={isSeatingArea} onChange={() => setIsSeatingArea(true)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm font-semibold text-green-700">Ya</span>
                     </label>
                   </div>
                 </div>
               </div>
-              )}
 
               {/* === SECTION: Fasilitas dipindahkan ke inputan kedua === */}
               {false && (
@@ -1664,12 +1720,13 @@ function FormProjekPlanningInner() {
                       {PHOTO_POINTS[activeFotoTab]?.map((point) => {
                         const isSelected = !!fotoFiles[point.id];
                         const isExisting = !!fotoExistingUrls[point.id] && !isSelected;
+                        const isCompressing = !!compressingPoints[point.id];
 
                         return (
                           <div
                             key={point.id}
                             className={`relative flex flex-col p-4 rounded-xl border-2 transition-all duration-200 ${isSelected
-                              ? "border-green-400 bg-green-50/30"
+                              ? "border-emerald-400 bg-emerald-50/40 shadow-xs"
                               : isExisting
                                 ? "border-blue-300 bg-blue-50/30"
                                 : "border-dashed border-slate-300 bg-slate-50 hover:border-red-300 hover:bg-red-50/20"
@@ -1680,7 +1737,7 @@ function FormProjekPlanningInner() {
                                 <span className="text-red-500 mr-1.5">{point.id}.</span>
                                 {point.label}
                               </Label>
-                              {isSelected && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-green-500 bg-white rounded-full" />}
+                              {isSelected && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-emerald-600 bg-white rounded-full shadow-xs" />}
                               {isExisting && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-blue-500 bg-white rounded-full" />}
                             </div>
 
@@ -1699,21 +1756,29 @@ function FormProjekPlanningInner() {
                               <div className="flex gap-2">
                                 {/* File Gallery */}
                                 <label
-                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 select-none
-                                    ${isSelected
-                                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 select-none ${
+                                    isCompressing
+                                      ? "opacity-50 pointer-events-none border-slate-200 bg-slate-100"
+                                      : isSelected
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                       : "border-slate-200 bg-white text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50"
-                                    }`}
+                                  }`}
                                 >
-                                  <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
-                                  Galeri
+                                  {isCompressing ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                                  ) : (
+                                    <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
+                                  )}
+                                  {isCompressing ? "Proses..." : "Galeri"}
                                   <input
                                     type="file"
                                     accept="image/*"
                                     className="hidden"
+                                    disabled={isCompressing}
                                     onChange={(e) => {
                                       const file = e.target.files?.[0] || null;
-                                      setFotoFiles(prev => ({ ...prev, [point.id]: file }));
+                                      handlePhotoFileSelect(point.id, point.label, file);
+                                      e.target.value = "";
                                     }}
                                   />
                                 </label>
@@ -1721,22 +1786,38 @@ function FormProjekPlanningInner() {
                                 {/* Camera Button — opens getUserMedia modal */}
                                 <button
                                   type="button"
+                                  disabled={isCompressing}
                                   onClick={() => openCamera(point.id)}
-                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200
-                                    ${isSelected
-                                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 ${
+                                    isCompressing
+                                      ? "opacity-50 pointer-events-none border-slate-200 bg-slate-100"
+                                      : isSelected
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                       : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"
-                                    }`}
+                                  }`}
                                 >
                                   <Camera className="w-3.5 h-3.5 flex-shrink-0" />
                                   Kamera
                                 </button>
                               </div>
-                              {isSelected && fotoFiles[point.id] && (
-                                <p className="text-[10px] text-green-700 font-semibold truncate px-1 flex items-center gap-1.5 bg-green-100/50 py-1 rounded">
-                                  <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
-                                  {fotoFiles[point.id]!.name}
+
+                              {isCompressing && (
+                                <p className="text-[10px] text-amber-700 font-semibold truncate px-2 flex items-center gap-1.5 bg-amber-50 border border-amber-200 py-1 rounded">
+                                  <Loader2 className="w-3 h-3 animate-spin flex-shrink-0 text-amber-600" />
+                                  Mengompres foto di browser...
                                 </p>
+                              )}
+
+                              {!isCompressing && isSelected && fotoFiles[point.id] && (
+                                <div className="flex items-center justify-between gap-1 text-[10px] text-emerald-800 font-semibold bg-emerald-100/70 border border-emerald-200/80 py-1 px-2 rounded-lg">
+                                  <span className="truncate flex items-center gap-1.5 min-w-0">
+                                    <FileImage className="w-3.5 h-3.5 flex-shrink-0 text-emerald-600" />
+                                    <span className="truncate">{fotoFiles[point.id]!.name}</span>
+                                  </span>
+                                  <span className="flex-shrink-0 bg-white/90 px-1.5 py-0.5 rounded text-[9px] text-emerald-900 font-bold border border-emerald-200 shadow-2xs">
+                                    {formatFileSize(fotoFiles[point.id]!.size)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1748,9 +1829,26 @@ function FormProjekPlanningInner() {
               )}
 
               {/* Submit */}
-              <Button type="submit" disabled={submitting} className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm gap-2 mt-4">
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {submitting ? "Mengirim..." : "Kirim Pengajuan FPD"}
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm gap-2 mt-4 shadow-md transition-all"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>
+                      {submitStage === "PREPARING"
+                        ? "Menyiapkan & memvalidasi berkas..."
+                        : "Mengunggah data & foto ke server..."}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Kirim Pengajuan FPD</span>
+                  </>
+                )}
               </Button>
             </form>
           </CardContent>
@@ -1839,6 +1937,25 @@ function FormProjekPlanningInner() {
           </div>
         </div>
       )}
+
+      <PhotoOversizeDialog
+        open={oversizeModal.open}
+        onOpenChange={(open) => setOversizeModal(prev => ({ ...prev, open }))}
+        pointId={oversizeModal.pointId}
+        pointLabel={oversizeModal.pointLabel}
+        file={oversizeModal.file}
+        onCompressNow={handleCompressOversizePhoto}
+        onPickAnother={() => {
+          setOversizeModal({
+            open: false,
+            pointId: null,
+            pointLabel: "",
+            file: null,
+            isCompressing: false,
+          });
+        }}
+        isCompressing={oversizeModal.isCompressing}
+      />
 
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
         <AlertDialogContent className="rounded-2xl max-w-sm">

@@ -42,17 +42,9 @@ const getApiAuthToken = (): string | null => {
 };
 
 const withApiAuthQuery = (url: string): string => {
-    const token = getApiAuthToken();
-    if (!token) return url;
-
-    try {
-        const target = new URL(url, typeof window !== "undefined" ? window.location.origin : API_URL);
-        if (!isSpartaApiUrl(target)) return url;
-        target.searchParams.set("access_token", token);
-        return target.toString();
-    } catch {
-        return url;
-    }
+    // Keamanan: Hindari melewatkan token di URL query string agar tidak bocor
+    // ke access log, proxy logs, maupun browser history.
+    return url;
 };
 
 const isSpartaApiUrl = (input: RequestInfo | URL): boolean => {
@@ -81,10 +73,15 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
         headers.set("Authorization", `Bearer ${token}`);
     }
 
-    // Bypass dev tunnel and ngrok warning pages.
-    headers.set("ngrok-skip-browser-warning", "69420");
+    // Bypass dev tunnel and ngrok warning pages in non-production only
+    if (process.env.NODE_ENV !== "production") {
+        headers.set("ngrok-skip-browser-warning", "69420");
+        headers.set("X-Tunnel-Skip-AntiPhishing-Page", "true");
+        headers.set("bypass-tunnel-reminder", "true");
+    }
 
     const response = await globalThis.fetch(input, {
+        cache: "no-store",
         ...init,
         headers
     });
@@ -670,6 +667,13 @@ export const deleteDcDocument = async (
     if (res.status === 404) throw new Error(result.message || "Dokumen DC tidak ditemukan.");
     if (!res.ok) throw new Error(result.message || "Gagal menghapus dokumen DC.");
     return result;
+};
+
+export const getDcDocumentProxyUrl = (linkDokumen: string, mode: "view" | "download" = "view") => {
+    const cleanApiUrl = API_URL.replace(/\/$/, "");
+    const encodedUrl = encodeURIComponent(linkDokumen);
+    const downloadParam = mode === "download" ? "&download=true" : "";
+    return `${cleanApiUrl}/api/proxy-file?url=${encodedUrl}${downloadParam}`;
 };
 
 export const buildDcDocumentViewUrl = (id: number, actor: DcDocumentActor, mode: "view" | "download" = "view") => {
@@ -2884,6 +2888,22 @@ export const updateOpname = async (
     return result;
 };
 
+/** Menyetujui semua item opname berstatus pending pada suatu toko sekaligus */
+export const bulkApproveOpname = async (
+    idToko: number
+): Promise<{ status: string; message: string; data: { updated_count: number } }> => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/opname/bulk-approve`;
+    const res = await apiFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_toko: idToko })
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, `Gagal menyetujui semua opname (${res.status}).`));
+    return result;
+};
+
 /** Hapus data Opname. */
 export const deleteOpname = async (id: number) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`, {
@@ -3006,10 +3026,10 @@ export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
     }
 
     const disposition = res.headers.get("Content-Disposition");
-    let filename = `OPNAME_${id}.pdf`;
+    let filename = `KTK_${id}.pdf`;
     if (disposition?.includes("filename=")) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match?.[1]) filename = match[1];
+        const match = disposition.match(/filename=["']?([^"';]+)["']?/);
+        if (match?.[1]) filename = match[1].trim();
     }
 
     const blob = await res.blob();
@@ -3928,7 +3948,10 @@ export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
 
     const result = await res.json();
     if (res.status === 404) throw new Error(result.message || "SPK tidak ditemukan.");
-    if (res.status === 422) throw new Error(result.message || "Validasi gagal. Pastikan semua field terisi.");
+    if (res.status === 422) {
+        const issuesMsg = result.issues ? ": " + JSON.stringify(result.issues) : "";
+        throw new Error((result.message || "Validasi gagal.") + issuesMsg);
+    }
     if (!res.ok || result.status !== "success") {
         throw new Error(result.message || "Gagal menyimpan data pertambahan SPK.");
     }
@@ -4639,7 +4662,7 @@ export const downloadDokumentasiBangunanPdf = async (id: number): Promise<boolea
 
 export const viewGeneratedPdfOnline = async (
     id: number,
-    tipe: "RAB" | "SPK" | "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK"
+    tipe: "RAB" | "SPK" | "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK" | "PROJECT_PLANNING_PHOTOS"
 ): Promise<boolean> => {
     const popup = window.open("about:blank", "_blank");
     if (!popup) throw new Error("Browser memblokir tab baru. Izinkan popup untuk membuka PDF online.");
@@ -4663,6 +4686,7 @@ export const viewGeneratedPdfOnline = async (
         OPNAME_FINAL: `/api/final_opname/${id}/pdf`,
         INSTRUKSI_LAPANGAN: `/api/instruksi-lapangan/${id}/pdf`,
         PROJECT_PLANNING: `/api/projek-planning/${id}/pdf`,
+        PROJECT_PLANNING_PHOTOS: `/api/projek-planning/${id}/photos-pdf`,
         BERKAS_SERAH_TERIMA: `/api/berkas_serah_terima/${id}/pdf`,
         PENGAWASAN: `/api/pengawasan/${id}/pdf`,
         PERTAMBAHAN_SPK: `/api/pertambahan-spk/${id}/pdf`,
@@ -5398,6 +5422,7 @@ export type ProjekPlanningListFilters = {
     cabang?: string;
     email_pembuat?: string;
     id_toko?: number;
+    jenis?: string;
 };
 
 export type ProjekPlanningTaskCounts = {
@@ -5461,6 +5486,53 @@ export type ProjectPlanningInterventionPayload = {
 
 // --- Fungsi ---
 
+const compressFileIfNeeded = async (file: File): Promise<File> => {
+    if (!file.type.startsWith("image/")) return file;
+    // Jika file sudah berukuran kecil (<= 2MB), jangan lakukan kompresi ulang agar cepat
+    if (file.size <= 2 * 1024 * 1024) return file;
+
+    try {
+        const imageCompression = (await import("browser-image-compression")).default;
+        const options = {
+            maxSizeMB: 1.5,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+        };
+        // Beri batas waktu kompresi maksimal 8 detik per file agar tidak menggantung selamanya
+        const compressPromise = imageCompression(file, options);
+        const timeoutPromise = new Promise<File>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout kompresi")), 8000)
+        );
+
+        const compressedBlob = await Promise.race([compressPromise, timeoutPromise]) as Blob;
+        return new File([compressedBlob], file.name, { type: file.type });
+    } catch (error) {
+        console.warn("[Kompresi] Melewati kompresi file:", file.name, error);
+        return file;
+    }
+};
+
+const compressFilesIfNeeded = async (fileOrFiles?: File | File[]): Promise<File | File[] | undefined> => {
+    if (!fileOrFiles) return fileOrFiles;
+    if (Array.isArray(fileOrFiles)) {
+        return await Promise.all(fileOrFiles.map(compressFileIfNeeded));
+    }
+    return await compressFileIfNeeded(fileOrFiles);
+};
+
+const compressPhotoDictIfNeeded = async (fotoFiles?: { [key: number]: File }): Promise<{ [key: number]: File } | undefined> => {
+    if (!fotoFiles) return fotoFiles;
+    const entries = Object.entries(fotoFiles);
+    // Jalankan kompresi paralel menggunakan Promise.all (bukan sekuensial)
+    const compressedEntries = await Promise.all(
+        entries.map(async ([key, file]) => {
+            const compressed = await compressFileIfNeeded(file);
+            return [Number(key), compressed] as const;
+        })
+    );
+    return Object.fromEntries(compressedEntries);
+};
+
 /** Submit FPD baru (Coordinator/Cabang). */
 export const submitProjekPlanning = async (
     payload: Record<string, unknown>,
@@ -5471,6 +5543,13 @@ export const submitProjekPlanning = async (
     fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
+    fileFpd = await compressFilesIfNeeded(fileFpd) as any;
+    fileGambarKerjaMe = await compressFilesIfNeeded(fileGambarKerjaMe) as any;
+    fileGambarKompetitor = await compressFilesIfNeeded(fileGambarKompetitor) as any;
+    fileSiteplan = await compressFilesIfNeeded(fileSiteplan) as any;
+    fileBaTidakSesuaiStandar = await compressFilesIfNeeded(fileBaTidakSesuaiStandar) as any;
+    fotoFiles = await compressPhotoDictIfNeeded(fotoFiles);
+
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/submit`;
 
     let body: BodyInit;
@@ -5511,7 +5590,17 @@ export const submitProjekPlanning = async (
         headers,
         body,
     });
-    const result = await res.json();
+    let result: any;
+    try {
+        result = await res.json();
+    } catch {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 524 || rawText.includes("524") || rawText.includes("A timeout occurred")) {
+            throw new Error("Server timeout (Cloudflare 524). Koneksi upload cabang atau pemrosesan server membutuhkan waktu lebih dari 100 detik.");
+        }
+        throw new Error(`Server error (${res.status}): Server mengembalikan respons tidak valid.`);
+    }
+
     if (res.status === 409) throw new Error(result.message || "Project planning aktif sudah ada untuk toko ini.");
     if (res.status === 422) {
         const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
@@ -5532,6 +5621,13 @@ export const resubmitProjekPlanning = async (
     fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
+    fileFpd = await compressFilesIfNeeded(fileFpd) as any;
+    fileGambarKerjaMe = await compressFilesIfNeeded(fileGambarKerjaMe) as any;
+    fileGambarKompetitor = await compressFilesIfNeeded(fileGambarKompetitor) as any;
+    fileSiteplan = await compressFilesIfNeeded(fileSiteplan) as any;
+    fileBaTidakSesuaiStandar = await compressFilesIfNeeded(fileBaTidakSesuaiStandar) as any;
+    fotoFiles = await compressPhotoDictIfNeeded(fotoFiles);
+
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/resubmit`;
 
     let body: BodyInit;
@@ -5572,7 +5668,17 @@ export const resubmitProjekPlanning = async (
         headers,
         body,
     });
-    const result = await res.json();
+    let result: any;
+    try {
+        result = await res.json();
+    } catch {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 524 || rawText.includes("524") || rawText.includes("A timeout occurred")) {
+            throw new Error("Server timeout (Cloudflare 524). Koneksi upload cabang atau pemrosesan server membutuhkan waktu lebih dari 100 detik.");
+        }
+        throw new Error(`Server error (${res.status}): Server mengembalikan respons tidak valid.`);
+    }
+
     if (res.status === 409) throw new Error(result.message || "Hanya DRAFT yang bisa di-resubmit.");
     if (res.status === 422) {
         const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
@@ -5594,6 +5700,7 @@ export const fetchProjekPlanningList = async (
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
     if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
+    if (filters?.jenis) params.append("jenis", filters.jenis);
     const url = `${base}/api/projek-planning${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };
@@ -5760,10 +5867,12 @@ export const proxyProjekPlanningFile = async (
     field: string,
     mode: "view" | "download" = "view",
     itemIndex?: number,
-    newWindow?: Window | null
+    newWindow?: Window | null,
+    fileIndex?: number
 ): Promise<void> => {
     let url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/proxy-file?field=${field}&mode=${mode}`;
     if (itemIndex !== undefined) url += `&item_index=${itemIndex}`;
+    if (fileIndex !== undefined) url += `&file_index=${fileIndex}`;
 
     const res = await apiFetch(url);
     if (!res.ok) {
@@ -5788,8 +5897,21 @@ export const proxyProjekPlanningFile = async (
     const contentType = res.headers.get("Content-Type") || "application/octet-stream";
     const disposition = res.headers.get("Content-Disposition") || "";
     let filename = `file_${field}_${id}`;
-    const fnMatch = disposition.match(/filename="?([^";\n]+)"?/);
-    if (fnMatch?.[1]) filename = decodeURIComponent(fnMatch[1]);
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;\n]+)/i);
+    const standardMatch = disposition.match(/filename="?([^";\n]+)"?/);
+    if (utf8Match?.[1]) {
+        try {
+            filename = decodeURIComponent(utf8Match[1]);
+        } catch {
+            filename = utf8Match[1];
+        }
+    } else if (standardMatch?.[1]) {
+        try {
+            filename = decodeURIComponent(standardMatch[1]);
+        } catch {
+            filename = standardMatch[1];
+        }
+    }
 
     const blob = await res.blob();
     const blobUrl = window.URL.createObjectURL(blob);
@@ -5811,6 +5933,30 @@ export const proxyProjekPlanningFile = async (
         document.body.removeChild(a);
     }
     setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+};
+
+/**
+ * Mengekstrak file ID dari berbagai variasi URL Google Drive.
+ */
+export const extractGdriveFileId = (url?: string | null): string | null => {
+    if (!url) return null;
+    const cleanUrl = String(url).split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || "";
+    const match = cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                  cleanUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+                  cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+};
+
+/**
+ * Mengembalikan direct export download URL jika merupakan link Google Drive,
+ * atau URL asli jika bukan.
+ */
+export const getGdriveDirectDownloadUrl = (url?: string | null): string => {
+    const fileId = extractGdriveFileId(url);
+    if (fileId) {
+        return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    }
+    return String(url || "").split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || "";
 };
 
 /** Proses approval BM Manager. */
@@ -5919,7 +6065,7 @@ export const uploadRabGambarKerja = async (id: number, payload: {
     nomor_ulok?: string;
     nama_toko?: string;
     jenis_proyek?: string;
-}, fileGambarSipil?: File | File[], fileGambarMe?: File | File[]) => {
+}, fileGambarSipil?: File | File[], fileGambarMe?: File | File[], fileRabSipil?: File | File[], fileRabMe?: File | File[]) => {
     let body: BodyInit;
     const headers: Record<string, string> = {};
 
@@ -5927,7 +6073,7 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         const files = Array.isArray(fileOrFiles) ? fileOrFiles : fileOrFiles ? [fileOrFiles] : [];
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
-    const hasFiles = [fileGambarSipil, fileGambarMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
+    const hasFiles = [fileGambarSipil, fileGambarMe, fileRabSipil, fileRabMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
 
     if (hasFiles) {
         const formData = new FormData();
@@ -5946,6 +6092,8 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
         appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
         appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
+        appendFiles(formData, "file_rab_sipil_final", fileRabSipil);
+        appendFiles(formData, "file_rab_me_final", fileRabMe);
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";

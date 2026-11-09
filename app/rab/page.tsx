@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox, ComboboxInput, ComboboxContent, ComboboxEmpty, ComboboxList, ComboboxItem } from '@/components/ui/combobox';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -36,6 +37,7 @@ import {
   type RabProjectPlanningRequest,
 } from '@/lib/api';
 import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
+import { fetchMaintenanceStores, type MaintenanceStore } from '@/lib/maintenance-api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -452,10 +454,38 @@ function RABPageContent() {
   
   const [activeWarnings, setActiveWarnings] = useState<DendaAction[]>([]);
 
+  // Pembersih Sisa Radix UI Lock Global (Universal Anti-Freeze)
+  useEffect(() => {
+    const nukeScrollLocks = () => {
+      document.documentElement.style.pointerEvents = '';
+      document.documentElement.style.overflow = '';
+      document.documentElement.removeAttribute('data-scroll-locked');
+      
+      document.body.style.pointerEvents = '';
+      document.body.style.overflow = '';
+      document.body.removeAttribute('data-scroll-locked');
+      
+      document.querySelectorAll('[data-radix-scroll-lock-style]').forEach(el => el.remove());
+    };
+
+    // Jalankan sekali saat mount
+    nukeScrollLocks();
+    
+    // Interval permanen: jika Radix gagal cleanup (misal setelah Alert ditutup), paksa bersihkan!
+    const interval = setInterval(() => {
+      // Cek apakah memang ada Modal/Dialog yang sedang terbuka
+      const isModalOpen = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+      if (!isModalOpen) {
+        nukeScrollLocks();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
-    namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false, isTakeover: false,
-    proyek: 'Reguler', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
+    namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: true, isTakeover: false,
+    proyek: '', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
     luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: '',
     logo: '', // Base64 logo string
     noPolis: '', berlakuPolis: '', fileAsuransi: '', // URL link file asuransi (jika sudah ada dari revisi)
@@ -474,6 +504,17 @@ function RABPageContent() {
 
   const [tokoListOptions, setTokoListOptions] = useState<any[]>([]);
   const [isLoadingToko, setIsLoadingToko] = useState(false);
+  
+  const [maintenanceStores, setMaintenanceStores] = useState<MaintenanceStore[]>([]);
+  const [tokoSearchQuery, setTokoSearchQuery] = useState("");
+  
+  useEffect(() => {
+    if (formData.namaToko && !tokoSearchQuery) {
+      setTokoSearchQuery(formData.namaToko);
+    }
+  }, [formData.namaToko]);
+  
+  const [isLoadingMaintenanceStores, setIsLoadingMaintenanceStores] = useState(false);
   
   const [rejectedList, setRejectedList] = useState<any[]>([]);
   const [planningRequests, setPlanningRequests] = useState<RabProjectPlanningRequest[]>([]);
@@ -575,6 +616,23 @@ function RABPageContent() {
   }, [formData, tableRows, isLoading, isReadOnly, user, currentRabId, hasProjectPlanningRequest]);
 
   useEffect(() => {
+    if (!user?.cabang) return;
+    const loadMaintenanceStores = async () => {
+      setIsLoadingMaintenanceStores(true);
+      try {
+        const parentBranch = getParentBranch(user.cabang || '');
+        const data = await fetchMaintenanceStores(parentBranch);
+        setMaintenanceStores(data);
+      } catch (err) {
+        console.error("Gagal load maintenance stores:", err);
+      } finally {
+        setIsLoadingMaintenanceStores(false);
+      }
+    };
+    loadMaintenanceStores();
+  }, [user?.cabang]);
+
+  useEffect(() => {
     if (user?.email && !currentRabId && !hasProjectPlanningRequest) {
       const draftKey = `rab_draft_${user.email}_${user.role}_${user.cabang}`;
       const savedDraft = localStorage.getItem(draftKey);
@@ -582,6 +640,22 @@ function RABPageContent() {
         try {
           const parsed = JSON.parse(savedDraft);
           if (parsed && parsed.formData && (parsed.tableRows?.length > 0 || parsed.formData.namaToko !== '')) {
+            
+            // --- LOGIKA BARU: BLOKIR DRAFT REGULER ---
+            if (parsed.formData.isRenovasi === false || parsed.formData.proyek === 'Reguler') {
+              // 1. Hapus draft dari storage
+              localStorage.removeItem(draftKey);
+              // 2. Munculkan error / warning kepada pengguna
+              showAlert(
+                "Draft Tidak Didukung", 
+                "Draft yang tersimpan sebelumnya adalah draft Reguler. Saat ini sistem hanya mendukung pengajuan Renovasi. Draft lama Anda telah dihapus otomatis, silakan buat pengajuan dari awal.", 
+                "warning"
+              );
+              // 3. Hentikan eksekusi, biarkan form tetap default (Renovasi)
+              return;
+            }
+            // ----------------------------------------
+
             setDraftData(parsed);
             setDraftDialogOpen(true);
           }
@@ -744,12 +818,14 @@ function RABPageContent() {
         const rawProject = String(prefill.proyek || '').trim();
         const normalizedProject = rawProject.toUpperCase();
         const projectValue = isRenovasi
-          ? 'Renovasi'
+          ? (normalizedProject.includes('PERLUASAN') ? 'Renovasi Perluasan'
+            : normalizedProject.includes('PERPANJANGAN') ? 'Renovasi Perpanjangan'
+            : normalizedProject.includes('TUTUP') ? 'Renovasi Toko Tutup'
+            : normalizedProject.includes('PEREMAJAAN') || normalizedProject.includes('PERBAIKAN') ? 'Renovasi Peremajaan'
+            : '')
           : normalizedProject === 'REGULER'
           ? 'Reguler'
-          : normalizedProject === 'RENOVASI'
-            ? 'Renovasi'
-            : rawProject;
+          : rawProject;
         const nextForm = {
           ...formData,
           namaToko: prefill.nama_toko || '',
@@ -757,7 +833,7 @@ function RABPageContent() {
           lokasiTanggal: parts[1] || '',
           lokasiManual: parts[2] || '',
           isRenovasi,
-          proyek: projectValue || (isRenovasi ? 'Renovasi' : 'Reguler'),
+          proyek: projectValue || (isRenovasi ? '' : 'Reguler'),
           alamat: prefill.alamat || '',
           cabang: normalizeBranchName(prefill.cabang),
           lingkupPekerjaan: prefill.lingkup_pekerjaan === 'SIPIL' ? 'Sipil' : 'ME',
@@ -1604,6 +1680,7 @@ function RABPageContent() {
     formData.lokasiTanggal.trim() !== '' &&
     formData.lokasiManual.trim() !== '' &&
     formData.proyek !== '' &&
+    formData.proyek !== 'Renovasi' &&
     formData.alamat.trim() !== '' &&
     formData.lingkupPekerjaan !== '' &&
     formData.kategoriLokasi !== '' &&
@@ -1621,7 +1698,7 @@ function RABPageContent() {
     : !isFormModified
       ? "Silakan buat perubahan pada form terlebih dahulu."
       : !isFormComplete
-        ? "Lengkapi data wajib proyek, dimensi, asuransi, dan minimal 1 item pekerjaan bervolume."
+        ? (formData.proyek === 'Renovasi' ? "Silakan pilih spesifikasi jenis proyek renovasi Anda." : "Lengkapi data wajib proyek, dimensi, asuransi, dan minimal 1 item pekerjaan bervolume.")
         : "";
   const isProjectFieldLocked = isReadOnly || crossScopeProjectLocked;
   const projectInputClass = crossScopeProjectLocked
@@ -1765,10 +1842,71 @@ function RABPageContent() {
 
               {/* --- GRID FORM IDENTITAS --- */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" readOnly={isProjectFieldLocked} value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className={projectInputClass} required /></div>
+                <div className="space-y-2">
+                  <Label>Nama Toko <span className="text-red-500">*</span></Label>
+                  <Combobox
+                    disabled={isProjectFieldLocked || isLoadingMaintenanceStores}
+                    value={formData.lokasiManual || null}
+                    inputValue={tokoSearchQuery}
+                    onInputValueChange={(val: any) => {
+                      if (!val) {
+                        setTokoSearchQuery('');
+                        return;
+                      }
+                      // Jika BaseUI mencoba memasukkan value (kode) atau text lainnya ke input saat item dipilih:
+                      // Kita cegat dan paksa kembalikan ke nama tokonya saja.
+                      const matchedStoreByCode = maintenanceStores.find(s => s.code === val);
+                      if (matchedStoreByCode) {
+                        setTokoSearchQuery(matchedStoreByCode.name);
+                      } else {
+                        setTokoSearchQuery(val);
+                      }
+                    }}
+                    onValueChange={(val: any) => {
+                      if (!val) return;
+                      const selectedStore = maintenanceStores.find(s => s.code === val);
+                      if (selectedStore) {
+                        setTokoSearchQuery(selectedStore.name);
+                        setFormData(prev => ({
+                          ...prev,
+                          namaToko: selectedStore.name,
+                          lokasiManual: selectedStore.code,
+                        }));
+                      } else {
+                        setFormData(prev => ({ ...prev, namaToko: val }));
+                      }
+                    }}
+                  >
+                    <ComboboxInput 
+                      placeholder={isLoadingMaintenanceStores ? "Memuat toko..." : "Cari nama / kode toko..."}
+                    />
+                    <ComboboxContent>
+                      {(() => {
+                        const filteredStores = maintenanceStores.filter(store => 
+                          store.name.toLowerCase().includes(tokoSearchQuery.toLowerCase()) || 
+                          store.code.toLowerCase().includes(tokoSearchQuery.toLowerCase())
+                        );
+
+                        if (filteredStores.length === 0) {
+                          return <div className="p-3 text-sm text-center text-muted-foreground">Toko tidak ditemukan</div>;
+                        }
+
+                        return (
+                          <ComboboxList>
+                            {filteredStores.map((store, i) => (
+                              <ComboboxItem key={`${store.code}-${i}`} value={store.code}>
+                                {store.name} - {store.code}
+                              </ComboboxItem>
+                            ))}
+                          </ComboboxList>
+                        );
+                      })()}
+                    </ComboboxContent>
+                  </Combobox>
+                </div>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox id="isRenovasi" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
+                    <Checkbox id="isRenovasi" disabled={true} checked={true} />
                     <Label htmlFor="isRenovasi" className="font-normal cursor-pointer mr-4">Proyek Renovasi (Format Baru)</Label>
                     
                     {(formData.cabang === 'HEAD OFFICE' || formData.cabang === 'GORONTALO') && (
@@ -2180,7 +2318,7 @@ function RABPageContent() {
                     className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       setPlanningRequestDialogOpen(false);
-                      router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`);
+                      window.location.href = `/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`;
                     }}
                   >
                     Buat Penawaran <ArrowRight className="ml-2 h-4 w-4" />
@@ -2229,7 +2367,7 @@ function RABPageContent() {
                                       className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"
                                       onClick={() => {
                                           setRevisionListDialogOpen(false);
-                                          handleLoadRevision(item);
+                                          window.location.href = `/rab?revision_id=${item.id}`;
                                       }}
                                   >
                                       Revisi Sekarang

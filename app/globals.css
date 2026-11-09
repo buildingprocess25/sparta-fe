@@ -147,3 +147,9 @@
     font-size: 0.9375rem !important; /* Scaled up from 12px to legibility standard */
   }
 }
+
+/* Recharts text overflow prevention so angled labels are not clipped */
+.recharts-surface,
+.recharts-wrapper {
+  overflow: visible !important;
+}
