@@ -23,6 +23,7 @@ import {
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
 import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch, BRANCH_TO_ULOK } from "@/lib/constants";
+import Swal from "sweetalert2";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700" },
@@ -963,85 +964,6 @@ export default function DetailProjekPlanning() {
     setActionLoading(false);
   };
 
-  const handleUploadRab = async () => {
-    const activeRabs = revisiUlok ? rawBranchApprovedRabs.filter(r => {
-      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
-      return u === newUlok.trim().toUpperCase();
-    }) : approvedRabs;
-
-    const selectedRabSipil = activeRabs.find(r => getRabScope(r).includes("SIPIL"));
-    const selectedRabMe = activeRabs.find(r => getRabScope(r).includes("ME"));
-    if (activeRabs.length === 0) {
-      showAlert("RAB Belum Tersedia", `RAB untuk ULOK ${revisiUlok ? newUlok : data?.nomor_ulok || ''} belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.`);
-      return;
-    }
-    if (!selectedRabSipil || !selectedRabMe) {
-      showAlert("RAB Belum Lengkap", `RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ${revisiUlok ? newUlok : data?.nomor_ulok || ''} sebelum melanjutkan FPD.`);
-      return;
-    }
-    if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) {
-      showAlert("Peringatan", "File Gambar Kerja Final Sipil atau ME belum terisi! Silakan upload atau masukkan link.");
-      return;
-    }
-    
-    // Wajib buka desain 3D jika ada
-    if (data?.link_desain_3d && !openedLinks.has("desain_3d")) {
-      showAlert("Peringatan", "Anda harus membuka dan melihat file Desain 3D terlebih dahulu sebelum mengupload RAB.");
-      return;
-    }
-    
-    // Validasi re-upload saat ditolak
-    if (data?.pp2_alasan_penolakan || data?.pp_manager_alasan_penolakan) {
-      const noChange = fileGambarSipil.length === 0 && fileGambarMe.length === 0
-        && (selectedRabSipil?.id ?? null) === ((data as any).id_rab_sipil ?? null)
-        && (selectedRabMe?.id ?? null) === ((data as any).id_rab_me ?? null)
-        && linkGambarSipil.trim() === (((data as any).link_gambar_kerja_final_sipil || "")).trim()
-        && linkGambarMe.trim() === ((data as any).link_gambar_kerja_final_me || "").trim();
-      if (noChange) {
-        showAlert("Peringatan", "Minimal harus melakukan satu perubahan pada gambar final atau fasilitas.");
-        return;
-      }
-    }
-
-    const changedRabFields = [
-      ((selectedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null)) ? "rab_sipil_final" : null,
-      ((selectedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)) ? "rab_me_final" : null,
-      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim()) ? "gambar_kerja_final_sipil" : null,
-      (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
-    ].filter(Boolean) as string[];
-
-    setActionLoading(true);
-    try {
-      const payload: any = {
-          uploader_email: userEmail,
-          id_rab_sipil: selectedRabSipil?.id,
-          id_rab_me: selectedRabMe?.id,
-          fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
-          link_gambar_kerja_final_sipil: linkGambarSipil,
-          link_gambar_kerja_final_me: linkGambarMe,
-      };
-      
-      if (revisiUlok) {
-          if (newUlok.trim()) payload.nomor_ulok = newUlok.trim();
-          if (newNamaToko.trim()) payload.nama_toko = newNamaToko.trim();
-          if (newProyek.trim()) payload.jenis_proyek = newProyek.trim();
-      }
-
-      await uploadRabGambarKerja(
-        id,
-        payload,
-        fileGambarSipil,
-        fileGambarMe
-      );
-      clearViewedFields(changedRabFields);
-      showAlert("Berhasil", "Input tahap kedua berhasil dikirim ke B&M Manager.");
-      setLinkGambarSipil(""); setFileGambarSipil([]);
-      setLinkGambarMe(""); setFileGambarMe([]);
-      await load();
-    } catch (e: any) { showAlert("Gagal", e.message); }
-    setActionLoading(false);
-  };
-
   const handleFileChange = (setLink: React.Dispatch<React.SetStateAction<string>>, setFile: React.Dispatch<React.SetStateAction<File | null>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1128,6 +1050,138 @@ export default function DetailProjekPlanning() {
     (selectedApprovedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null) ||
     (selectedApprovedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)
   );
+  const targetUlokForRab = revisiUlok ? newUlok : data?.nomor_ulok || "";
+
+  const rabUploadChecklist = [
+    ...(data?.link_desain_3d ? [{
+      id: "desain_3d",
+      title: "Desain 3D Ditinjau",
+      isPassed: openedLinks.has("desain_3d"),
+      passedText: "Dokumen Desain 3D sudah dibuka / ditinjau",
+      failedText: "Buka dokumen Desain 3D pada kartu Dokumen PP Specialist di atas",
+    }] : []),
+    {
+      id: "rab_sipil",
+      title: "RAB Sipil Disetujui",
+      isPassed: Boolean(selectedApprovedRabSipil),
+      passedText: selectedApprovedRabSipil
+        ? `RAB Sipil Disetujui (${selectedApprovedRabSipil.nomor_ulok || targetUlokForRab})`
+        : "RAB Sipil telah disetujui",
+      failedText: `RAB Sipil untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum selesai approval`,
+    },
+    {
+      id: "rab_me",
+      title: "RAB ME Disetujui",
+      isPassed: Boolean(selectedApprovedRabMe),
+      passedText: selectedApprovedRabMe
+        ? `RAB ME Disetujui (${selectedApprovedRabMe.nomor_ulok || targetUlokForRab})`
+        : "RAB ME telah disetujui",
+      failedText: `RAB ME untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum selesai approval`,
+    },
+    {
+      id: "gambar_kerja",
+      title: "Gambar Kerja Final",
+      isPassed: Boolean(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0),
+      passedText: "Link atau berkas Gambar Kerja Final sudah diinput",
+      failedText: "Isi link Google Drive atau pilih file Gambar Kerja Final Sipil / ME di atas",
+    },
+    ...(isRabReupload ? [{
+      id: "revisi_change",
+      title: "Perubahan Berkas Revisi",
+      isPassed: hasRabUploadChange,
+      passedText: "Perubahan data dibanding upload sebelumnya terdeteksi",
+      failedText: "Ubah minimal satu link gambar atau upload berkas baru dibanding upload sebelumnya",
+    }] : []),
+  ];
+
+  const isRabUploadAllPassed = rabUploadChecklist.every(item => item.isPassed);
+  const missingRabUploadItems = rabUploadChecklist.filter(item => !item.isPassed);
+
+  const handleUploadRab = async () => {
+    if (missingRabUploadItems.length > 0) {
+      const htmlList = `
+        <div style="text-align: left; font-size: 13px; margin-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+          ${missingRabUploadItems.map((item, idx) => `
+            <div style="padding: 10px 12px; background-color: #ffffff; border: 2px solid #ef4444; border-radius: 8px; color: #1e293b;">
+              <div style="font-weight: 700; color: #dc2626; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: #dc2626;"></span>
+                ${idx + 1}. ${item.title}
+              </div>
+              <div style="font-size: 12px; color: #475569; margin-left: 14px;">
+                ${item.failedText}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+
+      Swal.fire({
+        title: "Persyaratan Belum Lengkap",
+        html: `<p style="font-size: 14px; color: #334155; text-align: left; margin: 0;">Mohon lengkapi persyaratan berikut sebelum mengirimkan pengajuan:</p>${htmlList}`,
+        icon: "warning",
+        confirmButtonText: "Saya Mengerti",
+        confirmButtonColor: "#ea580c",
+        customClass: {
+          popup: "border-2 border-slate-300",
+          confirmButton: "font-bold px-6 py-2.5 rounded-lg",
+        }
+      });
+      return;
+    }
+
+    const changedRabFields = [
+      ((selectedApprovedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null)) ? "rab_sipil_final" : null,
+      ((selectedApprovedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)) ? "rab_me_final" : null,
+      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim()) ? "gambar_kerja_final_sipil" : null,
+      (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
+    ].filter(Boolean) as string[];
+
+    setActionLoading(true);
+    try {
+      const payload: any = {
+          uploader_email: userEmail,
+          id_rab_sipil: selectedApprovedRabSipil?.id,
+          id_rab_me: selectedApprovedRabMe?.id,
+          fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
+          link_gambar_kerja_final_sipil: linkGambarSipil,
+          link_gambar_kerja_final_me: linkGambarMe,
+      };
+      
+      if (revisiUlok) {
+          if (newUlok.trim()) payload.nomor_ulok = newUlok.trim();
+          if (newNamaToko.trim()) payload.nama_toko = newNamaToko.trim();
+          if (newProyek.trim()) payload.jenis_proyek = newProyek.trim();
+      }
+
+      await uploadRabGambarKerja(
+        id,
+        payload,
+        fileGambarSipil,
+        fileGambarMe
+      );
+      clearViewedFields(changedRabFields);
+      Swal.fire({
+        title: "Berhasil!",
+        text: "Input tahap kedua berhasil dikirim ke B&M Manager.",
+        icon: "success",
+        confirmButtonColor: "#ea580c",
+        customClass: {
+          confirmButton: "font-bold px-6 py-2.5 rounded-lg",
+        }
+      });
+      setLinkGambarSipil(""); setFileGambarSipil([]);
+      setLinkGambarMe(""); setFileGambarMe([]);
+      await load();
+    } catch (e: any) { 
+      Swal.fire({
+        title: "Gagal Mengirim",
+        text: e.message || "Terjadi kesalahan saat memproses data.",
+        icon: "error",
+        confirmButtonColor: "#dc2626",
+      });
+    }
+    setActionLoading(false);
+  };
   const latestRevisionSummary = [...logs]
     .reverse()
     .find(log =>
@@ -1969,18 +2023,102 @@ export default function DetailProjekPlanning() {
                 </div>
               </div>
 
+              {/* Checklist Validasi Kelengkapan Dokumen */}
+              <div className="rounded-xl border-2 border-slate-300 bg-white p-4 shadow-sm space-y-3">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-slate-700" />
+                    <h4 className="text-sm font-bold text-slate-800">Checklist Kelengkapan Dokumen</h4>
+                  </div>
+                  {isRabUploadAllPassed ? (
+                    <span className="bg-emerald-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded shadow-sm">
+                      Semua Lengkap
+                    </span>
+                  ) : (
+                    <span className="bg-red-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded shadow-sm">
+                      {missingRabUploadItems.length} Belum Lengkap
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {rabUploadChecklist.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-lg border-2 flex items-start gap-3 transition-colors ${
+                        item.isPassed
+                          ? "bg-white border-emerald-500 text-slate-800"
+                          : "bg-white border-red-500 text-slate-800"
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                          item.isPassed ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+                        }`}
+                      >
+                        {item.isPassed ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900">{item.title}</span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded text-white ${
+                              item.isPassed ? "bg-emerald-600" : "bg-red-600"
+                            }`}
+                          >
+                            {item.isPassed ? "Lengkap" : "Wajib Dilengkapi"}
+                          </span>
+                        </div>
+                        <p
+                          className={`text-xs mt-0.5 ${
+                            item.isPassed ? "text-slate-600" : "text-red-700 font-medium"
+                          }`}
+                        >
+                          {item.isPassed ? item.passedText : item.failedText}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {isRabUploadAllPassed ? (
+                  <div className="p-3 bg-white border-2 border-emerald-600 rounded-lg text-emerald-900 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Semua persyaratan terpenuhi, berkas siap dikirim ke B&M Manager.</span>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white border-2 border-red-500 rounded-lg text-red-900 text-xs font-semibold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>
+                      Terdapat {missingRabUploadItems.length} persyaratan yang belum lengkap. Tombol submit tetap bisa diklik untuk melihat rincian instruksi.
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={handleUploadRab}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-                disabled={actionLoading || (data.link_desain_3d ? !openedLinks.has("desain_3d") : false) || !hasRabUploadInput || (isRabReupload && !hasRabUploadChange)}
+                className={`w-full font-bold h-11 text-sm shadow-sm transition-colors ${
+                  isRabUploadAllPassed
+                    ? "bg-orange-600 hover:bg-orange-700 text-white"
+                    : "bg-slate-700 hover:bg-slate-800 text-white"
+                }`}
+                disabled={actionLoading}
               >
-                <Send className="w-4 h-4 mr-1.5" /> Submit RAB & Gambar Kerja Final
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Mengirim RAB & Gambar Kerja Final...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-1.5" /> Submit RAB & Gambar Kerja Final
+                  </>
+                )}
               </Button>
-              {isRabReupload && !hasRabUploadChange && (
-                <p className="text-xs text-orange-700 text-center font-medium">
-                  Belum ada perubahan dari upload sebelumnya.
-                </p>
-              )}
             </CardContent>
           </Card>
         )}
