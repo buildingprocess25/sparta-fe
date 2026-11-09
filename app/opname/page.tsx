@@ -1623,27 +1623,33 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 const userNamaPtRaw = userInfo.nama_pt || '';
                 const normalizeNamaPt = (name: string) => {
                     if (!name) return '';
-                    return name.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/PT/g, '').replace(/CV/g, '');
+                    return name.toUpperCase()
+                        .replace(/[^A-Z0-9]/g, '')
+                        .replace(/PT/g, '')
+                        .replace(/CV/g, '')
+                        .replace(/Z/g, 'J');
                 };
                 const userNamaPt = normalizeNamaPt(userNamaPtRaw);
+                const userEmail = String(userInfo.email || '').trim().toLowerCase();
                 
                 const nextIlTokoMap = new Map<number, any>();
                 ilRows.forEach((item: any) => {
-                    if (userNamaPt && normalizeNamaPt(item.nama_kontraktor) !== userNamaPt) return;
+                    const itemNamaPt = normalizeNamaPt(item.nama_kontraktor);
+                    const matchesCompany = Boolean(userNamaPt && itemNamaPt === userNamaPt);
+                    const matchesEmail = Boolean(userEmail && String(item.email_pembuat || '').trim().toLowerCase() === userEmail);
+                    if (userNamaPt && !matchesCompany && !matchesEmail) return;
                     const idToko = Number(item.id_toko);
                     if (!idToko || nextIlTokoMap.has(idToko)) return;
                     nextIlTokoMap.set(idToko, item);
                 });
                 setIlTokoMap(nextIlTokoMap);
 
-                const userEmail = String(userInfo.email || '').trim().toLowerCase();
                 const filteredRab = data.filter(item => {
                     if (!userNamaPt) return true;
                     const itemNamaPt = normalizeNamaPt(item.nama_pt);
-                    if (itemNamaPt) return itemNamaPt === userNamaPt;
-                    return userEmail
-                        ? String(item.email_pembuat || '').trim().toLowerCase() === userEmail
-                        : false;
+                    if (itemNamaPt && itemNamaPt === userNamaPt) return true;
+                    if (userEmail && String(item.email_pembuat || '').trim().toLowerCase() === userEmail) return true;
+                    return false;
                 });
                 
                 setRabList(filteredRab);

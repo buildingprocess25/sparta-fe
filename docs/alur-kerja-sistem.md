@@ -33,7 +33,7 @@ Setiap modul memiliki alur kerja spesifik, dokumen referensi detail, aktor utama
 | **04** | **Jadwal & Kurva S Proyek** | `/gantt` | PIC Pengawas, Koordinator Bangunan, Kontraktor | Siap | *Timeline harian, perhitungan bobot deviasi, grafik Kurva S* |
 | **05** | **Pengawasan Harian Lapangan** | `/gantt`, `/inputpic` | PIC Pengawas Lapangan, Kontraktor | Siap | *Pemeriksaan harian checkpoint, carry-over pekerjaan belum selesai* |
 | **06** | **Instruksi Lapangan (IL)** | `/instruksi-lapangan` | Pengawas Lapangan, Koordinator Bangunan | Siap | *Perintah pekerjaan tambah/kurang di lapangan, migrasi RAB 2* |
-| **07** | **Opname Fisik & KTK** | `/opname` | Tim Building Cabang, Kontraktor | Siap | *Pemeriksaan fisik progres termin parsial & Final KTK toko* |
+| **07** | **Opname Fisik & KTK** | `/opname`, `/approval` | PIC Pengawas, Kontraktor, Koordinator, Manajer | **Lengkap** | [Lihat Dokumen Alur Kerja Opname & KTK](./workflows/alur-kerja-opname-ktk.md) |
 | **08** | **Serah Terima (ST)** | `/gantt` (Milestone ST) | Pengawas, Koordinator Bangunan, Kontraktor | **Lengkap** | [Lihat Dokumen Alur Kerja ST](./workflows/alur-kerja-serah-terima-st.md) |
 | **09** | **BAST (Berita Acara)** | `/serah-terima` | BBMM, Branch Manager, Kontraktor | Siap | *Penerbitan BAST resmi, sinkronisasi tanggal BAST* |
 | **10** | **Dokumentasi & 12 Dokumen** | `/ftdokumen`, `/svdokumen` | Kontraktor, Admin Toko | Siap | *Foto fisik lapangan (kompresi client), arsip 12 dokumen perizinan* |
@@ -87,11 +87,13 @@ Setiap modul memiliki alur kerja spesifik, dokumen referensi detail, aktor utama
   3. Item pekerjaan tambahan terintegrasi ke dalam pengawasan Gantt Chart.
 
 ### 07. Alur Opname Fisik & KTK
-- **Tujuan**: Menghitung progres persentase fisik sebenarnya untuk dasar pencairan termin pembayaran kontraktor.
-- **Rute**: [`/opname`](file:///c:/Users/UDevran/Documents/Sumber%20Alfaria Trijaya/system/sparta-fe/app/opname/page.tsx)
-- **Tahapan**:
-  1. Opname Parsial (Termin 1, Termin 2, dsb.).
-  2. Final Opname KTK (Koreksi Tagihan Kontraktor) sebelum serah terima.
+- **Tujuan**: Memeriksa volume fisik riil terpasang di lapangan dan menghitung deviasi KTK (Kerja Tambah Kurang) terhadap RAB.
+- **Rute**: [`/opname`](file:///c:/Users/UDevran/Documents/Sumber%20Alfaria%20Trijaya/system/sparta-fe/app/opname/page.tsx) (Review Opname Kontraktor & Input PIC) dan [`/approval`](file:///c:/Users/UDevran/Documents/Sumber%20Alfaria%20Trijaya/system/sparta-fe/app/approval/page.tsx) (Approval KTK Bertingkat)
+- **Dokumentasi Lengkap**: 👉 **[Baca Panduan Alur Kerja Opname & KTK Lengkap](./workflows/alur-kerja-opname-ktk.md)**
+- **Inti Aturan**:
+  - Alur 6 Tahap: PIC Lapangan → Review Kontraktor di `/opname` → Kunci KTK → Approval Koordinator → Approval Manajer → Final Approval Direktur Kontraktor di `/approval`.
+  - Pemisahan multi-scope: Toko Sipil dan Toko ME memiliki data opname, nilai, dan penugasan kontraktor mandiri.
+  - Validasi kepemilikan proyek kontraktor berbasis `nama_pt` dan email pembuat.
 
 ### 08. Alur Serah Terima (ST)
 - **Tujuan**: Penyerahan fisik bangunan toko setelah 100% item pekerjaan diselesaikan.
