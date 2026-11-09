@@ -448,8 +448,11 @@ async function compressOfficeFile(
     const originalSize = file.size;
 
     try {
-        // @ts-ignore
-        const uzipModule = await import("uzip");
+        const loadUzip = new Function('return import("uzip")');
+        const uzipModule = await loadUzip().catch(() => null);
+        if (!uzipModule) {
+            throw new Error("Modul uzip tidak tersedia untuk kompresi file Office");
+        }
         const uzip = (uzipModule.default || uzipModule) as any;
 
         const arrayBuffer = await file.arrayBuffer();
