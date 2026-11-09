@@ -320,6 +320,7 @@ const normalizeCompanyName = (value?: string | null) => {
     
     // Remove PT/CV prefix/suffix to handle both "CV NAME" and "NAME, CV" formats
     normalized = normalized.replace(/^(PT|CV)/g, '').replace(/(PT|CV)$/g, '');
+    normalized = normalized.replace(/Z/g, 'J');
     
     return normalized;
 };
