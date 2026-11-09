@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Building2, Loader2 } from "lucide-react";
 import { fetchGanttDetailByToko } from "@/lib/api";
 import type { SupervisionWorkspace, UnifiedSupervisionCheckpoint } from "@/lib/api";
+import type { ExportableGanttScope, ExportableTimelineColumn } from "@/lib/gantt-pdf-export";
 
 const DAY_WIDTH = 44;
 const ROW_HEIGHT = 46;
@@ -281,12 +282,14 @@ export default function UnifiedSupervisionGantt({
     onTargetStClick,
     showLegend = true,
     isBelumSpk = false,
+    onExportDataChange,
 }: {
     workspace: SupervisionWorkspace;
     onCheckpointClick?: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
     onTargetStClick?: (dateString: string, dayIndex: number) => void;
     showLegend?: boolean;
     isBelumSpk?: boolean;
+    onExportDataChange?: (data: { columns: ExportableTimelineColumn[]; scopes: ExportableGanttScope[] } | null) => void;
 }) {
     const [details, setDetails] = useState<ScopeDetail[]>([]);
     const [ganttFallbackTimeline, setGanttFallbackTimeline] = useState<Timeline | null>(null);
@@ -964,6 +967,101 @@ export default function UnifiedSupervisionGantt({
         );
         return hasMissingInput ? "needsInput" : "filled";
     };
+
+    useEffect(() => {
+        if (!onExportDataChange) return;
+        if (isLoading || !timeline || details.length === 0) {
+            onExportDataChange(null);
+            return;
+        }
+
+        const today = new Date();
+        const todayFormatted = formatFullDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+        const takeoverDate = workspace.tanggal_takeover ? parseDate(workspace.tanggal_takeover) : null;
+        const takeoverStartDayIdx = takeoverDate ? Math.max(0, diffDays(takeoverDate, timeline.start)) : -1;
+
+        const columns: ExportableTimelineColumn[] = timeline.dates.map((date, dayIndex) => {
+            const fullDate = formatFullDate(date);
+            const checkpoint = checkpointByDate.get(fullDate);
+            const isExtension = extensionDates.has(fullDate);
+            const spkEnd = spkEndByDate.get(fullDate);
+            const stBuffer = stBufferByDate.get(fullDate);
+            const checkpointState = resolveCheckpointVisualState(
+                fullDate,
+                checkpoint,
+                dayIndex + 1,
+                checkpointVisualStateByDate.get(fullDate)
+            );
+            const isToday = fullDate === todayFormatted;
+            const visualState = checkpointState || (isToday ? "today" : undefined);
+            const isTakeoverDay = takeoverStartDayIdx !== -1 && dayIndex >= takeoverStartDayIdx;
+
+            let colTone: ExportableTimelineColumn["colTone"] = "normal";
+            let badgeText: string | undefined;
+            let badgeTone: ExportableTimelineColumn["badgeTone"];
+
+            if (isTakeoverDay) {
+                colTone = "takeover";
+                if (dayIndex === takeoverStartDayIdx) {
+                    badgeText = "TKVR";
+                    badgeTone = "red";
+                }
+            } else if (spkEnd) {
+                colTone = "spkEnd";
+                badgeText = "Akhir";
+                badgeTone = "amber";
+            } else if (stBuffer?.isTarget) {
+                colTone = stBuffer.isPenalty ? "stPenalty" : "stTarget";
+                badgeText = stBuffer.targetLabel || "ST";
+                badgeTone = stBuffer.isPenalty ? "rose" : "teal";
+            } else if (stBuffer) {
+                colTone = stBuffer.isPenalty ? "stPenalty" : "stBuffer";
+                badgeText = stBuffer.label.replace(" hari", "");
+                badgeTone = stBuffer.isPenalty ? "rose" : "orange";
+            } else if (isExtension) {
+                colTone = "extension";
+                badgeText = "SPK+";
+                badgeTone = "amber";
+            } else if (visualState === "needsInput") {
+                colTone = "needsInput";
+            } else if (visualState === "filled") {
+                colTone = "filled";
+            } else if (visualState === "todayCheckpoint") {
+                colTone = "todayCheckpoint";
+            } else if (visualState === "today") {
+                colTone = "today";
+            } else if (checkpoint) {
+                colTone = "checkpoint";
+            }
+
+            return {
+                dayIndex,
+                dateLabel: isBelumSpk ? String(dayIndex + 1) : formatShortDate(date),
+                subLabel: isBelumSpk ? "Hari" : formatDayName(date),
+                fullDate,
+                badgeText,
+                badgeTone,
+                colTone,
+            };
+        });
+
+        onExportDataChange({
+            columns,
+            scopes: details,
+        });
+    }, [
+        checkpointByDate,
+        checkpointVisualStateByDate,
+        details,
+        extensionDates,
+        isBelumSpk,
+        isLoading,
+        onExportDataChange,
+        spkEndByDate,
+        stBufferByDate,
+        timeline,
+        workspace.tanggal_takeover,
+    ]);
 
     if (isLoading) {
         return (

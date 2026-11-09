@@ -24,6 +24,7 @@ import {
 import type { SupervisionCheckpoint, SupervisionScope, SupervisionWorkspace } from '@/lib/api';
 import GanttViewer from '@/components/GanttViewer';
 import UnifiedSupervisionGantt from '@/components/UnifiedSupervisionGantt';
+import { exportGanttChartToPdf, type ExportableGanttScope, type ExportableTimelineColumn } from '@/lib/gantt-pdf-export';
 
 const mapInstruksiLapanganToWorkItems = (items: any[] = []) =>
     items.map((item) => ({
@@ -479,6 +480,11 @@ function GanttBoard() {
     const [showDateLegend, setShowDateLegend] = useState(true);
     const [showHandoverPanel, setShowHandoverPanel] = useState(true);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState<Record<number, boolean>>({});
+    const [isExportingGanttPdf, setIsExportingGanttPdf] = useState(false);
+    const [unifiedExportData, setUnifiedExportData] = useState<{
+        columns: ExportableTimelineColumn[];
+        scopes: ExportableGanttScope[];
+    } | null>(null);
 
     const handleDownloadPdf = async (id: number | null) => {
         if (!id) return;
@@ -683,6 +689,7 @@ function GanttBoard() {
 
         setIsWorkspaceLoading(true);
         setSupervisionWorkspace(null);
+        setUnifiedExportData(null);
         setProjectData(null);
         setTasks([]);
         setRawDayGanttData([]);
@@ -1945,6 +1952,210 @@ function GanttBoard() {
         return warnings.join(' | ');
     })();
     const utilityPanelAvailable = Boolean(supervisionWorkspace || activeNotesGanttId);
+
+    const handleExportGanttPdf = async () => {
+        if (isExportingGanttPdf) return;
+
+        const allTokoForUlok = allTokoList.filter(t => t.nomor_ulok === projectData?.ulokClean);
+        const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+        const spkCount = spkScopes.length;
+        const totalScopes = allTokoForUlok.length;
+        let spkStatusLabel = "BELUM SPK";
+        if (spkCount > 0 && spkCount === totalScopes) {
+            spkStatusLabel = totalScopes > 1 ? "SPK Lengkap" : "Sudah SPK";
+        } else if (spkCount > 0) {
+            spkStatusLabel = "SPK Partial";
+        } else if (isScopeSpkApproved) {
+            spkStatusLabel = "Sudah SPK";
+        }
+
+        const isBelumSpk = totalScopes > 0 ? spkCount === 0 : !spkInfo;
+        const scopeLabel = getWorkspaceScopeLabel(supervisionWorkspace) || projectData?.work || "-";
+
+        const meta = {
+            nomorUlok: projectData?.ulokClean || selectedUlok || "-",
+            storeName: projectData?.store || supervisionWorkspace?.nama_toko || "-",
+            branch: projectData?.branch || projectData?.cabang || supervisionWorkspace?.cabang || "-",
+            pic: projectData?.pic || projectData?.pic_bersama || supervisionWorkspace?.pic_bersama || "Belum ditentukan",
+            scopeLabel: String(scopeLabel),
+            spkStatusLabel,
+            targetStText: targetStText || "-",
+            targetStSubtext: targetStInfo?.showOffsetLabel ? targetStInfo.label : "ST",
+            handoverStatusText,
+            modeLabel: appMode === "kontraktor" ? "MODE KONTRAKTOR" : `MODE PENGAWASAN (${scopeLabel})`,
+            takeoverDate: supervisionWorkspace?.tanggal_takeover || null,
+        };
+
+        setIsExportingGanttPdf(true);
+        try {
+            if (appMode === "pic" && supervisionWorkspace && unifiedExportData) {
+                const scopeSummaries = supervisionWorkspace.scopes.map((scope, index) => ({
+                    scopeName: String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase(),
+                    readyCount: (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.ready_opname_items || 0), 0),
+                    opnameCount: (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0),
+                }));
+
+                await exportGanttChartToPdf({
+                    meta,
+                    columns: unifiedExportData.columns,
+                    scopes: unifiedExportData.scopes,
+                    scopeSummaries,
+                    notes: ganttNotes,
+                    isBelumSpk,
+                });
+                return;
+            }
+
+            if (!chartData || chartData.processedTasks.length === 0) {
+                showAlert({ message: "Data Gantt Chart belum tersedia untuk diekspor.", type: "warning" });
+                return;
+            }
+
+            const effectiveStartDate = spkInfo?.startDate || projectData?.startDate || null;
+            const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+            const columns: ExportableTimelineColumn[] = Array.from({ length: chartData.totalDaysToRender }).map((_, i) => {
+                let dateLabel = String(i + 1);
+                let subLabel = "Hari";
+                let fullDateString = `Hari ${i + 1}`;
+                let isPengawasan = false;
+                let isLiveDay = false;
+
+                if (effectiveStartDate) {
+                    const d = new Date(effectiveStartDate.split("T")[0] + "T00:00:00");
+                    d.setDate(d.getDate() + i);
+                    const dd = String(d.getDate()).padStart(2, "0");
+                    const mm = String(d.getMonth() + 1).padStart(2, "0");
+                    const yyyy = d.getFullYear();
+                    fullDateString = `${dd}/${mm}/${yyyy}`;
+
+                    if (spkInfo) {
+                        dateLabel = `${dd}/${mm}`;
+                        subLabel = dayNames[d.getDay()];
+                    }
+
+                    const today = new Date();
+                    if (
+                        dd === String(today.getDate()).padStart(2, "0") &&
+                        mm === String(today.getMonth() + 1).padStart(2, "0") &&
+                        yyyy === today.getFullYear()
+                    ) {
+                        isLiveDay = true;
+                    }
+
+                    if (pengawasanDates.includes(fullDateString)) {
+                        isPengawasan = true;
+                    }
+                }
+
+                const isPastTakeover = chartData.takeoverDayIndex !== -1 && i >= chartData.takeoverDayIndex;
+                let colTone: ExportableTimelineColumn["colTone"] = "normal";
+
+                if (isPastTakeover) {
+                    colTone = "takeover";
+                } else if (isPengawasan && fullDateString) {
+                    const cpData = pengawasanCheckpointMap.get(fullDateString);
+                    if (cpData !== undefined) {
+                        const totalItems = cpData.total_items;
+                        const filledItems = cpData.filled_items;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const parts = fullDateString.split("/");
+                        const cpDate =
+                            parts.length === 3
+                                ? new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]))
+                                : null;
+                        const isPast = cpDate ? cpDate < today : false;
+
+                        let expectedItemsOnThisDay = 0;
+                        for (const task of chartData.processedTasks) {
+                            const shift = task.computed?.shift || 0;
+                            for (const r of task.ranges || []) {
+                                const startD = parseInt(r.start) + shift - 1;
+                                const endD = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
+                                if (i + 1 >= startD && i + 1 <= endD) {
+                                    const itemCount =
+                                        task.items && task.items.length > 0
+                                            ? task.items.length
+                                            : task.target_volume > 0
+                                                ? 1
+                                                : 0;
+                                    expectedItemsOnThisDay += itemCount;
+                                }
+                            }
+                        }
+
+                        if (totalItems === 0 && expectedItemsOnThisDay === 0) {
+                            colTone = "filled";
+                        } else if (totalItems === 0 && expectedItemsOnThisDay > 0) {
+                            colTone = isPast ? "needsInput" : "checkpoint";
+                        } else if (filledItems >= expectedItemsOnThisDay && filledItems > 0) {
+                            colTone = "filled";
+                        } else if (isPast) {
+                            colTone = "needsInput";
+                        } else {
+                            colTone = "checkpoint";
+                        }
+                    } else {
+                        colTone = "checkpoint";
+                    }
+                } else if (isLiveDay) {
+                    colTone = "today";
+                }
+
+                return {
+                    dayIndex: i,
+                    dateLabel,
+                    subLabel,
+                    fullDate: fullDateString,
+                    badgeText: isPastTakeover && i === chartData.takeoverDayIndex ? "TKVR" : undefined,
+                    badgeTone: isPastTakeover && i === chartData.takeoverDayIndex ? "red" : undefined,
+                    colTone,
+                };
+            });
+
+            const singleScope: ExportableGanttScope = {
+                id_toko: Number(projectData?.id_toko || 0),
+                scopeName: String(projectData?.work || "PEKERJAAN").toUpperCase(),
+                ganttId: selectedGanttId,
+                status: isProjectLocked ? "Terkunci" : "Draft / Aktif",
+                rows: chartData.processedTasks.map((task: any, idx: number) => {
+                    const shift = Number(task.computed?.shift || 0);
+                    const bars = (task.ranges || [])
+                        .filter((r: any) => r.start && r.end)
+                        .map((r: any) => {
+                            const start = parseInt(r.start) + shift;
+                            const end = parseInt(r.end) + shift;
+                            return {
+                                start,
+                                end,
+                                duration: Math.max(1, end - start + 1),
+                                delay: parseInt(r.keterlambatan) || 0,
+                                shift,
+                            };
+                        });
+                    return {
+                        taskId: Number(task.id || idx + 1),
+                        id: String(task.id || idx + 1),
+                        label: String(task.name || "-"),
+                        dependencies: Array.isArray(task.dependencies) ? task.dependencies.map(Number) : [],
+                        bars,
+                    };
+                }),
+            };
+
+            await exportGanttChartToPdf({
+                meta,
+                columns,
+                scopes: [singleScope],
+                notes: ganttNotes,
+                isBelumSpk: !spkInfo,
+            });
+        } catch (error: any) {
+            showAlert({ message: error?.message || "Gagal mengekspor Gantt Chart ke PDF.", type: "error" });
+        } finally {
+            setIsExportingGanttPdf(false);
+        }
+    };
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
     ));
@@ -2668,9 +2879,22 @@ function GanttBoard() {
                                 )}
 
                                 <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex w-full gap-2 border-slate-300 bg-white font-bold shadow-sm hover:bg-slate-100 sm:w-auto">
-                                        {isFullscreen ? <><Minimize className="h-4 w-4" /> Keluar Mode Landscape</> : <><Maximize className="h-4 w-4" /> Mode Landscape</>}
-                                    </Button>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex w-full gap-2 border-slate-300 bg-white font-bold shadow-sm hover:bg-slate-100 sm:w-auto">
+                                            {isFullscreen ? <><Minimize className="h-4 w-4" /> Keluar Mode Landscape</> : <><Maximize className="h-4 w-4" /> Mode Landscape</>}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleExportGanttPdf}
+                                            disabled={isExportingGanttPdf || !unifiedExportData}
+                                            className="flex w-full gap-2 border-red-200 bg-red-600 font-bold text-white shadow-sm hover:bg-red-700 hover:text-white disabled:opacity-50 sm:w-auto"
+                                        >
+                                            {isExportingGanttPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                            {isExportingGanttPdf ? 'Mengekspor PDF...' : 'Export PDF'}
+                                        </Button>
+                                    </div>
                                     <div className="flex flex-wrap justify-end gap-2">
                                         <Button type="button" variant="outline" onClick={() => setShowProjectInfo(value => !value)} className="h-8 gap-1.5 rounded border-slate-300 bg-white px-3 text-xs font-bold">
                                             {showProjectInfo ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -2711,6 +2935,7 @@ function GanttBoard() {
                                                 const all = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
                                                 return all.length > 0 && all.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length === 0;
                                             })()}
+                                            onExportDataChange={setUnifiedExportData}
                                         />
                                         <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
                                             {supervisionWorkspace.scopes.map((scope, index) => {
@@ -3070,9 +3295,22 @@ function GanttBoard() {
                                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Progress</div>
                                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
                             </div>
-                            <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-200">
-                                {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
-                            </Button>
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleExportGanttPdf}
+                                    disabled={isExportingGanttPdf || !chartData || chartData.processedTasks.length === 0}
+                                    className="flex gap-2 w-full sm:w-auto font-bold border-red-200 bg-red-600 text-white shadow-sm hover:bg-red-700 hover:text-white disabled:opacity-50"
+                                >
+                                    {isExportingGanttPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                    {isExportingGanttPdf ? "Mengekspor PDF..." : "Export PDF"}
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-200">
+                                    {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="p-0 overflow-x-auto min-h-100 relative bg-white pb-10" id="ganttChartContainer">
@@ -3799,7 +4037,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             if (!sourceNumeric) return false;
             if (checkpointDateNumerics.length === 0) return isPreviousPengawasanBeforeCurrent(sourceDate);
             const nearestNext = checkpointDateNumerics.find((value) => value > sourceNumeric);
-            return nearestNext === currentDateNumeric;
+            if (nearestNext) {
+                return nearestNext === currentDateNumeric;
+            }
+            // Jika belum ada checkpoint tersimpan berikutnya di database,
+            // maka tanggal pengawasan baru pertama setelah sourceDate adalah checkpoint terdekat berikutnya.
+            return currentDateNumeric > sourceNumeric;
         };
 
         import('@/lib/api').then(({ fetchPengawasanList, fetchOpnameList }) => {
@@ -3964,13 +4207,40 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         })
                         .filter(Boolean);
 
-                    const forcedStItems = isTargetStMemo
-                        ? [
-                            ...Array.from(latestUnfinishedRows.entries())
-                                .filter(([key]) => buggedBlockedKeys.has(key))
-                                .map(([key, row]) => row),
-                            ...missingOpnames
-                          ].map((row: any) => {
+                    const forcedStItems = [
+                        ...Array.from(latestUnfinishedRows.values()).map((row: any) => {
+                            const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
+                            if (!initial[key]) {
+                                initial[key] = {
+                                    status: '',
+                                    lateDays: 0,
+                                    catatan: '',
+                                    file: null,
+                                    dokumentasiUrl: null,
+                                    isSaved: false,
+                                    previousStatus: row.normalizedStatus || (row.status ? row.status.charAt(0).toUpperCase() + row.status.slice(1) : ''),
+                                    previousLateDays: getCategoryLateDays(row.kategori_pekerjaan),
+                                    previousPengawasanDate: row.tanggal_pengawasan || row.sourcePengawasanDate
+                                };
+                            }
+
+                            return {
+                                id: `forced-unfinished-${row.id || key}`,
+                                source_type: row.source_type || 'HISTORY',
+                                kategori_pekerjaan: row.kategori_pekerjaan,
+                                jenis_pekerjaan: row.jenis_pekerjaan || row.kategori_pekerjaan,
+                                satuan: row.satuan || '-',
+                                volume: row.volume || 0,
+                                harga_material: 0,
+                                harga_upah: 0,
+                                total_material: 0,
+                                total_upah: 0,
+                                total_harga: 0,
+                                previous_pengawasan_date: row.tanggal_pengawasan || row.sourcePengawasanDate,
+                                isUnfinishedCarryover: true
+                            };
+                        }),
+                        ...(isTargetStMemo ? missingOpnames.map((row: any) => {
                             const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
                             if (!initial[key]) {
                                 initial[key] = {
@@ -3999,9 +4269,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 total_upah: 0,
                                 total_harga: 0,
                                 previous_pengawasan_date: row.tanggal_pengawasan || row.sourcePengawasanDate,
+                                isMissingOpnameOnly: true
                             };
-                        })
-                        : [];
+                        }) : [])
+                    ];
                     setForcedStBlockerItems(forcedStItems);
 
                     const mergedInitial = mergeMemoInitialWithDraft(initial, draft);
@@ -4118,17 +4389,26 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const baseTasks = chartData.processedTasks || [];
         const baseTaskNames = new Set(baseTasks.map((task: any) => String(task.name || '').toUpperCase()));
         
-        // [PERBAIKAN]: Saring forcedStBlockerItems agar item yang dipaksa masuk karena "Selesai namun belum opname" BENAR-BENAR ada di rabItems
+        // Saring forcedStBlockerItems:
+        // Item yang hanya missingOpname murni (sudah Selesai di DB) dipastikan ada di rabItems untuk opname.
+        // Item yang belum selesai (isUnfinishedCarryover) SELALU disertakan agar bisa diselesaikan.
         const validForcedStBlockerItems = forcedStBlockerItems.filter((item: any) => {
             const key = `${String(item.kategori_pekerjaan).toUpperCase()}|${String(item.jenis_pekerjaan || item.kategori_pekerjaan).toUpperCase()}`;
-            if (memoInputs[key]?.status === 'Selesai') {
+            if (item.isMissingOpnameOnly && memoInputs[key]?.status === 'Selesai') {
                 return rabItems.some((r: any) => isSameWorkText(r.kategori_pekerjaan, item.kategori_pekerjaan) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan || item.kategori_pekerjaan));
             }
             return true;
         });
 
+        const seenForcedTaskNames = new Set<string>();
         const forcedTasks = validForcedStBlockerItems
-            .filter((item: any) => item?.kategori_pekerjaan && !baseTaskNames.has(String(item.kategori_pekerjaan).toUpperCase()))
+            .filter((item: any) => {
+                if (!item?.kategori_pekerjaan) return false;
+                const upperName = String(item.kategori_pekerjaan).toUpperCase();
+                if (baseTaskNames.has(upperName) || seenForcedTaskNames.has(upperName)) return false;
+                seenForcedTaskNames.add(upperName);
+                return true;
+            })
             .map((item: any) => ({
                 name: item.kategori_pekerjaan,
                 computed: { shift: 0 },
@@ -5194,7 +5474,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
                                     <Info className="w-12 h-12 mb-3 text-amber-500" />
                                     <p className="font-medium text-slate-600">Terdapat item pengawasan yang belum selesai pada lingkup pekerjaan lain.</p>
-                                    <p className="text-sm mt-1">Silakan ubah lingkup pekerjaan di kiri atas untuk melihat dan mengisi item tersebut.</p>
+                                    <p className="text-sm mt-1">Silakan klik tombol navigasi lingkup pekerjaan di kanan bawah (misal: "{nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}") untuk melihat dan mengisi item tersebut.</p>
+                                    {flowStep && flowStep.total > 1 && (
+                                        <Button
+                                            type="button"
+                                            onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
+                                            className="mt-4 border-2 border-amber-600 bg-white hover:bg-amber-600 text-amber-800 hover:text-white font-bold px-5 py-2 text-sm shadow-sm transition-colors"
+                                        >
+                                            {nextScopeLabel ? `Pindah ke ${String(nextScopeLabel).toUpperCase()} →` : '← Kembali ke SIPIL'}
+                                        </Button>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
