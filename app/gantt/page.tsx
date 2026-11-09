@@ -4658,7 +4658,32 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         );
         const available = candidates.filter((candidate: any) => !isWorkItemBlockedByOpname(candidate, textKey));
 
-        return available.find((candidate: any) => candidate.source_type === 'IL') ?? available[0] ?? candidates[0] ?? null;
+        const matched = available.find((candidate: any) => candidate.source_type === 'IL') ?? available[0] ?? candidates[0];
+        if (matched) return matched;
+
+        if (currentItem) {
+            return {
+                ...currentItem,
+                kategori_pekerjaan: currentItem.kategori_pekerjaan || catName,
+                jenis_pekerjaan: currentItem.jenis_pekerjaan || itemJenis,
+                satuan: currentItem.satuan && currentItem.satuan !== '-' ? currentItem.satuan : 'Ls',
+                volume: Number(currentItem.volume || 1),
+                harga_material: Number(currentItem.harga_material || 0),
+                harga_upah: Number(currentItem.harga_upah || 0),
+                source_type: currentItem.source_type || 'HISTORY',
+            };
+        }
+
+        return {
+            id: `fallback-${textKey}`,
+            kategori_pekerjaan: catName,
+            jenis_pekerjaan: itemJenis,
+            satuan: 'Ls',
+            volume: 1,
+            harga_material: 0,
+            harga_upah: 0,
+            source_type: 'HISTORY',
+        };
     }, [rabItems, isWorkItemBlockedByOpname]);
 
     const findMemoItemForSubmit = useCallback((catName: any, itemJenis: any) => {
@@ -4945,8 +4970,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
 
                         if (input.status === 'Selesai' && !isWorkItemBlockedByOpname(item, key)) {
-                            const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
-                            if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
+                            const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
+                            const defaultVol = rItem ? Number(rItem.volume || 0) : 0;
+                            const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : defaultVol;
+                            if (volA === null || volA === undefined || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
                             if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
                             if (!input.kualitas || input.kualitas === '') validationErrors.push(`Kualitas hasil (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
                             if (!input.spesifikasi || input.spesifikasi === '') validationErrors.push(`Spesifikasi material (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
@@ -5085,10 +5112,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const totalSelisih = Math.round(selisihVolume * hargaSatuan);
                         const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
 
+                        const rawRabId = (rItem.source_type === 'RAB' || rItem.source_type === undefined) ? rItem.id : undefined;
+                        const safeRabId = typeof rawRabId === 'number' && Number.isInteger(rawRabId) && rawRabId > 0
+                            ? rawRabId
+                            : (typeof rawRabId === 'string' && /^\d+$/.test(rawRabId) ? Number(rawRabId) : undefined);
+
+                        const rawIlId = rItem.source_type === 'IL' ? (rItem.id_instruksi_lapangan_item || rItem.id) : undefined;
+                        const safeIlId = typeof rawIlId === 'number' && Number.isInteger(rawIlId) && rawIlId > 0
+                            ? rawIlId
+                            : (typeof rawIlId === 'string' && /^\d+$/.test(rawIlId) ? Number(rawIlId) : undefined);
+
                         opnameData = {
                             id_toko: Number(projectData?.id_toko),
-                            id_rab_item: rItem.source_type === 'RAB' || rItem.source_type === undefined ? Number(rItem.id) : undefined,
-                            id_instruksi_lapangan_item: rItem.source_type === 'IL' ? Number(rItem.id_instruksi_lapangan_item) : undefined,
+                            id_rab_item: safeRabId,
+                            id_instruksi_lapangan_item: safeIlId,
                             volume_akhir: volAkhir,
                             selisih_volume: selisihVolume,
                             total_selisih: totalSelisih,
@@ -5560,13 +5597,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                     <label className="text-[9px] font-bold text-slate-400 uppercase block">Vol RAB</label>
                                                                                     <div className="flex items-baseline gap-1 mt-0.5">
                                                                                         <span className="font-bold text-slate-700 text-sm leading-none">{volumeRAB}</span>
-                                                                                        <span className="text-[9px] text-slate-500">{item.satuan}</span>
+                                                                                        <span className="text-[9px] text-slate-500">{item.satuan && item.satuan !== '-' ? item.satuan : (rItem?.satuan || 'Ls')}</span>
                                                                                     </div>
                                                                                 </div>
                                                                                 <div className="bg-white p-2 rounded-md border border-blue-200 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 relative transition-all">
                                                                                     <label className="text-[9px] font-bold text-blue-600 uppercase block">Vol Akhir *</label>
                                                                                     <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? volumeRAB} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
-                                                                                    <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan}</span>
+                                                                                    <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan && item.satuan !== '-' ? item.satuan : (rItem?.satuan || 'Ls')}</span>
                                                                                 </div>
                                                                             </div>
 
