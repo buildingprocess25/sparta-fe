@@ -4031,7 +4031,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             if (!sourceNumeric) return false;
             if (checkpointDateNumerics.length === 0) return isPreviousPengawasanBeforeCurrent(sourceDate);
             const nearestNext = checkpointDateNumerics.find((value) => value > sourceNumeric);
-            return nearestNext === currentDateNumeric;
+            if (nearestNext) {
+                return nearestNext === currentDateNumeric;
+            }
+            // Jika belum ada checkpoint tersimpan berikutnya di database,
+            // maka tanggal pengawasan baru pertama setelah sourceDate adalah checkpoint terdekat berikutnya.
+            return currentDateNumeric > sourceNumeric;
         };
 
         import('@/lib/api').then(({ fetchPengawasanList, fetchOpnameList }) => {
@@ -4192,13 +4197,40 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         })
                         .filter(Boolean);
 
-                    const forcedStItems = isTargetStMemo
-                        ? [
-                            ...Array.from(latestUnfinishedRows.entries())
-                                .filter(([key]) => buggedBlockedKeys.has(key))
-                                .map(([key, row]) => row),
-                            ...missingOpnames
-                          ].map((row: any) => {
+                    const forcedStItems = [
+                        ...Array.from(latestUnfinishedRows.values()).map((row: any) => {
+                            const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
+                            if (!initial[key]) {
+                                initial[key] = {
+                                    status: '',
+                                    lateDays: 0,
+                                    catatan: '',
+                                    file: null,
+                                    dokumentasiUrl: null,
+                                    isSaved: false,
+                                    previousStatus: row.normalizedStatus || (row.status ? row.status.charAt(0).toUpperCase() + row.status.slice(1) : ''),
+                                    previousLateDays: getCategoryLateDays(row.kategori_pekerjaan),
+                                    previousPengawasanDate: row.tanggal_pengawasan || row.sourcePengawasanDate
+                                };
+                            }
+
+                            return {
+                                id: `forced-unfinished-${row.id || key}`,
+                                source_type: row.source_type || 'HISTORY',
+                                kategori_pekerjaan: row.kategori_pekerjaan,
+                                jenis_pekerjaan: row.jenis_pekerjaan || row.kategori_pekerjaan,
+                                satuan: row.satuan || '-',
+                                volume: row.volume || 0,
+                                harga_material: 0,
+                                harga_upah: 0,
+                                total_material: 0,
+                                total_upah: 0,
+                                total_harga: 0,
+                                previous_pengawasan_date: row.tanggal_pengawasan || row.sourcePengawasanDate,
+                                isUnfinishedCarryover: true
+                            };
+                        }),
+                        ...(isTargetStMemo ? missingOpnames.map((row: any) => {
                             const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
                             if (!initial[key]) {
                                 initial[key] = {
@@ -4227,9 +4259,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 total_upah: 0,
                                 total_harga: 0,
                                 previous_pengawasan_date: row.tanggal_pengawasan || row.sourcePengawasanDate,
+                                isMissingOpnameOnly: true
                             };
-                        })
-                        : [];
+                        }) : [])
+                    ];
                     setForcedStBlockerItems(forcedStItems);
 
                     const mergedInitial = mergeMemoInitialWithDraft(initial, draft);
@@ -4303,17 +4336,26 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const baseTasks = chartData.processedTasks || [];
         const baseTaskNames = new Set(baseTasks.map((task: any) => String(task.name || '').toUpperCase()));
         
-        // [PERBAIKAN]: Saring forcedStBlockerItems agar item yang dipaksa masuk karena "Selesai namun belum opname" BENAR-BENAR ada di rabItems
+        // Saring forcedStBlockerItems:
+        // Item yang hanya missingOpname murni (sudah Selesai di DB) dipastikan ada di rabItems untuk opname.
+        // Item yang belum selesai (isUnfinishedCarryover) SELALU disertakan agar bisa diselesaikan.
         const validForcedStBlockerItems = forcedStBlockerItems.filter((item: any) => {
             const key = `${String(item.kategori_pekerjaan).toUpperCase()}|${String(item.jenis_pekerjaan || item.kategori_pekerjaan).toUpperCase()}`;
-            if (memoInputs[key]?.status === 'Selesai') {
+            if (item.isMissingOpnameOnly && memoInputs[key]?.status === 'Selesai') {
                 return rabItems.some((r: any) => isSameWorkText(r.kategori_pekerjaan, item.kategori_pekerjaan) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan || item.kategori_pekerjaan));
             }
             return true;
         });
 
+        const seenForcedTaskNames = new Set<string>();
         const forcedTasks = validForcedStBlockerItems
-            .filter((item: any) => item?.kategori_pekerjaan && !baseTaskNames.has(String(item.kategori_pekerjaan).toUpperCase()))
+            .filter((item: any) => {
+                if (!item?.kategori_pekerjaan) return false;
+                const upperName = String(item.kategori_pekerjaan).toUpperCase();
+                if (baseTaskNames.has(upperName) || seenForcedTaskNames.has(upperName)) return false;
+                seenForcedTaskNames.add(upperName);
+                return true;
+            })
             .map((item: any) => ({
                 name: item.kategori_pekerjaan,
                 computed: { shift: 0 },
@@ -5409,7 +5451,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
                                     <Info className="w-12 h-12 mb-3 text-amber-500" />
                                     <p className="font-medium text-slate-600">Terdapat item pengawasan yang belum selesai pada lingkup pekerjaan lain.</p>
-                                    <p className="text-sm mt-1">Silakan ubah lingkup pekerjaan di kiri atas untuk melihat dan mengisi item tersebut.</p>
+                                    <p className="text-sm mt-1">Silakan klik tombol navigasi lingkup pekerjaan di kanan bawah (misal: "{nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}") untuk melihat dan mengisi item tersebut.</p>
+                                    {flowStep && flowStep.total > 1 && (
+                                        <Button
+                                            type="button"
+                                            onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
+                                            className="mt-4 border-2 border-amber-600 bg-white hover:bg-amber-600 text-amber-800 hover:text-white font-bold px-5 py-2 text-sm shadow-sm transition-colors"
+                                        >
+                                            {nextScopeLabel ? `Pindah ke ${String(nextScopeLabel).toUpperCase()} →` : '← Kembali ke SIPIL'}
+                                        </Button>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
