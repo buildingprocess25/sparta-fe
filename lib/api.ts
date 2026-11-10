@@ -6094,8 +6094,6 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
         appendFiles(formData, "file_rab_sipil", fileRabSipil);
         appendFiles(formData, "file_rab_me", fileRabMe);
-        appendFiles(formData, "file_rab_sipil_final", fileRabSipil);
-        appendFiles(formData, "file_rab_me_final", fileRabMe);
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
