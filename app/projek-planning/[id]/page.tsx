@@ -1045,19 +1045,6 @@ export default function DetailProjekPlanning() {
   }) : approvedRabs;
   const selectedApprovedRabSipil = currentActiveRabs.find(r => getRabScope(r).includes("SIPIL"));
   const selectedApprovedRabMe = currentActiveRabs.find(r => getRabScope(r).includes("ME"));
-  const sipilRabExists = revisiUlok
-    ? rawBranchApprovedRabs.some(r => {
-      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
-      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("SIPIL");
-    })
-    : allRabsForUlok.some(r => getRabScope(r).includes("SIPIL"));
-  const meRabExists = revisiUlok
-    ? rawBranchApprovedRabs.some(r => {
-      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
-      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("ME");
-    })
-    : allRabsForUlok.some(r => getRabScope(r).includes("ME"));
-
   const hasCompleteApprovedRab = !!selectedApprovedRabSipil && !!selectedApprovedRabMe;
 
   const sipilRabExists = revisiUlok
