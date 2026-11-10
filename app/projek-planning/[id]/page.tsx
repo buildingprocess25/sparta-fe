@@ -1056,15 +1056,36 @@ export default function DetailProjekPlanning() {
 
   const hasCompleteApprovedRab = !!selectedApprovedRabSipil && !!selectedApprovedRabMe;
 
-  const isSipilComplete = !!selectedApprovedRabSipil || (!sipilRabExists && (linkRabSipilManual.trim() || fileRabSipilManual.length > 0));
-  const isMeComplete = !!selectedApprovedRabMe || (!meRabExists && (linkRabMeManual.trim() || fileRabMeManual.length > 0));
+  const sipilRabExists = revisiUlok
+    ? rawBranchApprovedRabs.some(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("SIPIL");
+    })
+    : allRabsForUlok.some(r => getRabScope(r).includes("SIPIL"));
+  const meRabExists = revisiUlok
+    ? rawBranchApprovedRabs.some(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("ME");
+    })
+    : allRabsForUlok.some(r => getRabScope(r).includes("ME"));
 
-  const hasRabUploadInput = isSipilComplete && isMeComplete && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
+  const hasManualRabSipil = !!(linkRabSipilManual.trim() || fileRabSipilManual.length > 0);
+  const hasManualRabMe = !!(linkRabMeManual.trim() || fileRabMeManual.length > 0);
+
+  const isSipilComplete = Boolean(selectedApprovedRabSipil || (!sipilRabExists && hasManualRabSipil));
+  const isMeComplete = Boolean(selectedApprovedRabMe || (!meRabExists && hasManualRabMe));
+  const hasCompleteRab = isSipilComplete && isMeComplete;
+
+  const hasRabUploadInput = hasCompleteRab && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
   const hasRabUploadChange = !!(
     fileGambarSipil.length > 0 ||
     fileGambarMe.length > 0 ||
+    fileRabSipilManual.length > 0 ||
+    fileRabMeManual.length > 0 ||
     linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim() ||
     linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim() ||
+    linkRabSipilManual.trim() !== (((data as any).link_rab_sipil || "")).trim() ||
+    linkRabMeManual.trim() !== (((data as any).link_rab_me || "")).trim() ||
     (selectedApprovedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null) ||
     (selectedApprovedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)
   );
@@ -1081,20 +1102,24 @@ export default function DetailProjekPlanning() {
     {
       id: "rab_sipil",
       title: "RAB Sipil Disetujui",
-      isPassed: Boolean(selectedApprovedRabSipil),
+      isPassed: isSipilComplete,
       passedText: selectedApprovedRabSipil
         ? `RAB Sipil Disetujui (${selectedApprovedRabSipil.nomor_ulok || targetUlokForRab})`
-        : "RAB Sipil telah disetujui",
-      failedText: `RAB Sipil untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum selesai approval`,
+        : "RAB Sipil diunggah secara manual",
+      failedText: sipilRabExists
+        ? "RAB Sipil sedang dalam proses approval. Silakan tunggu hingga disetujui."
+        : `RAB Sipil untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum diupload manual`,
     },
     {
       id: "rab_me",
       title: "RAB ME Disetujui",
-      isPassed: Boolean(selectedApprovedRabMe),
+      isPassed: isMeComplete,
       passedText: selectedApprovedRabMe
         ? `RAB ME Disetujui (${selectedApprovedRabMe.nomor_ulok || targetUlokForRab})`
-        : "RAB ME telah disetujui",
-      failedText: `RAB ME untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum selesai approval`,
+        : "RAB ME diunggah secara manual",
+      failedText: meRabExists
+        ? "RAB ME sedang dalam proses approval. Silakan tunggu hingga disetujui."
+        : `RAB ME untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum diupload manual`,
     },
     {
       id: "gambar_kerja",
@@ -1151,6 +1176,8 @@ export default function DetailProjekPlanning() {
           uploader_email: userEmail,
           id_rab_sipil: selectedApprovedRabSipil?.id,
           id_rab_me: selectedApprovedRabMe?.id,
+          link_rab_sipil: linkRabSipilManual.trim() ? linkRabSipilManual : undefined,
+          link_rab_me: linkRabMeManual.trim() ? linkRabMeManual : undefined,
           fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
           link_gambar_kerja_final_sipil: linkGambarSipil,
           link_gambar_kerja_final_me: linkGambarMe,
@@ -1166,12 +1193,16 @@ export default function DetailProjekPlanning() {
         id,
         payload,
         fileGambarSipil,
-        fileGambarMe
+        fileGambarMe,
+        fileRabSipilManual,
+        fileRabMeManual
       );
       clearViewedFields(changedRabFields);
       showAlert("Berhasil!", "Input tahap kedua berhasil dikirim ke B&M Manager.");
       setLinkGambarSipil(""); setFileGambarSipil([]);
       setLinkGambarMe(""); setFileGambarMe([]);
+      setLinkRabSipilManual(""); setFileRabSipilManual([]);
+      setLinkRabMeManual(""); setFileRabMeManual([]);
       await load();
     } catch (e: any) { 
       showAlert("Gagal Mengirim", e.message || "Terjadi kesalahan saat memproses data.");
@@ -1803,16 +1834,22 @@ export default function DetailProjekPlanning() {
                 const meApproved = !!selectedApprovedRabMe;
 
                 return (
-                  <div className={`text-sm p-3 rounded-lg border ${hasCompleteApprovedRab ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                    <span className={`font-semibold block mb-2 ${hasCompleteApprovedRab ? 'text-green-800' : 'text-red-800'}`}>RAB Sparta Approved</span>
+                  <div className={`text-sm p-4 rounded-xl border-2 ${hasCompleteRab ? 'bg-white border-green-600 shadow-sm' : 'bg-white border-red-500 shadow-sm'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`font-bold text-sm ${hasCompleteRab ? 'text-green-800' : 'text-red-800'}`}>RAB Sparta Approved</span>
+                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${hasCompleteRab ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                        {hasCompleteRab ? "Lengkap" : "Perlu Tindakan"}
+                      </span>
+                    </div>
                     <div className="space-y-2">
                       {/* Penawaran Sipil */}
-                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${sipilApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
-                        }`}>
-                        <span className="text-xs font-semibold text-slate-600">Penawaran Sipil</span>
+                      <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${
+                        sipilApproved ? 'bg-green-50 border-green-300' : 'bg-white border-slate-300'
+                      }`}>
+                        <span className="text-xs font-semibold text-slate-700">Penawaran Sipil</span>
                         <div className="flex items-center gap-2">
                           {sipilApproved && selectedApprovedRabSipil?.grand_total_final && (
-                            <span className="text-xs text-slate-500">{formatCurrency(selectedApprovedRabSipil.grand_total_final)}</span>
+                            <span className="text-xs font-bold text-slate-700">{formatCurrency(selectedApprovedRabSipil.grand_total_final)}</span>
                           )}
                           <span className={`text-xs ${sipilStatus.color}`}>
                             {sipilStatus.emoji} {sipilStatus.label}
@@ -1820,12 +1857,13 @@ export default function DetailProjekPlanning() {
                         </div>
                       </div>
                       {/* Penawaran ME */}
-                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${meApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
-                        }`}>
-                        <span className="text-xs font-semibold text-slate-600">Penawaran ME</span>
+                      <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${
+                        meApproved ? 'bg-green-50 border-green-300' : 'bg-white border-slate-300'
+                      }`}>
+                        <span className="text-xs font-semibold text-slate-700">Penawaran ME</span>
                         <div className="flex items-center gap-2">
                           {meApproved && selectedApprovedRabMe?.grand_total_final && (
-                            <span className="text-xs text-slate-500">{formatCurrency(selectedApprovedRabMe.grand_total_final)}</span>
+                            <span className="text-xs font-bold text-slate-700">{formatCurrency(selectedApprovedRabMe.grand_total_final)}</span>
                           )}
                           <span className={`text-xs ${meStatus.color}`}>
                             {meStatus.emoji} {meStatus.label}
@@ -1833,40 +1871,71 @@ export default function DetailProjekPlanning() {
                         </div>
                       </div>
                     </div>
+
                     {!hasCompleteApprovedRab && (
-                      <div className="mt-4 space-y-4 pt-4 border-t border-red-100">
+                      <div className="mt-4 space-y-4 pt-4 border-t border-slate-200">
                         {(sipilRabExists || meRabExists) && (
-                          <p className="text-xs text-red-600 mb-2">
-                            RAB yang sedang dalam proses approval tidak dapat diupload manual. Silakan tunggu hingga disetujui untuk melanjutkan.
-                          </p>
+                          <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 font-medium">
+                            <strong>Perhatian:</strong> RAB yang sedang dalam proses approval tidak dapat diupload manual. Silakan tunggu hingga disetujui untuk melanjutkan.
+                          </div>
                         )}
                         {(!sipilRabExists && !meRabExists) && (
-                          <p className="text-xs text-red-600 mb-2">
-                            RAB Sipil atau RAB ME belum pernah <b>di input</b>. Silakan upload dokumen RAB final secara manual untuk melanjutkan.
-                          </p>
+                          <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-xs text-blue-900 font-medium">
+                            RAB Sipil atau RAB ME belum pernah dibuat di sistem. Silakan upload dokumen RAB final secara manual (link Google Drive atau berkas PDF) di bawah ini untuk melanjutkan pengajuan.
+                          </div>
                         )}
+
                         {/* RAB Sipil Final Manual */}
                         {!sipilRabExists && (
-                          <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">RAB Sipil Final (Manual)</Label>
+                          <div className="space-y-2 p-3 bg-slate-50 border border-slate-300 rounded-lg">
+                            <Label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                              <span>RAB Sipil Final (Manual) *</span>
+                              {hasManualRabSipil && <span className="text-xs font-bold text-green-700">✓ Sudah Terisi</span>}
+                            </Label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              <Input placeholder="Link RAB Sipil Final (GDrive)..." value={linkRabSipilManual} onChange={e => { setLinkRabSipilManual(e.target.value); setFileRabSipilManual([]); }} className="bg-white" disabled={fileRabSipilManual.length > 0} />
+                              <Input
+                                placeholder="Link RAB Sipil Final (GDrive)..."
+                                value={linkRabSipilManual}
+                                onChange={e => { setLinkRabSipilManual(e.target.value); setFileRabSipilManual([]); }}
+                                className="bg-white border-slate-300"
+                                disabled={fileRabSipilManual.length > 0}
+                              />
                               <div>
-                                <Input type="file" accept="application/pdf" onChange={handleFileChange(setLinkRabSipilManual, (file) => setFileRabSipilManual(file ? [file as any] : []))} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
-                                {fileRabSipilManual.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabSipilManual[0].name}</p>}
+                                <Input
+                                  type="file"
+                                  accept="application/pdf"
+                                  onChange={handleFileChange(setLinkRabSipilManual, (file) => setFileRabSipilManual(file ? [file as any] : []))}
+                                  className="bg-white border-slate-300 file:bg-orange-600 file:text-white file:font-semibold file:border-0 file:rounded file:px-2.5 file:py-1 file:mr-2 cursor-pointer"
+                                />
+                                {fileRabSipilManual.length > 0 && <p className="text-[11px] font-semibold text-orange-700 mt-1">Berkas terpilih: {fileRabSipilManual[0].name}</p>}
                               </div>
                             </div>
                           </div>
                         )}
+
                         {/* RAB ME Final Manual */}
                         {!meRabExists && (
-                          <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">RAB ME Final (Manual)</Label>
+                          <div className="space-y-2 p-3 bg-slate-50 border border-slate-300 rounded-lg">
+                            <Label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                              <span>RAB ME Final (Manual) *</span>
+                              {hasManualRabMe && <span className="text-xs font-bold text-green-700">✓ Sudah Terisi</span>}
+                            </Label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              <Input placeholder="Link RAB ME Final (GDrive)..." value={linkRabMeManual} onChange={e => { setLinkRabMeManual(e.target.value); setFileRabMeManual([]); }} className="bg-white" disabled={fileRabMeManual.length > 0} />
+                              <Input
+                                placeholder="Link RAB ME Final (GDrive)..."
+                                value={linkRabMeManual}
+                                onChange={e => { setLinkRabMeManual(e.target.value); setFileRabMeManual([]); }}
+                                className="bg-white border-slate-300"
+                                disabled={fileRabMeManual.length > 0}
+                              />
                               <div>
-                                <Input type="file" accept="application/pdf" onChange={handleFileChange(setLinkRabMeManual, (file) => setFileRabMeManual(file ? [file as any] : []))} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
-                                {fileRabMeManual.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabMeManual[0].name}</p>}
+                                <Input
+                                  type="file"
+                                  accept="application/pdf"
+                                  onChange={handleFileChange(setLinkRabMeManual, (file) => setFileRabMeManual(file ? [file as any] : []))}
+                                  className="bg-white border-slate-300 file:bg-orange-600 file:text-white file:font-semibold file:border-0 file:rounded file:px-2.5 file:py-1 file:mr-2 cursor-pointer"
+                                />
+                                {fileRabMeManual.length > 0 && <p className="text-[11px] font-semibold text-orange-700 mt-1">Berkas terpilih: {fileRabMeManual[0].name}</p>}
                               </div>
                             </div>
                           </div>
