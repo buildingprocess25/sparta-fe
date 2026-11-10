@@ -685,7 +685,7 @@ export default function DcDocumentsPage() {
       <Dialog open={!!selectedArchiveForType} onOpenChange={(open) => !open && setSelectedArchiveForType(null)}>
         <DialogContent className="max-w-3xl overflow-hidden rounded-[2rem] border-0 p-0 shadow-2xl">
           <div className="bg-gradient-to-br from-red-700 to-red-600 p-8 text-center text-white relative overflow-hidden">
-            <div className="absolute inset-0 bg-[url('/assets/pattern-light.svg')] opacity-10"></div>
+            <div className="absolute inset-0 bg-red-900 opacity-20 pointer-events-none"></div>
             <h2 className="relative z-10 text-3xl font-black tracking-tight">{selectedArchiveForType?.archive_name}</h2>
             <p className="relative z-10 mt-2 text-red-100 font-medium">Pilih tipe pekerjaan untuk mengelola dokumen terkait.</p>
           </div>
