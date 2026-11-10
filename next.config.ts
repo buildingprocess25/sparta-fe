@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
             dompurify: "./lib/empty-module.ts",
         },
     },
-
     async rewrites() {
         return [
             {
