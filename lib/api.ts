@@ -6092,8 +6092,13 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
         appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
         appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
+<<<<<<< HEAD
         appendFiles(formData, "file_rab_sipil_final", fileRabSipil);
         appendFiles(formData, "file_rab_me_final", fileRabMe);
+=======
+        appendFiles(formData, "file_rab_sipil", fileRabSipil);
+        appendFiles(formData, "file_rab_me", fileRabMe);
+>>>>>>> eb6ea2c (feat: restore manual RAB Sipil & ME upload fallback and fix build configuration)
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";

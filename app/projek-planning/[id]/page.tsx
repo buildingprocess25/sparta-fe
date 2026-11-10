@@ -824,6 +824,10 @@ export default function DetailProjekPlanning() {
         setLinkGambarMe(projek.link_gambar_kerja_final_me || "");
         setFileGambarSipil([]);
         setFileGambarMe([]);
+        setLinkRabSipilManual(projek.link_rab_sipil || "");
+        setLinkRabMeManual(projek.link_rab_me || "");
+        setFileRabSipilManual([]);
+        setFileRabMeManual([]);
       }
     } catch (e: any) {
       setAlertMsg({ title: "Error", desc: e.message }); setAlertOpen(true);
