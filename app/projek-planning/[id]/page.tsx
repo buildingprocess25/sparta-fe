@@ -643,6 +643,10 @@ export default function DetailProjekPlanning() {
   const [fileGambarSipil, setFileGambarSipil] = useState<File[]>([]);
   const [linkGambarMe, setLinkGambarMe] = useState("");
   const [fileGambarMe, setFileGambarMe] = useState<File[]>([]);
+  const [linkRabSipilManual, setLinkRabSipilManual] = useState("");
+  const [fileRabSipilManual, setFileRabSipilManual] = useState<File[]>([]);
+  const [linkRabMeManual, setLinkRabMeManual] = useState("");
+  const [fileRabMeManual, setFileRabMeManual] = useState<File[]>([]);
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
   const [allRabsForUlok, setAllRabsForUlok] = useState<any[]>([]);
@@ -823,6 +827,10 @@ export default function DetailProjekPlanning() {
         setLinkGambarMe(projek.link_gambar_kerja_final_me || "");
         setFileGambarSipil([]);
         setFileGambarMe([]);
+        setLinkRabSipilManual(projek.link_rab_sipil || "");
+        setLinkRabMeManual(projek.link_rab_me || "");
+        setFileRabSipilManual([]);
+        setFileRabMeManual([]);
       }
     } catch (e: any) {
       setAlertMsg({ title: "Error", desc: e.message }); setAlertOpen(true);
