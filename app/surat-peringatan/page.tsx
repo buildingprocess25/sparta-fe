@@ -48,9 +48,23 @@ const statusLabel = (status: string) => ({
 }[status] ?? status);
 
 const normalize = (value?: string | null) => String(value ?? "").trim().toUpperCase();
+const normalizeCompanyKey = (value?: string | null): string => {
+    const cleaned = normalize(value).replace(/[.,]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!cleaned) return "";
+    const tokens = cleaned.split(" ").filter(Boolean);
+    const entityTypes = new Set(["PT", "CV", "UD", "PD", "FA"]);
+    if (tokens.length > 1 && entityTypes.has(tokens[tokens.length - 1])) {
+        const entity = tokens.pop()!;
+        return `${entity} ${tokens.join(" ")}`;
+    }
+    return tokens.join(" ");
+};
 const isContractorUser = (roles: string[]) => roles.some((role) => role === "KONTRAKTOR" || role.includes("DIREKTUR KONTRAKTOR"));
 const contractorVisibleSpStatuses = new Set(["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"]);
 const matchesContractorCompany = (actionCompany?: string | null, userCompany?: string | null) => {
+    const actionKey = normalizeCompanyKey(actionCompany);
+    const sessionKey = normalizeCompanyKey(userCompany);
+    if (actionKey && sessionKey && actionKey === sessionKey) return true;
     const actionName = normalize(actionCompany);
     const sessionName = normalize(userCompany);
     if (!actionName || !sessionName) return false;
@@ -106,7 +120,7 @@ export default function SuratPeringatanPage() {
         if (!selectedContractor) return 0;
         const relevantActions = actions.filter((a) =>
             a.action_type === "SP" &&
-            normalize(a.nama_kontraktor) === normalize(selectedContractor) &&
+            matchesContractorCompany(a.nama_kontraktor, selectedContractor) &&
             ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(a.status) &&
             !a.is_expired
         );
@@ -127,7 +141,7 @@ export default function SuratPeringatanPage() {
         
         // Filter by selected contractor
         if (selectedContractor) {
-            base = base.filter(c => normalize(c.nama_kontraktor) === normalize(selectedContractor));
+            base = base.filter(c => matchesContractorCompany(c.nama_kontraktor, selectedContractor));
         }
 
         // Search filter
