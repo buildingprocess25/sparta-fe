@@ -1,5 +1,6 @@
 "use client";
 
+import { groupSPKForPresentation, presentSPK } from '@/lib/spk-groups';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AppNavbar from "@/components/AppNavbar";
 import { Badge } from "@/components/ui/badge";
@@ -580,13 +581,13 @@ const interventionAdapters: Record<InterventionDocType, InterventionAdapter> = {
         icon: <FileSignature className="h-4 w-4" />,
         fetchList: async () => {
             const response = await fetchSPKList();
-            return (response.data || []).map(normalizeSpk);
+            return groupSPKForPresentation(response.data || []).map(normalizeSpk);
         },
         fetchDetail: async (doc) => {
             const detail = await fetchSPKDetail(doc.id).catch(() => null);
             if (!detail?.data) return doc;
             return {
-                ...normalizeSpk(detail.data.pengajuan),
+                ...normalizeSpk(presentSPK(detail.data.pengajuan)),
                 logs: mapSpkLogs(detail.data.approvalLogs || []),
             };
         },

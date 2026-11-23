@@ -10,9 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, ClipboardList, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, MinusCircle, ArrowRight, CornerDownRight, CornerRightDown } from 'lucide-react';
-import { TakeoverMemoModal } from './TakeoverMemoModal';
-import { FileLimitWarningModal } from '@/components/FileLimitWarningModal';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, ThumbsUp, ThumbsDown, ArrowRight, TrendingUp, TrendingDown, Image, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -24,7 +22,6 @@ import {
 import type { SupervisionCheckpoint, SupervisionScope, SupervisionWorkspace } from '@/lib/api';
 import GanttViewer from '@/components/GanttViewer';
 import UnifiedSupervisionGantt from '@/components/UnifiedSupervisionGantt';
-import { exportGanttChartToPdf, type ExportableGanttScope, type ExportableTimelineColumn } from '@/lib/gantt-pdf-export';
 
 const mapInstruksiLapanganToWorkItems = (items: any[] = []) =>
     items.map((item) => ({
@@ -96,20 +93,7 @@ const isSameWorkText = (left: any, right: any) =>
 const isCategoryLevelPengawasan = (item: any) =>
     isSameWorkText(item?.kategori_pekerjaan, item?.jenis_pekerjaan);
 
-const validateSequentialDependencies = (tasks: any[]) => {
-    const namedTasks = tasks.filter((task) => String(task.name || '').trim());
-    if (namedTasks.length <= 1) return null;
-
-    const missingTasks = namedTasks
-        .slice(0, -1)
-        .filter((task) => !task.dependencies || task.dependencies.length === 0);
-
-    if (missingTasks.length === 0) return null;
-
-    return `Keterikatan wajib diisi untuk semua tahapan kecuali tahapan terakhir. Belum terisi: ${missingTasks
-        .map((task) => task.name)
-        .join(', ')}.`;
-};
+const validateSequentialDependencies = (_tasks: any[]) => null;
 
 const mapApprovedInstruksiToTokoOptions = (items: any[] = []) => {
     const map = new Map<string, any>();
@@ -153,7 +137,16 @@ type GanttDetailResponse = Awaited<ReturnType<typeof fetchGanttDetail>>;
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 const PENGAWASAN_UPLOAD_BATCH_SIZE = 50;
-const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
+const buildDriveProxyHref = (url?: string | null): string => {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (raw.startsWith('/api/') || raw.includes('/api/proxy-file') || raw.includes('/api/denda/actions/proxy-file')) return raw;
+    if (/^https?:\/\//i.test(raw)) {
+        return `${API_URL.replace(/\/$/, '')}/api/proxy-file?url=${encodeURIComponent(raw)}`;
+    }
+    return raw;
+};
+const PENGAWASAN_MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 function parseCalendarDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -185,6 +178,12 @@ function formatPengawasanDateKey(value?: string | null): string {
     return `${dd}/${mm}/${yyyy}`;
 }
 
+function subtractOneCalendarDayKey(value?: string | null): string {
+    const parsed = parseCalendarDate(value);
+    if (!parsed) return '';
+    parsed.setDate(parsed.getDate() - 1);
+    return formatPengawasanDateKey(formatCalendarDate(parsed));
+}
 type PengawasanFileMap = {
     index: number;
     file: File;
@@ -228,13 +227,6 @@ const parseDecimalInput = (value: unknown): number => {
 };
 
 const normalizeVolumeInput = (value: string) => value.replace(/[^\d,.]/g, "");
-const isPengawasanNetworkError = (error: unknown): boolean => {
-    const message = error instanceof Error ? error.message : String(error || "");
-    return /failed to fetch|networkerror|load failed|fetch/i.test(message);
-};
-
-const normalizePengawasanCompareText = (value: unknown): string =>
-    String(value ?? "").trim().toUpperCase();
 const blockedIncrementKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
 const normalizeIntegerInput = (value: string) => value.replace(/[^\d]/g, '');
 
@@ -358,22 +350,23 @@ function getWorkspaceScopeLabel(workspace?: SupervisionWorkspace | null): string
 }
 
 function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
-    if (!scope.gantt_id || !scope.opname_final_id) return false;
+    if (!scope.gantt_id) return false;
 
     // Escape hatch untuk data migrasi V1: opname_final APPROVED dianggap sudah final.
     if (scope.status_opname_final === "APPROVED") {
         return true;
     }
 
-    const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+    const checkpointOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+    const opnameItems = Math.max(checkpointOpnameItems, Number(scope.opname_item_count || 0));
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
+
     const missingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
     const totalExpected = Number(scope.total_expected_items || 0);
     const totalSelesai = Number(scope.total_selesai_items || 0);
 
-    return opnameItems > 0 && readyOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai === totalExpected;
+    return missingPengawasan === 0 && totalExpected > 0 && totalSelesai >= totalExpected && opnameItems > 0 && readyOpnameItems === 0;
 }
-
 const OPNAME_DRAFT_FIELDS = [
     'volume_akhir',
     'desain',
@@ -417,14 +410,12 @@ function mergeMemoInitialWithDraft(initial: Record<string, any>, draft?: Record<
 
     return merged;
 }
-
-const getCleanUlok = (u: string | null) => u ? (u.includes('___ts___') ? u.split('___ts___')[0] : u) : '';
-
 function GanttBoard() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { showAlert } = useGlobalAlert();
     const searchPanelRef = useRef<HTMLDivElement | null>(null);
+    const activeGanttTrackRef = useRef<HTMLElement | null>(null);
 
     const urlUlok = searchParams.get('ulok');
     const urlIdToko = searchParams.get('id_toko');
@@ -480,11 +471,6 @@ function GanttBoard() {
     const [showDateLegend, setShowDateLegend] = useState(true);
     const [showHandoverPanel, setShowHandoverPanel] = useState(true);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState<Record<number, boolean>>({});
-    const [isExportingGanttPdf, setIsExportingGanttPdf] = useState(false);
-    const [unifiedExportData, setUnifiedExportData] = useState<{
-        columns: ExportableTimelineColumn[];
-        scopes: ExportableGanttScope[];
-    } | null>(null);
 
     const handleDownloadPdf = async (id: number | null) => {
         if (!id) return;
@@ -504,7 +490,7 @@ function GanttBoard() {
     const [availableProjects, setAvailableProjects] = useState<GanttListItem[]>([]);
     const [allTokoList, setAllTokoList] = useState<any[]>([]);
     const [isDirectAccess] = useState(true);
-    const [searchUlokInput, setSearchUlokInput] = useState(formatUlokWithDash(getCleanUlok(urlUlok)));
+    const [searchUlokInput, setSearchUlokInput] = useState("");
     const [isUlokListOpen, setIsUlokListOpen] = useState(false);
     const [visibleUlokCount, setVisibleUlokCount] = useState(10);
 
@@ -586,6 +572,36 @@ function GanttBoard() {
 
     const [tasks, setTasks] = useState<any[]>([]);
     const [isApplying, setIsApplying] = useState(false);
+    const [dragSchedule, setDragSchedule] = useState<any>(null);
+    const [dependencySourceTaskId, setDependencySourceTaskId] = useState<number | null>(null);
+    const [pendingDependency, setPendingDependency] = useState<{ sourceId: number; targetId: number } | null>(null);
+    const undoStackRef = useRef<any[][]>([]);
+    const redoStackRef = useRef<any[][]>([]);
+
+    const cloneTasks = useCallback((value: any[]) => JSON.parse(JSON.stringify(value || [])), []);
+    const clearTaskHistory = useCallback(() => {
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+    }, []);
+    const rememberTasksSnapshot = useCallback(() => {
+        undoStackRef.current.push(cloneTasks(tasks));
+        if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+        redoStackRef.current = [];
+    }, [cloneTasks, tasks]);
+    const undoGanttChange = useCallback(() => {
+        const previous = undoStackRef.current.pop();
+        if (!previous) return;
+        redoStackRef.current.push(cloneTasks(tasks));
+        setTasks(cloneTasks(previous));
+    }, [cloneTasks, tasks]);
+    const redoGanttChange = useCallback(() => {
+        const next = redoStackRef.current.pop();
+        if (!next) return;
+        undoStackRef.current.push(cloneTasks(tasks));
+        setTasks(cloneTasks(next));
+    }, [cloneTasks, tasks]);
+
+
 
     const [rawDayGanttData, setRawDayGanttData] = useState<any[]>([]);
 
@@ -596,12 +612,12 @@ function GanttBoard() {
 
     const [rabItems, setRabItems] = useState<any[]>([]);
     const [showMemoModal, setShowMemoModal] = useState(false);
-    const [showTakeoverMemoModal, setShowTakeoverMemoModal] = useState(false);
     const [showOpnameModal, setShowOpnameModal] = useState(false);
     const [showTargetStModal, setShowTargetStModal] = useState<{ dateString: string; dayIndex: number } | null>(null);
+    const [showGrandOpeningModal, setShowGrandOpeningModal] = useState(false);
+    const [showSerahTerimaGabunganModal, setShowSerahTerimaGabunganModal] = useState(false);
     const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
     const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
-    const currentTs = supervisionWorkspace?.scopes?.[0]?.takeover_sequence || projectData?.takeover_sequence || projectData?.takeoverSequence || 0;
     const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
     const [isGeneratingHandover, setIsGeneratingHandover] = useState(false);
     const [generatingScopes, setGeneratingScopes] = useState<Record<number, boolean>>({});
@@ -610,7 +626,6 @@ function GanttBoard() {
         index: number;
         dayIndex: number;
         dateString: string;
-        fromSerahTerimaModal?: boolean;
     } | null>(null);
     const [unifiedOpnameFlow, setUnifiedOpnameFlow] = useState<{
         scopes: Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
@@ -633,6 +648,27 @@ function GanttBoard() {
     // Hanya BRANCH BUILDING SUPPORT (dan SuperHuman) yang dapat menginput pengawasan.
     // Manager dan Coordinator hanya bisa melihat, tidak bisa input.
     const isPengawasanReadOnly = !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (!event.ctrlKey || event.altKey || event.metaKey || isReadOnly || isProjectLocked || isApplying) return;
+            const target = event.target as HTMLElement | null;
+            const tagName = target?.tagName?.toLowerCase();
+            if (target?.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select') return;
+
+            const key = event.key.toLowerCase();
+            if (key === 'z') {
+                event.preventDefault();
+                if (event.shiftKey) redoGanttChange();
+                else undoGanttChange();
+            } else if (key === 'y') {
+                event.preventDefault();
+                redoGanttChange();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isApplying, isProjectLocked, isReadOnly, redoGanttChange, undoGanttChange]);
     const activeNotesGanttId = selectedGanttId
         ?? supervisionWorkspace?.scopes.find(scope => scope.gantt_id)?.gantt_id
         ?? null;
@@ -673,15 +709,6 @@ function GanttBoard() {
     const canWriteGanttCommunication = !!activeNotesGanttId && !!user;
 
     const loadSupervisionWorkspace = useCallback(async (nomorUlok: string) => {
-        let actualUlok = nomorUlok;
-        let takeoverSequence: number | undefined;
-
-        if (nomorUlok.includes('___ts___')) {
-            const parts = nomorUlok.split('___ts___');
-            actualUlok = parts[0];
-            takeoverSequence = Number(parts[1]);
-        }
-
         if (!nomorUlok) return;
         const requestSeq = workspaceLoadSeqRef.current + 1;
         workspaceLoadSeqRef.current = requestSeq;
@@ -689,10 +716,10 @@ function GanttBoard() {
 
         setIsWorkspaceLoading(true);
         setSupervisionWorkspace(null);
-        setUnifiedExportData(null);
         setProjectData(null);
         setTasks([]);
         setRawDayGanttData([]);
+        clearTaskHistory();
         setRabItems([]);
         setPengawasanDates([]);
         setPengawasanHistory([]);
@@ -700,7 +727,7 @@ function GanttBoard() {
         setSpkInfo(null);
         setSelectedUlok(normalizedUlok);
         try {
-            const response = await fetchSupervisionWorkspace(actualUlok, takeoverSequence);
+            const response = await fetchSupervisionWorkspace(nomorUlok);
             if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(response.data);
             setSelectedUlok(normalizedUlok);
@@ -714,16 +741,241 @@ function GanttBoard() {
                 pic_bersama: (prev?.pic_bersama && prev.pic_bersama !== "Belum ditentukan") ? prev.pic_bersama : (response.data.pic_bersama || "Belum ditentukan"),
                 work: getWorkspaceScopeLabel(response.data) || prev?.work || "-",
             }));
-            const firstGanttId = response.data?.scopes?.find((scope: SupervisionScope) => scope.gantt_id)?.gantt_id;
+            const scopesWithGantt = (response.data?.scopes || []).filter((scope: SupervisionScope) => scope.gantt_id);
+            const firstGanttId = scopesWithGantt[0]?.gantt_id;
+            const isContractorDraft = (sessionStorage.getItem('userRole') || '').split(',').some(role => role.trim().toUpperCase() === 'KONTRAKTOR')
+                && scopesWithGantt.some(scope => !['terkunci', 'locked', 'published'].includes(String(scope.gantt_status || '').toLowerCase()));
             if (firstGanttId) {
+                if (scopesWithGantt.length > 1 || isContractorDraft) {
+                    const detailResults = await Promise.all(
+                        scopesWithGantt.map((scope: SupervisionScope) =>
+                            fetchGanttDetail(Number(scope.gantt_id))
+                                .then(async (detail) => ({
+                                    scope, detail,
+                                    draftCategories: isContractorDraft ? (await fetchGanttDetailByToko(scope.id_toko)).filtered_categories : [],
+                                }))
+                                .catch((error) => { if (isContractorDraft) throw error; return null; })
+                        )
+                    );
+                    if (workspaceLoadSeqRef.current !== requestSeq) return;
+
+                    const validDetails = detailResults.filter(Boolean) as Array<{ scope: SupervisionScope; detail: GanttDetailResponse; draftCategories: string[] }>;
+                    const parsedStarts = validDetails
+                        .map(({ detail }) => parseCalendarDate(detail.data.gantt?.timestamp?.split('T')?.[0]))
+                        .filter(Boolean) as Date[];
+                    const projectStart = parsedStarts.length > 0
+                        ? new Date(Math.min(...parsedStarts.map((date) => date.getTime())))
+                        : new Date();
+                    const msPerDay = 1000 * 60 * 60 * 24;
+                    const toDayNumber = (value: any): number => {
+                        if (!value) return NaN;
+                        const cleanValue = String(value).trim();
+                        if (cleanValue.includes('/')) {
+                            const parsed = parseDateDDMMYYYY(cleanValue);
+                            if (!parsed) return NaN;
+                            return Math.round((parsed.getTime() - projectStart.getTime()) / msPerDay) + 1;
+                        }
+                        const dateValue = parseDateAny(cleanValue);
+                        if (dateValue && !Number.isNaN(dateValue.getTime()) && /[-T]/.test(cleanValue)) {
+                            return Math.round((dateValue.getTime() - projectStart.getTime()) / msPerDay) + 1;
+                        }
+                        return parseInt(cleanValue);
+                    };
+
+                    let taskId = 1;
+                    let maxDuration = 1;
+                    const combinedTasks: any[] = [];
+                    const combinedRawDayItems: any[] = [];
+                    const combinedPengawasan: any[] = [];
+                    const combinedDates: string[] = [];
+                    validDetails.forEach(({ scope, detail, draftCategories }) => {
+                        const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan } = detail.data;
+                        if (isContractorDraft) maxDuration = Math.max(maxDuration, Number(scope.spk_effective_duration || scope.spk_duration || 0));
+                        const scopeName = String(scope.lingkup_pekerjaan || toko?.lingkup_pekerjaan || '').trim().toUpperCase() || 'SIPIL';
+                        const savedCategories = (kategori_pekerjaan || []).map((k: any) => String(k.kategori_pekerjaan || '').toUpperCase()).filter(Boolean);
+                        const allCategories = Array.from(new Set([...savedCategories, ...(draftCategories || []).map(name => name.trim().toUpperCase())]));
+                        const categories = allCategories.length > 0 ? allCategories : ['PERSIAPAN'];
+                        const idByCategory = new Map<string, number>();
+
+                        const rangesByCategory: Record<string, any[]> = {};
+                        (day_items || []).forEach((entry: any) => {
+                            const categoryName = String(entry.kategori_pekerjaan || '').trim().toUpperCase();
+                            if (!categoryName) return;
+                            const startDay = toDayNumber(entry.h_awal);
+                            const endDay = toDayNumber(entry.h_akhir);
+                            if (Number.isNaN(startDay) || Number.isNaN(endDay)) return;
+                            if (!rangesByCategory[categoryName]) rangesByCategory[categoryName] = [];
+                            rangesByCategory[categoryName].push({
+                                start: startDay,
+                                end: endDay,
+                                duration: endDay - startDay + 1,
+                                keterlambatan: parseInt(String(entry.keterlambatan || 0)),
+                                kecepatan: entry.kecepatan ?? '',
+                                savedStart: startDay, savedEnd: endDay,
+                                savedHAwal: entry.h_awal, savedHAkhir: entry.h_akhir,
+                            });
+                            maxDuration = Math.max(maxDuration, endDay + (parseInt(String(entry.keterlambatan || 0)) || 0));
+                            combinedRawDayItems.push({
+                                Kategori: categoryName,
+                                h_awal: entry.h_awal,
+                                h_akhir: entry.h_akhir,
+                                keterlambatan: entry.keterlambatan ?? 0,
+                                kecepatan: entry.kecepatan ?? '',
+                                _id: entry.id,
+                                _id_gantt: entry.id_gantt,
+                                scope: scopeName,
+                            });
+                        });
+
+                        const scopeTasks: any[] = categories.map((categoryName: string) => {
+                            const id = taskId++;
+                            idByCategory.set(categoryName.toLowerCase().trim(), id);
+                            return {
+                                id,
+                                name: categoryName,
+                                displayName: `${scopeName} - ${categoryName}`,
+                                scope: scopeName,
+                                scopeTokoId: toko?.id || scope.id_toko,
+                                scopeGanttId: gantt?.id || scope.gantt_id,
+                                scopeLocked: ['terkunci', 'locked', 'published'].includes(String(gantt?.status || '').toLowerCase()),
+                                dependencies: [],
+                                ranges: rangesByCategory[categoryName] || [{ start: '', end: '', keterlambatan: 0 }],
+                                keterlambatan: 0,
+                            };
+                        });
+
+                        const depMap: Record<string, string[]> = {};
+                        (dependencies || []).forEach((dep: any) => {
+                            const child = String(dep.kategori_pekerjaan || '').toLowerCase().trim();
+                            const parent = String(dep.kategori_pekerjaan_terikat || '').toLowerCase().trim();
+                            if (!child || !parent) return;
+                            if (!depMap[child]) depMap[child] = [];
+                            depMap[child].push(parent);
+                        });
+                        scopeTasks.forEach((task) => {
+                            const key = String(task.name || '').toLowerCase().trim();
+                            task.dependencies = (depMap[key] || [])
+                                .map((parentName) => idByCategory.get(parentName))
+                                .filter(Boolean);
+                        });
+
+                        if (isContractorDraft) {
+                            // The editor stores outgoing links; API rows name child then parent.
+                            scopeTasks.forEach(task => { task.dependencies = []; });
+                            (dependencies || []).forEach(dep => {
+                                const parentId = idByCategory.get(String(dep.kategori_pekerjaan_terikat || '').toLowerCase().trim());
+                                const childId = idByCategory.get(String(dep.kategori_pekerjaan || '').toLowerCase().trim());
+                                const parent = scopeTasks.find(task => task.id === parentId);
+                                if (parent && childId && !parent.dependencies.includes(childId)) parent.dependencies.push(childId);
+                            });
+                        }
+                        combinedTasks.push(...scopeTasks);
+                        combinedPengawasan.push(...(pengawasan || []));
+                        (pengawasan || []).forEach((item: any) => {
+                            if (item.tanggal_pengawasan) combinedDates.push(item.tanggal_pengawasan);
+                        });
+                    });
+
+                    setSelectedGanttId(Number(firstGanttId));
+                    loadGanttNotes(Number(firstGanttId));
+                    setRawDayGanttData(combinedRawDayItems);
+                    setPengawasanDates(Array.from(new Set(combinedDates)));
+                    setPengawasanHistory(combinedPengawasan);
+                    setTasks(combinedTasks);
+                    setIsProjectLocked(validDetails.every(({ detail }) => ['terkunci', 'locked', 'published'].includes(String(detail.data.gantt?.status || '').toLowerCase())));
+                    setProjectData((prev: any) => ({
+                        ...(prev || {}),
+                        ganttId: Number(firstGanttId),
+                        id_toko: validDetails[0]?.detail.data.toko?.id || response.data.scopes?.[0]?.id_toko || prev?.id_toko,
+                        ulokClean: response.data.nomor_ulok,
+                        store: response.data.nama_toko || validDetails[0]?.detail.data.toko?.nama_toko || prev?.store || '-',
+                        kode_toko: validDetails[0]?.detail.data.toko?.kode_toko || prev?.kode_toko || 'Belum diisi',
+                        work: getWorkspaceScopeLabel(response.data) || 'SIPIL + ME',
+                        cabang: response.data.cabang || validDetails[0]?.detail.data.toko?.cabang || prev?.cabang || '-',
+                        kontraktor: validDetails[0]?.detail.data.toko?.nama_kontraktor || prev?.kontraktor || '-',
+                        duration: maxDuration,
+                        startDate: projectStart.toISOString().split('T')[0],
+                    }));
+                    return response.data;
+                }
+
                 setSelectedGanttId(Number(firstGanttId));
                 loadGanttNotes(Number(firstGanttId));
+            } else {
+                const rabListRes = await fetchRABList({ nomor_ulok: response.data.nomor_ulok }, { suppressGlobalError: true });
+                const rabRows = (rabListRes.data || [])
+                    .filter((row: any) => formatUlokWithDash(row.nomor_ulok) === normalizedUlok)
+                    .sort((a: any, b: any) => {
+                        const sa = String((a as any).lingkup_pekerjaan || (a as any).toko?.lingkup_pekerjaan || '').toUpperCase();
+                        const sb = String((b as any).lingkup_pekerjaan || (b as any).toko?.lingkup_pekerjaan || '').toUpperCase();
+                        if (sa === 'SIPIL' && sb !== 'SIPIL') return -1;
+                        if (sb === 'SIPIL' && sa !== 'SIPIL') return 1;
+                        return sa.localeCompare(sb) || Number(a.id) - Number(b.id);
+                    });
+
+                const detailResults = await Promise.all(
+                    rabRows.map((row: any) => fetchRABDetail(Number(row.id)).catch(() => null))
+                );
+                if (workspaceLoadSeqRef.current !== requestSeq) return;
+
+                const categoryMap = new Map<string, any>();
+                const combinedRabItems: any[] = [];
+                let maxDuration = 1;
+                let primaryDetail: any = null;
+
+                detailResults.forEach((detailRes) => {
+                    const detail = detailRes?.data;
+                    if (!detail?.rab || !detail?.toko) return;
+                    if (!primaryDetail) primaryDetail = detail;
+                    const scope = String(detail.toko.lingkup_pekerjaan || (detail.rab as any).lingkup_pekerjaan || '').trim().toUpperCase() || 'SIPIL';
+                    const duration = parseInt(String(detail.rab.durasi_pekerjaan || '').replace(/\D/g, '')) || 0;
+                    if (duration > maxDuration) maxDuration = duration;
+
+                    (detail.items || []).forEach((item: any) => {
+                        if (!item.kategori_pekerjaan || Number(item.volume || 0) <= 0) return;
+                        combinedRabItems.push({ ...item, lingkup_pekerjaan: scope, scope });
+                        const categoryName = String(item.kategori_pekerjaan).trim().toUpperCase();
+                        const key = `${scope}|${categoryName}`;
+                        if (!categoryMap.has(key)) {
+                            categoryMap.set(key, {
+                                id: categoryMap.size + 1,
+                                name: categoryName,
+                                displayName: `${scope} - ${categoryName}`,
+                                scope,
+                                scopeTokoId: detail.toko.id,
+                                scopeRabId: detail.rab.id,
+                                dependencies: [],
+                                ranges: [{ start: '', end: '', keterlambatan: 0 }],
+                                keterlambatan: 0,
+                            });
+                        }
+                    });
+                });
+
+                setRabItems(combinedRabItems);
+                setTasks(Array.from(categoryMap.values()));
+                setRawDayGanttData([]);
+                setIsProjectLocked(false);
+                setProjectData((prev: any) => ({
+                    ...(prev || {}),
+                    ganttId: null,
+                    id_toko: primaryDetail?.toko?.id || response.data.scopes?.[0]?.id_toko || prev?.id_toko,
+                    ulokClean: response.data.nomor_ulok,
+                    store: response.data.nama_toko || primaryDetail?.toko?.nama_toko || prev?.store || '-',
+                    kode_toko: primaryDetail?.toko?.kode_toko || prev?.kode_toko || 'Belum diisi',
+                    work: getWorkspaceScopeLabel(response.data) || 'SIPIL + ME',
+                    cabang: response.data.cabang || primaryDetail?.toko?.cabang || prev?.cabang || '-',
+                    kontraktor: primaryDetail?.toko?.nama_kontraktor || prev?.kontraktor || '-',
+                    duration: maxDuration,
+                    startDate: new Date().toISOString().split('T')[0],
+                }));
             }
             // NOTE: spkTokoIds TIDAK dioverride di sini.
             // spkTokoIds sudah diisi dengan benar dari fetchSPKList({ status: 'SPK_APPROVED' })
             // saat halaman pertama kali dimuat. Mengoverride di sini dengan kondisi
             // (spk_start_date || spk_duration) akan membuat filter SPK error karena
             // scope yang WAITING_FOR_BM_APPROVAL pun bisa punya spk_start_date.
+            return response.data;
         } catch (error: any) {
             if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(null);
@@ -733,7 +985,7 @@ function GanttBoard() {
                 setIsWorkspaceLoading(false);
             }
         }
-    }, [showAlert]);
+    }, [clearTaskHistory, showAlert]);
 
     const openScopeCheckpoint = useCallback(async (
         scope: SupervisionScope,
@@ -761,12 +1013,11 @@ function GanttBoard() {
         }
 
         setShowMemoModal(true);
-    }, [showAlert]);
+    }, [clearTaskHistory, showAlert]);
 
     const openUnifiedCheckpoint = useCallback(async (
         checkpoint: SupervisionCheckpoint,
-        dayIndex: number,
-        options?: { fromSerahTerimaModal?: boolean }
+        dayIndex: number
     ) => {
         if (!supervisionWorkspace) return;
 
@@ -805,7 +1056,6 @@ function GanttBoard() {
             index: 0,
             dayIndex,
             dateString: checkpoint.tanggal_pengawasan,
-            fromSerahTerimaModal: Boolean(options?.fromSerahTerimaModal),
         });
         await loadDataByToko(first.scope.id_toko);
         setActiveHeaderClick({
@@ -821,10 +1071,10 @@ function GanttBoard() {
     const handleGenerateUnifiedHandover = useCallback(async () => {
         const scopes = supervisionWorkspace?.scopes || [];
         const allReady = scopes.length > 0 && scopes.every(isScopeReadyForSt);
-        if (!supervisionWorkspace || (!supervisionWorkspace.unified_serah_terima_ready && !allReady)) return;
+        if (!supervisionWorkspace || !allReady) return;
         setIsGeneratingHandover(true);
         try {
-            await createPdfSerahTerimaUnified(supervisionWorkspace.nomor_ulok, currentTs);
+            await createPdfSerahTerimaUnified(supervisionWorkspace.nomor_ulok);
             await loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
             showAlert({ message: "PDF Serah Terima SIPIL/ME berhasil diproses.", type: "success" });
         } catch (error: any) {
@@ -832,7 +1082,7 @@ function GanttBoard() {
         } finally {
             setIsGeneratingHandover(false);
         }
-    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace, currentTs]);
+    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace]);
 
     const handleGenerateIndividualHandover = useCallback(async (idToko: number) => {
         setGeneratingScopes(prev => ({ ...prev, [idToko]: true }));
@@ -913,8 +1163,14 @@ function GanttBoard() {
             return;
         }
 
-        if (currentAppMode === 'pic' && urlUlok) {
-            loadSupervisionWorkspace(urlUlok);
+        if (urlUlok) {
+            void (async () => {
+                const workspace = await loadSupervisionWorkspace(urlUlok);
+                if (currentAppMode === 'kontraktor' && !workspace?.scopes?.some(scope => !['terkunci', 'locked', 'published'].includes(String(scope.gantt_status || '').toLowerCase()))) {
+                    const firstScope = workspace?.scopes?.find((scope: SupervisionScope) => scope.gantt_id);
+                    if (firstScope) await loadDataByToko(firstScope.id_toko);
+                }
+            })();
         } else if (urlIdToko) {
             loadDataByToko(parseInt(urlIdToko), urlIdRab ? parseInt(urlIdRab) : undefined);
         } else if (urlIdRab) {
@@ -1040,7 +1296,6 @@ function GanttBoard() {
                 kontraktor: toko.nama_kontraktor || "-",
                 duration: rDuration,
                 startDate: new Date().toISOString().split('T')[0],
-                takeoverSequence: toko.takeover_sequence || 0,
             });
 
             const uniqueCats = new Set<string>();
@@ -1082,6 +1337,11 @@ function GanttBoard() {
         try {
             const res = await fetchGanttDetailByToko(idToko);
             const { rab, filtered_categories, gantt_data, toko, instruksi_lapangan_items } = res;
+
+            if ((sessionStorage.getItem('userRole') || '').split(',').some(role => role.trim().toUpperCase() === 'KONTRAKTOR') && toko?.nomor_ulok) {
+                const workspace = await loadSupervisionWorkspace(toko.nomor_ulok);
+                if (!workspace || workspace.scopes.some(scope => !['terkunci', 'locked', 'published'].includes(String(scope.gantt_status || '').toLowerCase()))) return;
+            }
 
             const validRabId = rab?.id || fallbackIdRab;
 
@@ -1153,7 +1413,6 @@ function GanttBoard() {
                     // Pertahankan pic dari data toko, jangan hapus jika sudah ada dari scope lain
                     pic: toko.pic_proyek || toko.pic_bersama || prev?.pic || "Belum ditentukan",
                     pic_bersama: toko.pic_bersama || toko.pic_proyek || prev?.pic_bersama || "Belum ditentukan",
-                    takeoverSequence: toko.takeover_sequence || 0,
                 }));
 
                 if (!validRabId) {
@@ -1286,7 +1545,6 @@ function GanttBoard() {
                 // Preserve pic dari workspace/scope sebelumnya jika toko ini tidak punya pic_proyek sendiri
                 pic: toko.pic_proyek || toko.pic_bersama || prev?.pic || "Belum ditentukan",
                 pic_bersama: toko.pic_bersama || toko.pic_proyek || prev?.pic_bersama || "Belum ditentukan",
-                takeoverSequence: toko.takeover_sequence || 0,
             }));
 
             const pDates = (pengawasan || [])
@@ -1445,6 +1703,7 @@ function GanttBoard() {
         }
         const finalValue = sanitizedValue === '' || isNaN(parsedVal) ? '' : parsedVal.toString();
 
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 const newRanges = [...t.ranges];
@@ -1456,6 +1715,7 @@ function GanttBoard() {
     };
 
     const handleDependencyChange = (taskId: number, parentIdStr: string) => {
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 return { ...t, dependencies: parentIdStr ? [parseInt(parentIdStr)] : [] };
@@ -1465,6 +1725,7 @@ function GanttBoard() {
     };
 
     const addRange = (taskId: number) => {
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 return { ...t, ranges: [...t.ranges, { start: '', end: '', keterlambatan: 0 }] };
@@ -1475,7 +1736,7 @@ function GanttBoard() {
 
     const removeRange = async (taskId: number, rangeIdx: number) => {
         const taskObj = tasks.find(t => t.id === taskId);
-        if (!taskObj) return;
+        if (!taskObj || taskObj.scopeLocked || isApplying) return;
 
         const rangeToRemove = taskObj.ranges[rangeIdx];
 
@@ -1484,6 +1745,7 @@ function GanttBoard() {
             if (!isConfirmed) return;
         }
 
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 const newRanges = t.ranges.filter((_: any, i: number) => i !== rangeIdx);
@@ -1493,6 +1755,141 @@ function GanttBoard() {
             return t;
         }));
     };
+
+    const clampGanttDay = useCallback((day: number) => {
+        const maxDay = Math.max(1, Number(projectData?.duration || spkInfo?.duration || 1));
+        return Math.max(1, Math.min(maxDay, day));
+    }, [projectData?.duration, spkInfo?.duration]);
+
+    const dayFromPointer = useCallback((clientX: number, element: HTMLElement) => {
+        const rect = element.getBoundingClientRect();
+        return clampGanttDay(Math.floor((clientX - rect.left) / DAY_WIDTH) + 1);
+    }, [clampGanttDay]);
+
+    const setTaskRangeFromDrag = useCallback((taskId: number, rangeIdx: number, start: number, end: number) => {
+        const cleanStart = clampGanttDay(Math.min(start, end));
+        const cleanEnd = clampGanttDay(Math.max(start, end));
+        setTasks(prev => prev.map(task => {
+            if (task.id !== taskId || task.scopeLocked) return task;
+            const ranges = [...(task.ranges || [])];
+            ranges[rangeIdx] = {
+                ...(ranges[rangeIdx] || { keterlambatan: 0 }),
+                start: String(cleanStart),
+                end: String(cleanEnd),
+            };
+            return { ...task, ranges };
+        }));
+    }, [clampGanttDay]);
+
+    const beginScheduleDrag = useCallback((event: React.PointerEvent<HTMLElement>, task: any, rangeIdx: number, mode: 'create' | 'move' | 'resize-start' | 'resize-end') => {
+        if (isReadOnly || isProjectLocked || isApplying || task.scopeLocked) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const track = event.currentTarget.closest('[data-gantt-track="true"]') as HTMLElement | null;
+        if (!track) return;
+        activeGanttTrackRef.current = track;
+        rememberTasksSnapshot();
+        const pointerDay = dayFromPointer(event.clientX, track);
+        const existingRange = task.ranges?.[rangeIdx] || { start: '', end: '', keterlambatan: 0 };
+        const start = parseInt(String(existingRange.start || pointerDay)) || pointerDay;
+        const end = parseInt(String(existingRange.end || pointerDay)) || pointerDay;
+        const nextRangeIdx = mode === 'create' && existingRange.start && existingRange.end ? (task.ranges || []).length : rangeIdx;
+
+        if (mode === 'create') {
+            setTasks(prev => prev.map(row => {
+                if (row.id !== task.id) return row;
+                const ranges = [...(row.ranges || [])];
+                ranges[nextRangeIdx] = { start: String(pointerDay), end: String(pointerDay), keterlambatan: 0 };
+                return { ...row, ranges };
+            }));
+        }
+
+        setDragSchedule({
+            taskId: task.id,
+            rangeIdx: nextRangeIdx,
+            mode,
+            originDay: pointerDay,
+            originalStart: mode === 'create' ? pointerDay : start,
+            originalEnd: mode === 'create' ? pointerDay : end,
+        });
+    }, [dayFromPointer, isApplying, isProjectLocked, isReadOnly, rememberTasksSnapshot]);
+
+    useEffect(() => {
+        if (!dragSchedule) return;
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const track = activeGanttTrackRef.current;
+            if (!track) return;
+            const pointerDay = dayFromPointer(event.clientX, track);
+            const delta = pointerDay - dragSchedule.originDay;
+
+            if (dragSchedule.mode === 'move') {
+                const span = Math.max(0, dragSchedule.originalEnd - dragSchedule.originalStart);
+                const nextStart = clampGanttDay(dragSchedule.originalStart + delta);
+                setTaskRangeFromDrag(dragSchedule.taskId, dragSchedule.rangeIdx, nextStart, nextStart + span);
+                return;
+            }
+
+            if (dragSchedule.mode === 'resize-start') {
+                setTaskRangeFromDrag(dragSchedule.taskId, dragSchedule.rangeIdx, pointerDay, dragSchedule.originalEnd);
+                return;
+            }
+
+            setTaskRangeFromDrag(dragSchedule.taskId, dragSchedule.rangeIdx, dragSchedule.originalStart, pointerDay);
+        };
+
+        const handlePointerUp = () => {
+            activeGanttTrackRef.current = null;
+            setDragSchedule(null);
+        };
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp, { once: true });
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [clampGanttDay, dayFromPointer, dragSchedule, setTaskRangeFromDrag]);
+
+    const beginDependencyDrag = (event: React.PointerEvent, taskId: number) => {
+        if (isReadOnly || isProjectLocked || isApplying || tasks.find(task => task.id === taskId)?.scopeLocked) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setDependencySourceTaskId(taskId);
+    };
+
+    const finishDependencyDrag = (targetId: number) => {
+        if (!dependencySourceTaskId || dependencySourceTaskId === targetId) return;
+        const sourceTask = tasks.find(task => task.id === dependencySourceTaskId);
+        const targetTask = tasks.find(task => task.id === targetId);
+        if (sourceTask?.scopeLocked || targetTask?.scopeLocked || isApplying) return;
+        const sourceScope = String(sourceTask?.scope || '').trim().toUpperCase();
+        const targetScope = String(targetTask?.scope || '').trim().toUpperCase();
+        if (sourceScope && targetScope && sourceScope !== targetScope) {
+            showAlert({ message: "Keterikatan SIPIL dan ME tidak bisa disambungkan silang.", type: "warning" });
+            setDependencySourceTaskId(null);
+            return;
+        }
+        setPendingDependency({ sourceId: dependencySourceTaskId, targetId });
+        setDependencySourceTaskId(null);
+    };
+
+    const confirmPendingDependency = () => {
+        if (!pendingDependency || isApplying) return;
+        rememberTasksSnapshot();
+        setTasks(prev => prev.map(task => {
+            if (task.id !== pendingDependency.sourceId) return task;
+            const nextDependencies = Array.from(new Set([...(task.dependencies || []), pendingDependency.targetId]));
+            return { ...task, dependencies: nextDependencies };
+        }));
+        setPendingDependency(null);
+    };
+
+    useEffect(() => {
+        if (!dependencySourceTaskId) return;
+        const clearDependencySource = () => setDependencySourceTaskId(null);
+        window.addEventListener('pointerup', clearDependencySource, { once: true });
+        return () => window.removeEventListener('pointerup', clearDependencySource);
+    }, [dependencySourceTaskId]);
 
     const handleSaveData = async (status: 'Active' | 'Terkunci') => {
         if (isReadOnly) {
@@ -1504,6 +1901,119 @@ function GanttBoard() {
             const email = sessionStorage.getItem('loggedInUserEmail') || "-";
             const cabang = sessionStorage.getItem('loggedInUserCabang') || "-";
             const namaKontraktor = sessionStorage.getItem('loggedInUserName') || sessionStorage.getItem('loggedInUserEmail') || "-";
+
+            const scopedDraftGroups = Array.from(new Set(tasks.map(t => String(t.scope || '').trim().toUpperCase()).filter(Boolean)));
+            const crossScopeDependency = tasks.find(t => (t.dependencies || []).some((childId: number) => {
+                const child = tasks.find(ct => ct.id === childId);
+                const parentScope = String(t.scope || '').trim().toUpperCase();
+                const childScope = String(child?.scope || '').trim().toUpperCase();
+                return child && parentScope && childScope && childScope !== parentScope;
+            }));
+            if (crossScopeDependency) {
+                throw new Error("Keterikatan SIPIL dan ME tidak bisa disambungkan silang.");
+            }
+
+            const serializeDraftDay = (day: any, savedDay: any, savedValue: any) => {
+                if (Number(day) === savedDay && savedValue != null) return String(savedValue);
+                if (savedValue && /[\/-]/.test(String(savedValue))) {
+                    const date = parseCalendarDate(projectData.startDate);
+                    if (date) { date.setDate(date.getDate() + Number(day) - 1); return formatDateForPengawasan(date); }
+                }
+                return String(day);
+            };
+            if (scopedDraftGroups.length > 0) {
+                const savedGanttIds: number[] = [];
+                for (const scope of scopedDraftGroups) {
+                    const scopedTasks = tasks.filter(t => String(t.scope || '').trim().toUpperCase() === scope);
+                    if (scopedTasks.every(task => task.scopeLocked)) continue;
+                    const existingScopeId = scopedTasks[0]?.scopeGanttId;
+                    const scopedScheduledTasks = scopedTasks.filter(t =>
+                        (t.ranges || []).some((r: any) => r.start && r.end)
+                    );
+                    const dependencyError = validateSequentialDependencies(scopedScheduledTasks);
+                    if (dependencyError) {
+                        throw new Error(`[${scope}] ${dependencyError}`);
+                    }
+
+                    const scopedKategori: string[] = scopedTasks.map(task => String(task.name || "").toUpperCase().trim()).filter(Boolean);
+                    const scopedDayItems: any[] = [];
+                    const scopedDependencies: any[] = [];
+                    const scheduledTaskIds = new Set(scopedTasks.map(t => t.id));
+
+                    scopedTasks.forEach(t => {
+                        const kategoriName = String(t.name || '').toUpperCase().trim();
+                        if (!kategoriName) return;
+                        if (!scopedKategori.includes(kategoriName)) scopedKategori.push(kategoriName);
+
+                        (t.ranges || []).forEach((r: any) => {
+                            if (!r.start || !r.end) return;
+                            scopedDayItems.push({
+                                kategori_pekerjaan: kategoriName,
+                                h_awal: serializeDraftDay(r.start, r.savedStart, r.savedHAwal),
+                                h_akhir: serializeDraftDay(r.end, r.savedEnd, r.savedHAkhir),
+                                keterlambatan: r.keterlambatan ? String(r.keterlambatan) : "",
+                                kecepatan: String(r.kecepatan ?? ""),
+                            });
+                        });
+
+                        (t.dependencies || []).forEach((childId: number) => {
+                            if (!scheduledTaskIds.has(childId)) return;
+                            const child = scopedTasks.find(ct => ct.id === childId);
+                            if (!child?.name) return;
+                            scopedDependencies.push({
+                                kategori_pekerjaan: String(child.name).toUpperCase().trim(),
+                                kategori_pekerjaan_terikat: kategoriName,
+                            });
+                        });
+                    });
+
+                    if (scopedDayItems.length === 0) {
+                        if (existingScopeId) throw new Error(`[${scope}] Isi minimal satu periode sebelum menyimpan draft.`);
+                        continue;
+                    }
+
+                    const isRenovasiUlok = /-R$/i.test(String(projectData.ulokClean || '').trim());
+                    const payload: any = {
+                        nomor_ulok: projectData.ulokClean,
+                        nama_toko: projectData.store,
+                        kode_toko: projectData.kode_toko,
+                        proyek: isRenovasiUlok ? "Renovasi" : "Reguler",
+                        cabang,
+                        alamat: "-",
+                        nama_kontraktor: namaKontraktor,
+                        lingkup_pekerjaan: scope,
+                        email_pembuat: email,
+                        kategori_pekerjaan: scopedKategori,
+                        day_items: scopedDayItems,
+                        dependencies: scopedDependencies,
+                    };
+
+                    const result = existingScopeId
+                        ? (await updateGanttChart(existingScopeId, { kategori_pekerjaan: scopedKategori, day_items: scopedDayItems, dependencies: scopedDependencies }), { data: { id: existingScopeId } })
+                        : await submitGanttChart(payload);
+                    if (result?.data?.id) {
+                        savedGanttIds.push(Number(result.data.id));
+                        setTasks(prev => prev.map(task => task.scope === scope ? { ...task, scopeGanttId: Number(result.data.id) } : task));
+                        clearTaskHistory();
+                        if (status === 'Terkunci') {
+                            await lockGanttChart(Number(result.data.id), email);
+                            setTasks(prev => prev.map(task => task.scope === scope ? { ...task, scopeLocked: true } : task));
+                        }
+                    }
+                }
+
+                if (savedGanttIds.length === 0) {
+                    throw new Error("Harap drag minimal satu bar jadwal untuk Sipil atau ME sebelum menyimpan.");
+                }
+
+                showAlert({ message: status === 'Terkunci' ? "Jadwal Sipil dan ME berhasil dikunci." : "Draft Gantt Sipil dan ME berhasil disimpan.", type: "success" });
+                if (status === 'Terkunci') {
+                    router.push('/dashboard');
+                } else {
+                    await loadSupervisionWorkspace(projectData.ulokClean);
+                }
+                return;
+            }
 
             const kategori_pekerjaan: string[] = [];
             const day_items: any[] = [];
@@ -1579,7 +2089,6 @@ function GanttBoard() {
                 const isRenovasiUlok = /-R$/i.test(String(projectData.ulokClean || '').trim());
                 const payload: any = {
                     nomor_ulok: projectData.ulokClean,
-                    takeover_sequence: currentTs,
                     nama_toko: projectData.store,
                     kode_toko: projectData.kode_toko,
                     proyek: isRenovasiUlok ? "Renovasi" : "Reguler",
@@ -1647,7 +2156,30 @@ function GanttBoard() {
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
 
-        let processedTasks = [...tasks];
+        const getTaskScope = (task: any) => String(task.scope || '').trim().toUpperCase();
+        let processedTasks = tasks.map(t => ({ ...t }));
+        if (processedTasks.some(getTaskScope)) {
+            processedTasks = processedTasks.sort((a, b) => {
+                const scopeA = getTaskScope(a);
+                const scopeB = getTaskScope(b);
+                const orderA = scopeA === 'SIPIL' ? 0 : scopeA === 'ME' ? 1 : 2;
+                const orderB = scopeB === 'SIPIL' ? 0 : scopeB === 'ME' ? 1 : 2;
+                return orderA - orderB || Number(a.id) - Number(b.id);
+            });
+        }
+        let visualRowIndex = 0;
+        let lastVisualScope = '';
+        processedTasks = processedTasks.map(task => {
+            const scope = getTaskScope(task);
+            if (scope && scope !== lastVisualScope) {
+                visualRowIndex += 1;
+                lastVisualScope = scope;
+            }
+            const mapped = { ...task, visualRowIndex };
+            visualRowIndex += 1;
+            return mapped;
+        });
+        const totalVisualRows = Math.max(visualRowIndex, processedTasks.length);
         let maxTaskEndDay = 0;
         let effectiveEndDates: Record<number, number> = {};
 
@@ -1679,14 +2211,6 @@ function GanttBoard() {
         });
         const supervisionDays: Record<number, boolean> = {};
         const effectiveStartDate = (spkInfo && spkInfo.startDate) ? spkInfo.startDate : (projectData && projectData.startDate ? projectData.startDate : null);
-        let takeoverDayIndex = -1;
-        if (effectiveStartDate) {
-            const startD = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
-            if (supervisionWorkspace?.tanggal_takeover) {
-                const takeoverD = new Date(supervisionWorkspace.tanggal_takeover.split('T')[0] + 'T00:00:00');
-                takeoverDayIndex = Math.floor((takeoverD.getTime() - startD.getTime()) / (24 * 60 * 60 * 1000));
-            }
-        }
         let maxSupervisionDay = 0;
         if (effectiveStartDate && pengawasanDates.length > 0) {
             const startD = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
@@ -1713,54 +2237,75 @@ function GanttBoard() {
         if (totalDaysToRender > 2000) totalDaysToRender = 2000; // SAFETY CAP to prevent browser crash
         if (totalDaysToRender < 0) totalDaysToRender = 0;
         const totalChartWidth = totalDaysToRender * DAY_WIDTH;
-        const svgHeight = processedTasks.length * ROW_HEIGHT;
+        const svgHeight = totalVisualRows * ROW_HEIGHT;
 
         let taskCoordinates: Record<number, any> = {};
         processedTasks.forEach((task, idx) => {
             const shift = task.computed.shift || 0;
             const ranges = task.ranges || [];
             if (ranges.length > 0 && ranges[0].start) {
-                const maxEnd = Math.max(...ranges.map((r: any) => parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0)));
-                const minStart = Math.min(...ranges.map((r: any) => parseInt(r.start || 0) + shift));
+                const validRanges = ranges
+                    .map((r: any) => {
+                        const start = parseInt(r.start || 0) + shift;
+                        const end = parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0);
+                        return { start, end };
+                    })
+                    .filter((r: any) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.start > 0 && r.end > 0)
+                    .sort((a: any, b: any) => a.start - b.start || a.end - b.end);
+                if (validRanges.length === 0) return;
 
-                let firstPeriodEnd = maxEnd;
-                let lowestStart = Infinity;
-                ranges.forEach((r: any) => {
-                    const s = parseInt(r.start || 0) + shift;
-                    if (s < lowestStart) {
-                        lowestStart = s;
-                        firstPeriodEnd = parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0);
-                    }
-                });
+                const firstRange = validRanges[0];
+                const lastRange = validRanges[validRanges.length - 1];
+                const maxEnd = Math.max(...validRanges.map((r: any) => r.end));
+                const minStart = Math.min(...validRanges.map((r: any) => r.start));
+                const rangeCenterX = (range: any) => ((range.start - 1) * DAY_WIDTH) + (((range.end - range.start + 1) * DAY_WIDTH) / 2);
 
+                const rowTop = (task.visualRowIndex ?? idx) * ROW_HEIGHT;
                 taskCoordinates[task.id] = {
-                    centerY: (idx * ROW_HEIGHT) + (ROW_HEIGHT / 2),
+                    centerY: rowTop + (ROW_HEIGHT / 2),
+                    topY: rowTop + 13,
+                    bottomY: rowTop + 37,
+                    centerX: rangeCenterX(firstRange),
+                    sourceAnchors: validRanges.map((range: any) => rangeCenterX(range)),
+                    targetX: rangeCenterX(firstRange),
                     endX: maxEnd * DAY_WIDTH,
                     startX: (minStart - 1) * DAY_WIDTH,
-                    firstEndX: firstPeriodEnd * DAY_WIDTH
+                    scope: getTaskScope(task)
                 };
             }
         });
-        let svgLines = [];
+        let svgLines: React.ReactNode[] = [];
         for (let i = 0; i < processedTasks.length; i++) {
             const task = processedTasks[i];
             if (task.dependencies && task.dependencies.length > 0) {
                 for (let cId of task.dependencies) {
                     const parentCoordinates = taskCoordinates[task.id];
                     const childCoordinates = taskCoordinates[cId];
-                    if (parentCoordinates && childCoordinates && parentCoordinates.firstEndX !== undefined && childCoordinates.startX !== undefined) {
-                        const startX = parentCoordinates.firstEndX, startY = parentCoordinates.centerY;
-                        const endX = childCoordinates.startX, endY = childCoordinates.centerY;
-                        let tension = (endX - startX) < 40 ? 60 : 40;
-                        if ((endX - startX) < 0) tension = 100;
-                        const path = `M ${startX} ${startY} C ${startX + tension} ${startY}, ${endX - tension} ${endY}, ${endX} ${endY}`;
-                        svgLines.push(
-                            <g key={`${task.id}-${cId}`}>
-                                <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
-                                <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                                <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                            </g>
-                        );
+                    const sameScope = !parentCoordinates?.scope || !childCoordinates?.scope || parentCoordinates.scope === childCoordinates.scope;
+                    if (sameScope && parentCoordinates && childCoordinates && Array.isArray(parentCoordinates.sourceAnchors) && childCoordinates.targetX !== undefined) {
+                        const targetIsBelow = childCoordinates.centerY >= parentCoordinates.centerY;
+                        const startY = targetIsBelow ? parentCoordinates.bottomY : parentCoordinates.topY;
+                        const endX = childCoordinates.targetX;
+                        const endY = targetIsBelow ? childCoordinates.topY : childCoordinates.bottomY;
+                        const direction = targetIsBelow ? 1 : -1;
+                        const verticalDistance = Math.abs(endY - startY);
+                        const tension = Math.max(18, Math.min(70, verticalDistance / 2));
+                        parentCoordinates.sourceAnchors.forEach((startX: number, anchorIdx: number) => {
+                            const path = `M ${startX} ${startY} C ${startX} ${startY + (direction * tension)}, ${endX} ${endY - (direction * tension)}, ${endX} ${endY}`;
+                            svgLines.push(
+                                <g key={`${task.id}-${cId}-${anchorIdx}`}>
+                                    <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95"
+                                        style={{ pointerEvents: appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && !task.scopeLocked && !isApplying ? 'stroke' : 'none', cursor: 'pointer' }}
+                                        onClick={() => {
+                                            if (appMode !== 'kontraktor' || isProjectLocked || isReadOnly || task.scopeLocked || isApplying) return;
+                                            rememberTasksSnapshot();
+                                            setTasks(prev => prev.map(row => row.id === task.id ? { ...row, dependencies: row.dependencies.filter((id: number) => id !== cId) } : row));
+                                        }} />
+                                    <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                    <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                </g>
+                            );
+                        });
                     }
                 }
             }
@@ -1785,13 +2330,13 @@ function GanttBoard() {
             }
         }
 
-        return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex, takeoverDayIndex };
-    }, [tasks, projectData, spkInfo, pengawasanDates, supervisionWorkspace]);
+        return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex };
+    }, [tasks, projectData, spkInfo, pengawasanDates, appMode, isProjectLocked, isReadOnly, isApplying, rememberTasksSnapshot]);
 
     // Map dari tanggal pengawasan (DD/MM/YYYY) → data checkpoint agregat dari semua scopes
     // Digunakan untuk pewarnaan header kolom: hijau/merah/biru (Poin 7, 8, 9)
     const pengawasanCheckpointMap = useMemo(() => {
-        const map = new Map<string, { total_items: number; filled_items: number; selesai_items: number }>();
+        const map = new Map<string, { total_items: number; filled_items: number; selesai_items: number; ready_opname_items: number; opname_items: number; contractor_submitted_opname_items: number }>();
         (supervisionWorkspace?.scopes || []).forEach(scope => {
             (scope.checkpoints || []).forEach((cp: any) => {
                 const dateKey = String(cp.tanggal_pengawasan || '').trim();
@@ -1801,11 +2346,17 @@ function GanttBoard() {
                     existing.total_items += Number(cp.total_items || 0);
                     existing.filled_items += Number(cp.filled_items || 0);
                     existing.selesai_items += Number(cp.selesai_items || 0);
+                    existing.ready_opname_items += Number(cp.ready_opname_items || 0);
+                    existing.opname_items += Number(cp.opname_items || 0);
+                    existing.contractor_submitted_opname_items += Number(cp.contractor_submitted_opname_items || 0);
                 } else {
                     map.set(dateKey, {
                         total_items: Number(cp.total_items || 0),
                         filled_items: Number(cp.filled_items || 0),
                         selesai_items: Number(cp.selesai_items || 0),
+                        ready_opname_items: Number(cp.ready_opname_items || 0),
+                        opname_items: Number(cp.opname_items || 0),
+                        contractor_submitted_opname_items: Number(cp.contractor_submitted_opname_items || 0),
                     });
                 }
             });
@@ -1813,6 +2364,36 @@ function GanttBoard() {
         return map;
     }, [supervisionWorkspace]);
 
+    const contractorOpnameSlotMap = useMemo(() => {
+        const map = new Map<string, { scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>();
+        if (appMode !== 'kontraktor') return map;
+
+        (supervisionWorkspace?.scopes || []).forEach((scope) => {
+            (scope.checkpoints || []).forEach((checkpoint) => {
+                if (checkpoint.workflow_version !== 'contractor_first') return;
+                const slotDate = subtractOneCalendarDayKey(checkpoint.tanggal_pengawasan);
+                if (!slotDate) return;
+
+                const existing = map.get(slotDate);
+                if (existing) {
+                    existing.checkpoint = {
+                        ...existing.checkpoint,
+                        total_items: Number(existing.checkpoint.total_items || 0) + Number(checkpoint.total_items || 0),
+                        filled_items: Number(existing.checkpoint.filled_items || 0) + Number(checkpoint.filled_items || 0),
+                        selesai_items: Number(existing.checkpoint.selesai_items || 0) + Number(checkpoint.selesai_items || 0),
+                        ready_opname_items: Number(existing.checkpoint.ready_opname_items || 0) + Number(checkpoint.ready_opname_items || 0),
+                        opname_items: Number(existing.checkpoint.opname_items || 0) + Number(checkpoint.opname_items || 0),
+                        contractor_submitted_opname_items: Number(existing.checkpoint.contractor_submitted_opname_items || 0) + Number(checkpoint.contractor_submitted_opname_items || 0),
+                    } as SupervisionCheckpoint;
+                    return;
+                }
+
+                map.set(slotDate, { scope, checkpoint: { ...checkpoint } });
+            });
+        });
+
+        return map;
+    }, [appMode, supervisionWorkspace]);
     const targetStInfo = useMemo(() => {
         const candidates = (supervisionWorkspace?.scopes || []).flatMap((scope) => {
             const explicitTarget = parseLocalDate(scope.st_target_date);
@@ -1857,6 +2438,68 @@ function GanttBoard() {
             ?? supervisionWorkspace.scopes.find((s) => s.link_pdf_serah_terima)
         )?.berkas_serah_terima_id ?? null
         : null;
+    const isContractorFirstWorkflow = Boolean(supervisionWorkspace?.unified_checkpoints?.some((c: any) => c.workflow_version === 'contractor_first'));
+    const uCheckpoints = supervisionWorkspace?.unified_checkpoints || [];
+    const stGabunganSubmitted = supervisionWorkspace?.st_gabungan_progress?.filled || 0;
+    const stGabunganTotal = supervisionWorkspace?.st_gabungan_progress?.total || 125;
+
+    const grandOpeningDocumentation = supervisionWorkspace?.grand_opening_documentation || null;
+    const grandOpeningUploadedCount = Number(grandOpeningDocumentation?.uploaded_count || 0);
+    const grandOpeningRequiredCount = Number(grandOpeningDocumentation?.required_count || 40);
+    const isGrandOpeningComplete = isContractorFirstWorkflow 
+        ? Boolean(supervisionWorkspace?.st_gabungan_progress?.is_submitted)
+        : Boolean(grandOpeningDocumentation?.is_complete);
+    const grandOpeningProgressText = isContractorFirstWorkflow
+        ? `${stGabunganSubmitted}/${stGabunganTotal} item terisi`
+        : `${grandOpeningUploadedCount}/${grandOpeningRequiredCount} dokumen wajib`;
+    const grandOpeningSpkStart = useMemo(() => {
+        const dates = (supervisionWorkspace?.scopes || [])
+            .map(scope => parseLocalDate(scope.spk_start_date))
+            .filter((date): date is Date => Boolean(date));
+        if (dates.length === 0) return '';
+        return formatDateForInput(new Date(Math.min(...dates.map(date => date.getTime()))));
+    }, [supervisionWorkspace]);
+    const grandOpeningSpkEnd = useMemo(() => {
+        const dates = (supervisionWorkspace?.scopes || [])
+            .map(scope => getScopeSpkEndDate(scope))
+            .filter((date): date is Date => Boolean(date));
+        if (dates.length === 0) return '';
+        return formatDateForInput(new Date(Math.max(...dates.map(date => date.getTime()))));
+    }, [supervisionWorkspace]);
+    const grandOpeningDocumentationUrl = useMemo(() => {
+        if (!supervisionWorkspace) return '';
+        const params = new URLSearchParams({
+            mode: 'grand-opening',
+            embedded: '1',
+            ulok: supervisionWorkspace.nomor_ulok || '',
+            nama_toko: supervisionWorkspace.nama_toko || '',
+            kode_toko: supervisionWorkspace.kode_toko || '',
+            cabang: supervisionWorkspace.cabang || '',
+        });
+        const tanggalSt = targetStInfo?.date ? formatDateForInput(targetStInfo.date) : '';
+        if (tanggalSt) params.set('tanggal_st', tanggalSt);
+        if (grandOpeningSpkStart) params.set('spk_awal', grandOpeningSpkStart);
+        if (grandOpeningSpkEnd) params.set('spk_akhir', grandOpeningSpkEnd);
+        return `/ftdokumen?${params.toString()}`;
+    }, [grandOpeningSpkEnd, grandOpeningSpkStart, supervisionWorkspace, targetStInfo]);
+    const openGrandOpeningDocumentation = useCallback(() => {
+        if (!grandOpeningDocumentationUrl) return;
+        setShowGrandOpeningModal(true);
+    }, [grandOpeningDocumentationUrl]);
+
+    useEffect(() => {
+        const handleGrandOpeningMessage = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data?.type !== 'grand-opening:saved') return;
+            if (supervisionWorkspace?.nomor_ulok && event.data?.nomorUlok && event.data.nomorUlok !== supervisionWorkspace.nomor_ulok) return;
+            setShowGrandOpeningModal(false);
+            if (supervisionWorkspace?.nomor_ulok) {
+                void loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+            }
+        };
+        window.addEventListener('message', handleGrandOpeningMessage);
+        return () => window.removeEventListener('message', handleGrandOpeningMessage);
+    }, [loadSupervisionWorkspace, supervisionWorkspace?.nomor_ulok]);
     const handoverReadiness = useMemo(() => {
         const scopes = supervisionWorkspace?.scopes || [];
         const scopedWithGantt = scopes.filter(scope => Boolean(scope.gantt_id));
@@ -1870,12 +2513,28 @@ function GanttBoard() {
         const opnameItems = scopes.reduce((sum, scope) => (
             sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.opname_items || 0), 0)
         ), 0);
+        const unresolvedContractorOpnameItems = scopes.reduce((sum, scope) => (
+            sum + (scope.checkpoints || []).reduce((inner, checkpoint) => {
+                if (checkpoint.workflow_version !== 'contractor_first') return inner;
+                return inner + Math.max(0, Number(checkpoint.contractor_submitted_opname_items || 0) - Number(checkpoint.opname_items || 0));
+            }, 0)
+        ), 0);
+        const incompleteExpectedItems = scopes.reduce((sum, scope) => {
+            const expected = Number(scope.total_expected_items || 0);
+            const selesai = Number(scope.total_selesai_items || 0);
+            return sum + Math.max(0, expected - selesai);
+        }, 0);
         const allScopesReady = scopedWithGantt.length > 0 && readyScopes.length === scopedWithGantt.length;
         // ST selesai hanya jika semua scope (SIPIL+ME) sudah selesai pengawasan DAN opname
         const allOpnameDone = scopedWithGantt.length > 0 && scopedWithGantt.every(scope => {
-            const scopeOpname = (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0);
+            const checkpointScopeOpname = (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0);
+            const scopeOpname = Math.max(checkpointScopeOpname, Number(scope.opname_item_count || 0));
+            const scopeUnresolvedContractor = (scope.checkpoints || []).reduce((sum, cp) => {
+                if (cp.workflow_version !== 'contractor_first') return sum;
+                return sum + Math.max(0, Number(cp.contractor_submitted_opname_items || 0) - Number(cp.opname_items || 0));
+            }, 0);
             const scopeMissing = Number(scope.missing_pengawasan_checkpoints || 0);
-            return scopeOpname > 0 && scopeMissing === 0;
+            return scopeOpname > 0 && scopeUnresolvedContractor === 0 && scopeMissing === 0;
         });
         const hasGeneratedPdf = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink);
 
@@ -1911,251 +2570,61 @@ function GanttBoard() {
             });
         });
 
-        const hasPendingFollowup = missingPengawasan > 0
-            || readyOpnameItems > 0
-            || pendingOpnameDates.length > 0;
-        const isReady = !hasPendingFollowup && (Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady);
-        const isGenerated = hasGeneratedPdf && allOpnameDone && !hasPendingFollowup;
+        const hasPendingFollowup = missingPengawasan > 0 || incompleteExpectedItems > 0 || readyOpnameItems > 0 || pendingOpnameDates.length > 0;
+        const coreReady = !hasPendingFollowup && allScopesReady;
+        const grandOpeningReady = hasGeneratedPdf || isGrandOpeningComplete;
+        const isReady = coreReady && grandOpeningReady;
+        const isGenerated = hasGeneratedPdf && !hasPendingFollowup;
 
         return {
             isGenerated,
             isReady,
+            coreReady,
+            grandOpeningReady,
             readyScopeCount: readyScopes.length,
             totalScopeCount: scopedWithGantt.length,
             readyOpnameItems,
             missingPengawasan,
             opnameItems,
+            unresolvedContractorOpnameItems,
             allOpnameDone,
+            incompleteExpectedItems,
             missingDates,
             pendingOpnameDates,
         };
-    }, [masterHandoverPdfLink, supervisionWorkspace]);
+    }, [isGrandOpeningComplete, masterHandoverPdfLink, supervisionWorkspace]);
     const handoverStatusText = (() => {
         if (handoverReadiness.isGenerated) return "ST selesai";
         if (handoverReadiness.isReady) return "Syarat ST terpenuhi";
+        if (handoverReadiness.coreReady && !handoverReadiness.grandOpeningReady) {
+            return `Dokumentasi Serah Terima belum lengkap (${grandOpeningProgressText})`;
+        }
 
         const warnings: string[] = [];
-        
+
         if (handoverReadiness.missingPengawasan > 0) {
             warnings.push(`${handoverReadiness.missingPengawasan} item belum Selesai (masih Progress/Terlambat)`);
         }
-        
+
+        if (handoverReadiness.incompleteExpectedItems > 0) {
+            warnings.push(`${handoverReadiness.incompleteExpectedItems} item pekerjaan belum selesai pengawasan`);
+        }
+
         if (handoverReadiness.pendingOpnameDates.length > 0) {
             const datesStr = handoverReadiness.pendingOpnameDates.slice(0, 2).join(', ');
-            warnings.push(`Opname parsial belum diinput (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`);
+            warnings.push(`Opname parsial belum diajukan (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`);
         } else if (handoverReadiness.readyOpnameItems > 0 && warnings.length === 0) {
-            warnings.push(`${handoverReadiness.readyOpnameItems} item menunggu opname`);
-        } else if (warnings.length === 0) {
-            warnings.push("Menunggu opname selesai");
+            warnings.push(`${handoverReadiness.readyOpnameItems} item menunggu opname diajukan`);
+        }
+
+        if (warnings.length === 0) {
+            warnings.push("Menunggu pengawasan selesai");
         }
 
         return warnings.join(' | ');
     })();
     const utilityPanelAvailable = Boolean(supervisionWorkspace || activeNotesGanttId);
-
-    const handleExportGanttPdf = async () => {
-        if (isExportingGanttPdf) return;
-
-        const allTokoForUlok = allTokoList.filter(t => t.nomor_ulok === projectData?.ulokClean);
-        const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
-        const spkCount = spkScopes.length;
-        const totalScopes = allTokoForUlok.length;
-        let spkStatusLabel = "BELUM SPK";
-        if (spkCount > 0 && spkCount === totalScopes) {
-            spkStatusLabel = totalScopes > 1 ? "SPK Lengkap" : "Sudah SPK";
-        } else if (spkCount > 0) {
-            spkStatusLabel = "SPK Partial";
-        } else if (isScopeSpkApproved) {
-            spkStatusLabel = "Sudah SPK";
-        }
-
-        const isBelumSpk = totalScopes > 0 ? spkCount === 0 : !spkInfo;
-        const scopeLabel = getWorkspaceScopeLabel(supervisionWorkspace) || projectData?.work || "-";
-
-        const meta = {
-            nomorUlok: projectData?.ulokClean || selectedUlok || "-",
-            storeName: projectData?.store || supervisionWorkspace?.nama_toko || "-",
-            branch: projectData?.branch || projectData?.cabang || supervisionWorkspace?.cabang || "-",
-            pic: projectData?.pic || projectData?.pic_bersama || supervisionWorkspace?.pic_bersama || "Belum ditentukan",
-            scopeLabel: String(scopeLabel),
-            spkStatusLabel,
-            targetStText: targetStText || "-",
-            targetStSubtext: targetStInfo?.showOffsetLabel ? targetStInfo.label : "ST",
-            handoverStatusText,
-            modeLabel: appMode === "kontraktor" ? "MODE KONTRAKTOR" : `MODE PENGAWASAN (${scopeLabel})`,
-            takeoverDate: supervisionWorkspace?.tanggal_takeover || null,
-        };
-
-        setIsExportingGanttPdf(true);
-        try {
-            if (appMode === "pic" && supervisionWorkspace && unifiedExportData) {
-                const scopeSummaries = supervisionWorkspace.scopes.map((scope, index) => ({
-                    scopeName: String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase(),
-                    readyCount: (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.ready_opname_items || 0), 0),
-                    opnameCount: (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0),
-                }));
-
-                await exportGanttChartToPdf({
-                    meta,
-                    columns: unifiedExportData.columns,
-                    scopes: unifiedExportData.scopes,
-                    scopeSummaries,
-                    notes: ganttNotes,
-                    isBelumSpk,
-                });
-                return;
-            }
-
-            if (!chartData || chartData.processedTasks.length === 0) {
-                showAlert({ message: "Data Gantt Chart belum tersedia untuk diekspor.", type: "warning" });
-                return;
-            }
-
-            const effectiveStartDate = spkInfo?.startDate || projectData?.startDate || null;
-            const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-            const columns: ExportableTimelineColumn[] = Array.from({ length: chartData.totalDaysToRender }).map((_, i) => {
-                let dateLabel = String(i + 1);
-                let subLabel = "Hari";
-                let fullDateString = `Hari ${i + 1}`;
-                let isPengawasan = false;
-                let isLiveDay = false;
-
-                if (effectiveStartDate) {
-                    const d = new Date(effectiveStartDate.split("T")[0] + "T00:00:00");
-                    d.setDate(d.getDate() + i);
-                    const dd = String(d.getDate()).padStart(2, "0");
-                    const mm = String(d.getMonth() + 1).padStart(2, "0");
-                    const yyyy = d.getFullYear();
-                    fullDateString = `${dd}/${mm}/${yyyy}`;
-
-                    if (spkInfo) {
-                        dateLabel = `${dd}/${mm}`;
-                        subLabel = dayNames[d.getDay()];
-                    }
-
-                    const today = new Date();
-                    if (
-                        dd === String(today.getDate()).padStart(2, "0") &&
-                        mm === String(today.getMonth() + 1).padStart(2, "0") &&
-                        yyyy === today.getFullYear()
-                    ) {
-                        isLiveDay = true;
-                    }
-
-                    if (pengawasanDates.includes(fullDateString)) {
-                        isPengawasan = true;
-                    }
-                }
-
-                const isPastTakeover = chartData.takeoverDayIndex !== -1 && i >= chartData.takeoverDayIndex;
-                let colTone: ExportableTimelineColumn["colTone"] = "normal";
-
-                if (isPastTakeover) {
-                    colTone = "takeover";
-                } else if (isPengawasan && fullDateString) {
-                    const cpData = pengawasanCheckpointMap.get(fullDateString);
-                    if (cpData !== undefined) {
-                        const totalItems = cpData.total_items;
-                        const filledItems = cpData.filled_items;
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const parts = fullDateString.split("/");
-                        const cpDate =
-                            parts.length === 3
-                                ? new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]))
-                                : null;
-                        const isPast = cpDate ? cpDate < today : false;
-
-                        let expectedItemsOnThisDay = 0;
-                        for (const task of chartData.processedTasks) {
-                            const shift = task.computed?.shift || 0;
-                            for (const r of task.ranges || []) {
-                                const startD = parseInt(r.start) + shift - 1;
-                                const endD = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
-                                if (i + 1 >= startD && i + 1 <= endD) {
-                                    const itemCount =
-                                        task.items && task.items.length > 0
-                                            ? task.items.length
-                                            : task.target_volume > 0
-                                                ? 1
-                                                : 0;
-                                    expectedItemsOnThisDay += itemCount;
-                                }
-                            }
-                        }
-
-                        if (totalItems === 0 && expectedItemsOnThisDay === 0) {
-                            colTone = "filled";
-                        } else if (totalItems === 0 && expectedItemsOnThisDay > 0) {
-                            colTone = isPast ? "needsInput" : "checkpoint";
-                        } else if (filledItems >= expectedItemsOnThisDay && filledItems > 0) {
-                            colTone = "filled";
-                        } else if (isPast) {
-                            colTone = "needsInput";
-                        } else {
-                            colTone = "checkpoint";
-                        }
-                    } else {
-                        colTone = "checkpoint";
-                    }
-                } else if (isLiveDay) {
-                    colTone = "today";
-                }
-
-                return {
-                    dayIndex: i,
-                    dateLabel,
-                    subLabel,
-                    fullDate: fullDateString,
-                    badgeText: isPastTakeover && i === chartData.takeoverDayIndex ? "TKVR" : undefined,
-                    badgeTone: isPastTakeover && i === chartData.takeoverDayIndex ? "red" : undefined,
-                    colTone,
-                };
-            });
-
-            const singleScope: ExportableGanttScope = {
-                id_toko: Number(projectData?.id_toko || 0),
-                scopeName: String(projectData?.work || "PEKERJAAN").toUpperCase(),
-                ganttId: selectedGanttId,
-                status: isProjectLocked ? "Terkunci" : "Draft / Aktif",
-                rows: chartData.processedTasks.map((task: any, idx: number) => {
-                    const shift = Number(task.computed?.shift || 0);
-                    const bars = (task.ranges || [])
-                        .filter((r: any) => r.start && r.end)
-                        .map((r: any) => {
-                            const start = parseInt(r.start) + shift;
-                            const end = parseInt(r.end) + shift;
-                            return {
-                                start,
-                                end,
-                                duration: Math.max(1, end - start + 1),
-                                delay: parseInt(r.keterlambatan) || 0,
-                                shift,
-                            };
-                        });
-                    return {
-                        taskId: Number(task.id || idx + 1),
-                        id: String(task.id || idx + 1),
-                        label: String(task.name || "-"),
-                        dependencies: Array.isArray(task.dependencies) ? task.dependencies.map(Number) : [],
-                        bars,
-                    };
-                }),
-            };
-
-            await exportGanttChartToPdf({
-                meta,
-                columns,
-                scopes: [singleScope],
-                notes: ganttNotes,
-                isBelumSpk: !spkInfo,
-            });
-        } catch (error: any) {
-            showAlert({ message: error?.message || "Gagal mengekspor Gantt Chart ke PDF.", type: "error" });
-        } finally {
-            setIsExportingGanttPdf(false);
-        }
-    };
+    // isContractorFirstWorkflow moved up
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
     ));
@@ -2183,27 +2652,20 @@ function GanttBoard() {
         const selectedUlokValue = supervisionWorkspace?.nomor_ulok || projectData?.ulokClean || selectedUlok;
         if (!selectedUlokValue) return null;
 
-        let actualUlok = selectedUlokValue;
-        if (actualUlok.includes('___ts___')) {
-            actualUlok = actualUlok.split('___ts___')[0];
-        }
-
-        const normalizedUlok = formatUlokWithDash(actualUlok);
+        const normalizedUlok = formatUlokWithDash(selectedUlokValue);
         const workspaceScopes = (supervisionWorkspace?.scopes || []).map(scope => ({
             id: Number(scope.id_toko),
             scopeName: String(scope.lingkup_pekerjaan || "").trim().toUpperCase(),
             hasSpk: Boolean(scope.gantt_id),
         }));
-        
         const listScopes = allTokoList
-            .filter(toko => formatUlokWithDash(toko.nomor_ulok) === normalizedUlok && (toko.takeover_sequence || 0) === currentTs)
+            .filter(toko => formatUlokWithDash(toko.nomor_ulok) === normalizedUlok)
             .map(toko => ({
                 id: Number(toko.id_toko || toko.id),
                 scopeName: String(toko.lingkup_pekerjaan || "").trim().toUpperCase(),
                 hasSpk: spkTokoIds.has(Number(toko.id_toko || toko.id)),
             }));
-            
-        const scopes = workspaceScopes.length > 0 ? workspaceScopes : listScopes;
+        const scopes = listScopes;
         if (scopes.length === 0) return null;
 
         const spkScopes = scopes.filter(scope => scope.hasSpk);
@@ -2241,9 +2703,8 @@ function GanttBoard() {
         const uniqueMap = new Map<string, any>();
         filteredTokoList.forEach((toko) => {
             const nomorUlok = formatUlokWithDash(toko.nomor_ulok);
-            const ts = toko.takeover_sequence || 0;
-            const val = appMode === 'pic'
-                ? `ulok-${encodeURIComponent(toko.nomor_ulok)}___ts___${ts}`
+            const val = (appMode === 'pic' || appMode === 'kontraktor')
+                ? `ulok-${encodeURIComponent(toko.nomor_ulok)}`
                 : (() => {
                     const tID = toko.id_toko || toko.id;
                     const ganttMatch = availableProjects.find((project: any) => {
@@ -2267,16 +2728,14 @@ function GanttBoard() {
 
         return Array.from(uniqueMap.values()).map(({ toko, val, scopes }) => {
             const nomorUlok = formatUlokWithDash(toko.nomor_ulok);
-            const ts = toko.takeover_sequence || 0;
-            const ulokScopes = allTokoList.filter(t => formatUlokWithDash(t.nomor_ulok) === nomorUlok && (t.takeover_sequence || 0) === ts);
+            const ulokScopes = allTokoList.filter(t => formatUlokWithDash(t.nomor_ulok) === nomorUlok);
             const spkScopes = ulokScopes.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
             const spkCount = spkScopes.length;
             const totalScopes = Math.max(ulokScopes.length, 1);
             const scopeLabel = (scopes || [])
                 .sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b))
                 .join(' + ') || toko.lingkup_pekerjaan;
-            const takeoverLabel = ts > 0 ? ` (Takeover)` : '';
-            const identity = [nomorUlok, toko.nama_toko, toko.cabang, scopeLabel + takeoverLabel].filter(Boolean).join(' - ');
+            const identity = [nomorUlok, toko.nama_toko, toko.cabang, scopeLabel].filter(Boolean).join(' - ');
 
             if (spkCount > 0 && spkCount === totalScopes) {
                 return {
@@ -2313,15 +2772,11 @@ function GanttBoard() {
         if (!val) return;
         if (val.startsWith('ulok-')) {
             const nomorUlok = decodeURIComponent(val.slice(5));
-            let actualUlok = nomorUlok;
-            if (nomorUlok.includes('___ts___')) {
-                actualUlok = nomorUlok.split('___ts___')[0];
-            }
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.set('ulok', nomorUlok);
             newUrl.searchParams.delete('id_toko');
             window.history.pushState({}, '', newUrl.toString());
-            setSearchUlokInput(formatUlokWithDash(actualUlok));
+            setSearchUlokInput(formatUlokWithDash(nomorUlok));
             setIsUlokListOpen(false);
             loadSupervisionWorkspace(nomorUlok);
         } else if (val.startsWith('gantt-')) {
@@ -2364,6 +2819,10 @@ function GanttBoard() {
         setIsUlokListOpen(false);
         loadSupervisionWorkspace(raw);
     };
+
+    const isCreatingGantt = appMode === 'kontraktor' && projectData?.ganttId === null;
+    const isDraftEditor = appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && !isWorkspaceLoading;
+    const shouldRenderUnifiedWorkspace = (appMode === 'pic' || appMode === 'kontraktor') && !isCreatingGantt && (isWorkspaceLoading || (!isDraftEditor && supervisionWorkspace));
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
@@ -2652,17 +3111,15 @@ function GanttBoard() {
                                         ) : (
                                             <div className="divide-y divide-slate-100">
                                                 {visibleUlokOptions.map((option) => {
-                                                    const active = (appMode === 'pic' && selectedUlok)
-                                                        ? `ulok-${selectedUlok}` === option.val
-                                                        : formatUlokWithDash(selectedUlok || projectData?.ulokClean || '') === option.nomorUlok;
+                                                    const active = formatUlokWithDash(selectedUlok || projectData?.ulokClean || '') === option.nomorUlok;
                                                     return (
                                                         <button
                                                             key={option.val}
                                                             type="button"
                                                             onClick={() => handleSelectUlokOption(option.val)}
                                                             className={`group relative flex w-full flex-col gap-2 px-4 py-3 text-left transition-all duration-150 active:scale-[0.997] sm:flex-row sm:items-center sm:justify-between ${active
-                                                                    ? 'bg-red-600 text-white shadow-[inset_4px_0_0_rgba(255,255,255,0.75)]'
-                                                                    : 'bg-white text-slate-900 hover:bg-red-50 hover:text-red-900 hover:shadow-[inset_4px_0_0_#dc2626] focus-visible:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400'
+                                                                ? 'bg-red-600 text-white shadow-[inset_4px_0_0_rgba(255,255,255,0.75)]'
+                                                                : 'bg-white text-slate-900 hover:bg-red-50 hover:text-red-900 hover:shadow-[inset_4px_0_0_#dc2626] focus-visible:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400'
                                                                 }`}
                                                         >
                                                             <span className="min-w-0 truncate text-sm font-bold transition-transform duration-150 group-hover:translate-x-0.5">{option.identity}</span>
@@ -2721,8 +3178,8 @@ function GanttBoard() {
                                                 type="button"
                                                 onClick={() => setSpkFilter(option.key)}
                                                 className={`flex min-h-16 items-center justify-between rounded-lg border px-4 py-3 text-left transition ${active
-                                                        ? `${activeClass} shadow-sm`
-                                                        : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"
+                                                    ? `${activeClass} shadow-sm`
+                                                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"
                                                     }`}
                                             >
                                                 <span className="flex min-w-0 items-center gap-2">
@@ -2815,8 +3272,8 @@ function GanttBoard() {
                                             <p className="text-[11px] font-black uppercase text-red-700">Target ST</p>
                                             {(handoverReadiness.isGenerated || handoverReadiness.isReady) && (
                                                 <span className={`rounded px-2 py-0.5 text-[10px] font-black ${handoverReadiness.isGenerated
-                                                        ? "bg-emerald-600 text-white"
-                                                        : "bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.6)] animate-pulse"
+                                                    ? "bg-emerald-600 text-white"
+                                                    : "bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.6)] animate-pulse"
                                                     }`}>
                                                     {handoverStatusText}
                                                 </span>
@@ -2834,7 +3291,7 @@ function GanttBoard() {
 
                 </div>
 
-                {appMode === 'pic' && (isWorkspaceLoading || supervisionWorkspace) && (
+                {shouldRenderUnifiedWorkspace && (
                     <section className="mb-8 space-y-5">
                         {isWorkspaceLoading ? (
                             <Card className="border-slate-200 bg-white shadow-sm">
@@ -2879,22 +3336,9 @@ function GanttBoard() {
                                 )}
 
                                 <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex w-full gap-2 border-slate-300 bg-white font-bold shadow-sm hover:bg-slate-100 sm:w-auto">
-                                            {isFullscreen ? <><Minimize className="h-4 w-4" /> Keluar Mode Landscape</> : <><Maximize className="h-4 w-4" /> Mode Landscape</>}
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={handleExportGanttPdf}
-                                            disabled={isExportingGanttPdf || !unifiedExportData}
-                                            className="flex w-full gap-2 border-red-200 bg-red-600 font-bold text-white shadow-sm hover:bg-red-700 hover:text-white disabled:opacity-50 sm:w-auto"
-                                        >
-                                            {isExportingGanttPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                                            {isExportingGanttPdf ? 'Mengekspor PDF...' : 'Export PDF'}
-                                        </Button>
-                                    </div>
+                                    <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex w-full gap-2 border-slate-300 bg-white font-bold shadow-sm hover:bg-slate-100 sm:w-auto">
+                                        {isFullscreen ? <><Minimize className="h-4 w-4" /> Keluar Mode Landscape</> : <><Maximize className="h-4 w-4" /> Mode Landscape</>}
+                                    </Button>
                                     <div className="flex flex-wrap justify-end gap-2">
                                         <Button type="button" variant="outline" onClick={() => setShowProjectInfo(value => !value)} className="h-8 gap-1.5 rounded border-slate-300 bg-white px-3 text-xs font-bold">
                                             {showProjectInfo ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -2910,16 +3354,6 @@ function GanttBoard() {
                                                 {showHandoverPanel ? 'Sembunyikan Panel' : 'Tampilkan Panel'}
                                             </Button>
                                         )}
-                                        {!isPengawasanReadOnly && currentTs === 0 && ["GORONTALO", "HEAD OFFICE"].includes(String(projectData?.branch || projectData?.cabang || "").toUpperCase()) && (
-                                            <Button
-                                                type="button"
-                                                onClick={() => setShowTakeoverMemoModal(true)}
-                                                className="h-8 gap-1.5 rounded border border-blue-700 bg-blue-600 hover:bg-blue-700 px-3 text-xs font-bold text-white shadow-sm transition-all hover:scale-105"
-                                            >
-                                                <ClipboardList className="h-3.5 w-3.5" />
-                                                Takeover
-                                            </Button>
-                                        )}
                                     </div>
                                 </div>
                                 <div className={`grid gap-4 ${showHandoverPanel && utilityPanelAvailable ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : 'xl:grid-cols-1'}`}>
@@ -2931,11 +3365,11 @@ function GanttBoard() {
                                                 setShowTargetStModal({ dateString, dayIndex });
                                             }}
                                             showLegend={showDateLegend}
+                                            mode={appMode === 'kontraktor' ? 'kontraktor' : 'pic'}
                                             isBelumSpk={(() => {
                                                 const all = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
                                                 return all.length > 0 && all.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length === 0;
                                             })()}
-                                            onExportDataChange={setUnifiedExportData}
                                         />
                                         <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
                                             {supervisionWorkspace.scopes.map((scope, index) => {
@@ -2969,6 +3403,66 @@ function GanttBoard() {
                                                         ? <CheckCircle className="h-7 w-7 text-emerald-500" />
                                                         : <ClipboardCheck className="h-7 w-7 text-red-300" />}
                                                 </div>
+                                                {handoverReadiness.coreReady && !handoverReadiness.isGenerated && (
+                                                    <div className={`rounded-lg border px-3 py-3 text-sm ${isGrandOpeningComplete ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                                                        <div className="flex items-start gap-2">
+                                                            <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-black">Dokumentasi Serah Terima</p>
+                                                                <p className={`mt-1 text-xs font-semibold ${isGrandOpeningComplete ? "text-emerald-700" : "text-amber-800"}`}>Progress: {grandOpeningProgressText}</p>
+                                                            </div>
+                                                        </div>
+                                                        {!isGrandOpeningComplete ? (
+                                                            isContractorFirstWorkflow ? (
+                                                                appMode === 'kontraktor' ? (
+                                                                    <Button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                                            if (targetUlok) {
+                                                                                setShowSerahTerimaGabunganModal(true);
+                                                                            }
+                                                                        }}
+                                                                        className="mt-3 h-10 w-full bg-red-600 font-bold text-white hover:bg-red-500"
+                                                                    >
+                                                                        <FileText className="mr-2 h-4 w-4" />
+                                                                        Isi Dokumentasi Serah Terima
+                                                                    </Button>
+                                                                ) : (
+                                                                    <div className="mt-3 rounded-md bg-amber-100 p-3 text-center text-xs font-bold text-amber-800">
+                                                                        Tunggu Kontraktor untuk isi Dokumentasi Serah Terima
+                                                                    </div>
+                                                                )
+                                                            ) : (
+                                                                <Button
+                                                                    type="button"
+                                                                    onClick={openGrandOpeningDocumentation}
+                                                                    className="mt-3 h-10 w-full bg-red-600 font-bold text-white hover:bg-red-500"
+                                                                >
+                                                                    <FileText className="mr-2 h-4 w-4" />
+                                                                    Isi Dokumentasi Serah Terima
+                                                                </Button>
+                                                            )
+                                                        ) : (
+                                                            isContractorFirstWorkflow && appMode === 'kontraktor' && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                                        if (targetUlok) {
+                                                                            setShowSerahTerimaGabunganModal(true);
+                                                                        }
+                                                                    }}
+                                                                    className="mt-3 h-10 w-full font-bold"
+                                                                >
+                                                                    <Eye className="mr-2 h-4 w-4" />
+                                                                    Lihat Dokumentasi Serah Terima
+                                                                </Button>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {handoverReadiness.isGenerated ? (
                                                     <div className="flex flex-col gap-2">
                                                         <Button
@@ -2994,58 +3488,17 @@ function GanttBoard() {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col gap-2">
-                                                        {(() => {
-                                                            const anyScopeGenerated = handoverReadiness.isGenerated && supervisionWorkspace.scopes.some(s => Boolean(s.link_pdf_serah_terima));
-                                                            return supervisionWorkspace.scopes.map(scope => {
-                                                                if (!scope.gantt_id) return null;
-                                                                const scopeName = String(scope.lingkup_pekerjaan || "Lingkup").toUpperCase();
-                                                                if (handoverReadiness.isGenerated && scope.link_pdf_serah_terima) {
-                                                                    return (
-                                                                        <Button
-                                                                            key={scope.id_toko}
-                                                                            type="button"
-                                                                            onClick={() => handleDownloadPdf(scope.berkas_serah_terima_id || null)}
-                                                                            disabled={!scope.berkas_serah_terima_id || isDownloadingPdf[scope.berkas_serah_terima_id]}
-                                                                            className="flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500"
-                                                                        >
-                                                                            {scope.berkas_serah_terima_id && isDownloadingPdf[scope.berkas_serah_terima_id] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                                                                            Unduh Serah Terima {scopeName}
-                                                                        </Button>
-                                                                    );
-                                                                }
-
-                                                                if (anyScopeGenerated) return null;
-
-                                                                const isScopeReady = isScopeReadyForSt(scope);
-                                                                const isGenerating = generatingScopes[Number(scope.id_toko)];
-                                                                return (
-                                                                    <Button
-                                                                        key={scope.id_toko}
-                                                                        type="button"
-                                                                        onClick={() => handleGenerateIndividualHandover(Number(scope.id_toko))}
-                                                                        disabled={!isScopeReady || isGenerating}
-                                                                        className={`h-11 w-full font-bold text-white disabled:bg-slate-200 disabled:text-slate-400 ${scopeName === 'SIPIL' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
-                                                                    >
-                                                                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                                                                        Generate Serah Terima {scopeName}
-                                                                    </Button>
-                                                                );
-                                                            });
-                                                        })()}
-
-                                                        {supervisionWorkspace.scopes.filter(s => s.gantt_id).length > 1 && (
-                                                            <Button
-                                                                type="button"
-                                                                onClick={handleGenerateUnifiedHandover}
-                                                                disabled={!handoverReadiness.isReady || isGeneratingHandover}
-                                                                className="h-11 w-full bg-slate-800 font-bold text-white hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
-                                                            >
-                                                                {isGeneratingHandover
-                                                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                    : <FileText className="mr-2 h-4 w-4" />}
-                                                                Generate Serah Terima (SIPIL+ME)
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            type="button"
+                                                            onClick={handleGenerateUnifiedHandover}
+                                                            disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                                            className="h-11 w-full bg-slate-800 font-bold text-white hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                                                        >
+                                                            {isGeneratingHandover
+                                                                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                : <FileText className="mr-2 h-4 w-4" />}
+                                                            Generate Serah Terima (SIPIL+ME)
+                                                        </Button>
                                                     </div>
                                                 )}
 
@@ -3178,7 +3631,7 @@ function GanttBoard() {
                     </section>
                 )}
 
-                {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
+                {false && !isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
                         <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
                             <div>
@@ -3288,29 +3741,19 @@ function GanttBoard() {
                         )}
                     </div>
                 )}
-                {!(appMode === 'pic' && supervisionWorkspace) && (
+                {isDraftEditor && projectData && tasks.length > 0 && (
+                    <p className="mb-3 text-sm text-slate-600">Drag pada baris kosong untuk mengisi jadwal. Geser bar atau tarik ujungnya untuk mengedit. Tarik titik konektor ke pekerjaan lain untuk membuat keterikatan; klik garis keterikatan untuk menghapusnya.</p>
+                )}
+                {!shouldRenderUnifiedWorkspace && (
                     <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
                         <div className="p-4 bg-slate-100 border-b flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-medium">
                             <div className="flex justify-center gap-6">
                                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Progress</div>
                                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleExportGanttPdf}
-                                    disabled={isExportingGanttPdf || !chartData || chartData.processedTasks.length === 0}
-                                    className="flex gap-2 w-full sm:w-auto font-bold border-red-200 bg-red-600 text-white shadow-sm hover:bg-red-700 hover:text-white disabled:opacity-50"
-                                >
-                                    {isExportingGanttPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                    {isExportingGanttPdf ? "Mengekspor PDF..." : "Export PDF"}
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-200">
-                                    {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
-                                </Button>
-                            </div>
+                            <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-200">
+                                {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
+                            </Button>
                         </div>
 
                         <div className="p-0 overflow-x-auto min-h-100 relative bg-white pb-10" id="ganttChartContainer">
@@ -3356,21 +3799,33 @@ function GanttBoard() {
                                                         isPengawasan = true;
                                                     }
                                                 }
-                                                // --- Poin 1: Hanya BRANCH BUILDING SUPPORT yang bisa input ---
-                                                const isPastTakeover = chartData.takeoverDayIndex !== -1 && i >= chartData.takeoverDayIndex;
-                                                const isClickable = appMode === 'pic' && isPengawasan && !isPengawasanReadOnly && isScopeSpkApproved && !isPastTakeover;
+                                                const contractorSlot = contractorOpnameSlotMap.get(fullDateString);
+                                                const isContractorOpnameSlot = Boolean(contractorSlot);
+                                                const showCheckpointMarker = appMode === 'kontraktor' ? isContractorOpnameSlot : isPengawasan;
+                                                const markerTitle = appMode === 'kontraktor' ? 'Hari Opname Kontraktor' : 'Hari Pengawasan';
+
+                                                // --- Poin 1: Hanya BRANCH BUILDING SUPPORT yang bisa input pengawasan; kontraktor hanya slot opname H-1 ---
+                                                const isClickable = appMode === 'pic'
+                                                    ? isPengawasan && !isPengawasanReadOnly && isScopeSpkApproved
+                                                    : isContractorOpnameSlot && !isReadOnly && isScopeSpkApproved;
 
                                                 // --- Poin 7, 8, 9: Warna header berdasarkan status pengawasan ---
                                                 // Gunakan pengawasanCheckpointMap (dari supervisionWorkspace.checkpoints)
                                                 // untuk data akurat per tanggal pengawasan
                                                 let pengawasanHeaderColor = 'bg-blue-50 text-blue-700'; // default: pending
                                                 let pengawasanDotColor = 'bg-blue-500';
-                                                if (isPengawasan && fullDateString) {
-                                                    const cpData = pengawasanCheckpointMap.get(fullDateString);
+                                                if (showCheckpointMarker && fullDateString) {
+                                                    const cpData = appMode === 'kontraktor' && contractorSlot
+                                                        ? contractorSlot.checkpoint
+                                                        : pengawasanCheckpointMap.get(fullDateString);
 
                                                     if (cpData !== undefined) {
-                                                        const totalItems = cpData.total_items;
-                                                        const filledItems = cpData.filled_items;
+                                                        const totalItems = Number(cpData.total_items || 0);
+                                                        const filledItems = Number(cpData.filled_items || 0);
+                                                        const readyOpnameItems = Number(cpData.ready_opname_items || 0);
+                                                        const opnameItems = Number(cpData.opname_items || 0);
+                                                        const contractorSubmittedOpnameItems = Number(cpData.contractor_submitted_opname_items || 0);
+                                                        const isContractorSlotSubmitted = appMode === 'kontraktor' && (contractorSubmittedOpnameItems > 0 || opnameItems > 0);
                                                         const today = new Date();
                                                         today.setHours(0, 0, 0, 0);
 
@@ -3396,12 +3851,19 @@ function GanttBoard() {
                                                             }
                                                         }
 
-                                                        if (totalItems === 0 && expectedItemsOnThisDay === 0) {
-                                                            // Poin 7: Tidak ada item yang ter-hit → auto-green
+                                                        const isCheckpointFilled = totalItems > 0 && filledItems >= Math.max(totalItems, expectedItemsOnThisDay) && readyOpnameItems === 0;
+
+                                                        if (isCheckpointFilled || isContractorSlotSubmitted) {
+                                                            // Contractor-first: checkpoint yang sudah terisi/submitted harus hijau,
+                                                            // termasuk tanggal future dan item carry-over dari checkpoint sebelumnya.
+                                                            pengawasanHeaderColor = 'bg-green-50 text-green-700';
+                                                            pengawasanDotColor = 'bg-green-500';
+                                                        } else if (totalItems === 0 && expectedItemsOnThisDay === 0) {
+                                                            // Poin 7: Tidak ada item yang ter-hit -> auto-green
                                                             pengawasanHeaderColor = 'bg-green-50 text-green-700';
                                                             pengawasanDotColor = 'bg-green-500';
                                                         } else if (totalItems === 0 && expectedItemsOnThisDay > 0) {
-                                                            // Ada item terjadwal, tapi belum diisi satupun!
+                                                            // Ada item terjadwal, tapi belum diisi satupun.
                                                             if (isPast) {
                                                                 pengawasanHeaderColor = 'bg-red-50 text-red-700';
                                                                 pengawasanDotColor = 'bg-red-500';
@@ -3410,31 +3872,59 @@ function GanttBoard() {
                                                                 pengawasanDotColor = 'bg-blue-500';
                                                             }
                                                         } else if (filledItems >= expectedItemsOnThisDay && filledItems > 0) {
-                                                            // Poin 8: Semua item sudah punya status (progress/terlambat/selesai) → hijau
-                                                            // Note: Kita gunakan >= expectedItemsOnThisDay karena bisa ada item carry-over dari tanggal sebelumnya
+                                                            // Poin 8: Semua item sudah punya status (progress/terlambat/selesai) -> hijau
                                                             pengawasanHeaderColor = 'bg-green-50 text-green-700';
                                                             pengawasanDotColor = 'bg-green-500';
                                                         } else if (isPast) {
-                                                            // Poin 9: Sudah lewat hari ini, belum semua terisi → merah
+                                                            // Poin 9: Sudah lewat hari ini, belum semua terisi -> merah
                                                             pengawasanHeaderColor = 'bg-red-50 text-red-700';
                                                             pengawasanDotColor = 'bg-red-500';
                                                         }
-                                                        // else: masih pending/future → biru (default)
+                                                        // else: masih pending/future -> biru (default)
                                                     }
                                                 }
 
 
                                                 return (
-                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay && !isPastTakeover ? 'bg-green-50 text-green-700' : isPastTakeover ? 'bg-[repeating-linear-gradient(45deg,#1e293b,#1e293b_10px,#334155_10px,#334155_20px)] text-slate-300 opacity-90 border-none' : isPengawasan ? pengawasanHeaderColor : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:opacity-80 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : (isPastTakeover ? 'cursor-not-allowed' : (isPengawasan && !isPengawasanReadOnly ? '' : ''))}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
+                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : showCheckpointMarker ? pengawasanHeaderColor : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:opacity-80 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : (showCheckpointMarker && !isPengawasanReadOnly ? '' : '')}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
                                                         onClick={() => {
                                                             if (isClickable) {
+                                                                if (appMode === 'kontraktor' && contractorSlot && supervisionWorkspace) {
+                                                                    const slotScopes = supervisionWorkspace.scopes
+                                                                        .map((scope) => {
+                                                                            const scopeCheckpoint = (scope.checkpoints || []).find((checkpoint) =>
+                                                                                checkpoint.workflow_version === 'contractor_first' &&
+                                                                                subtractOneCalendarDayKey(checkpoint.tanggal_pengawasan) === fullDateString
+                                                                            );
+                                                                            return scopeCheckpoint ? { scope, checkpoint: scopeCheckpoint } : null;
+                                                                        })
+                                                                        .filter(Boolean) as Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
+
+                                                                    const flowScopes = slotScopes.length > 0 ? slotScopes : [contractorSlot];
+                                                                    const first = flowScopes[0];
+                                                                    setUnifiedMemoFlow({
+                                                                        scopes: flowScopes,
+                                                                        index: 0,
+                                                                        dayIndex: i,
+                                                                        dateString: first.checkpoint.tanggal_pengawasan,
+                                                                    });
+                                                                    loadDataByToko(first.scope.id_toko);
+                                                                    setActiveHeaderClick({
+                                                                        dayIndex: i,
+                                                                        dateString: first.checkpoint.tanggal_pengawasan,
+                                                                        label: first.checkpoint.tanggal_pengawasan.slice(0, 5),
+                                                                    });
+                                                                    setShowMemoModal(true);
+                                                                    return;
+                                                                }
+
                                                                 setActiveHeaderClick({ dayIndex: i, dateString: fullDateString, label });
                                                                 setShowMemoModal(true);
                                                             }
                                                         }}>
                                                         <span>{label}</span>
-                                                        {isPengawasan && <div className={`w-1.5 h-1.5 rounded-full ${pengawasanDotColor} mt-1`} title="Hari Pengawasan" />}
-                                                        {isLiveDay && !isPastTakeover && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
+                                                        {showCheckpointMarker && <div className={`w-1.5 h-1.5 rounded-full ${pengawasanDotColor} mt-1`} title={markerTitle} />}
+                                                        {isLiveDay && !showCheckpointMarker && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
                                                     </div>
                                                 )
 
@@ -3457,18 +3947,6 @@ function GanttBoard() {
                                             />
                                         )}
 
-                                        {chartData.takeoverDayIndex !== -1 && (
-                                            <div
-                                                className="absolute top-0 bottom-0 pointer-events-none z-10"
-                                                style={{
-                                                    left: labelColWidth + (Math.max(0, chartData.takeoverDayIndex) * DAY_WIDTH),
-                                                    width: Math.max(0, chartData.totalChartWidth - (Math.max(0, chartData.takeoverDayIndex) * DAY_WIDTH)),
-                                                    backgroundColor: 'rgba(15, 23, 42, 0.04)',
-                                                    backgroundImage: 'repeating-linear-gradient(45deg, rgba(15, 23, 42, 0.03), rgba(15, 23, 42, 0.03) 10px, rgba(15, 23, 42, 0.08) 10px, rgba(15, 23, 42, 0.08) 20px)'
-                                                }}
-                                            />
-                                        )}
-
                                         {/* Garis pemisah tegas antara Tahapan Pekerjaan dan Hari */}
                                         <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: labelColWidth, borderRight: '3px solid #94a3b8', zIndex: 18, boxShadow: '2px 0 8px rgba(0,0,0,0.1)' }} />
 
@@ -3480,43 +3958,111 @@ function GanttBoard() {
                                         {chartData.processedTasks.map((task: any, idx: number) => {
                                             const shift = task.computed.shift || 0;
                                             const isIlTask = String(task.name || '').startsWith('[IL]');
+                                            const scope = String(task.scope || '').trim().toUpperCase();
+                                            const previousScope = idx > 0 ? String(chartData.processedTasks[idx - 1]?.scope || '').trim().toUpperCase() : '';
+                                            const showScopeHeader = Boolean(scope && scope !== previousScope);
+                                            const scopedIndex = scope
+                                                ? chartData.processedTasks.slice(0, idx + 1).filter((row: any) => String(row.scope || '').trim().toUpperCase() === scope).length
+                                                : idx + 1;
                                             return (
-                                                <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }}>
-                                                    <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
-                                                        <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 truncate">
-                                                            {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
-                                                            <span className="truncate" title={task.name}>{task.name}</span>
-                                                        </span>
-                                                    </div>
-                                                    <div className="relative" style={{ width: chartData.totalChartWidth }}>
-                                                        {task.ranges && task.ranges.map((r: any, rIdx: number) => {
-                                                            if (!r.start || !r.end) return null;
-                                                            const s = parseInt(r.start) + shift;
-                                                            const e = parseInt(r.end) + shift;
-                                                            const dur = e - s + 1;
-                                                            const delay = parseInt(r.keterlambatan) || 0;
-                                                            return (
-                                                                <React.Fragment key={rIdx}>
-                                                                    <div
-                                                                        className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
-                                                                        style={{ left: (s - 1) * DAY_WIDTH, width: dur * DAY_WIDTH - 1 }}
-                                                                    >
-                                                                        {dur} Hari
-                                                                    </div>
-                                                                    {delay > 0 && (
+                                                <React.Fragment key={task.id}>
+                                                    {showScopeHeader && (
+                                                        <div className="flex bg-slate-100 text-slate-900" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }}>
+                                                            <div className="shrink-0 px-3 py-2 border-r-[3px] sticky left-0 z-30 flex items-center gap-2 bg-slate-100 border-slate-400 shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
+                                                                <span className={`h-4 w-4 rounded-sm border ${scope === 'ME' ? 'border-blue-600 text-blue-600' : 'border-red-600 text-red-600'} flex items-center justify-center text-[10px] font-black`}>#</span>
+                                                                <span className={`text-sm font-black ${scope === 'ME' ? 'text-blue-700' : 'text-red-700'}`}>{scope}</span>
+                                                            </div>
+                                                            <div className={`flex items-center px-3 text-xs font-bold ${scope === 'ME' ? 'text-blue-300' : 'text-red-300'}`} style={{ width: chartData.totalChartWidth }}>
+                                                                {scope}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }} onPointerUp={() => finishDependencyDrag(task.id)}>
+                                                        <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex items-center gap-2 shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
+                                                            <span className="w-6 shrink-0 text-center text-xs font-bold text-slate-500">{scopedIndex}</span>
+                                                            <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 min-w-0">
+                                                                {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
+                                                                <span className="truncate" title={task.displayName || task.name}>{task.name}</span>
+                                                            </span>
+                                                        </div>
+                                                        <div
+                                                            className="relative cursor-crosshair"
+                                                            data-gantt-track="true"
+                                                            style={{ width: chartData.totalChartWidth }}
+                                                            onPointerDown={(event) => beginScheduleDrag(event, task, 0, 'create')}
+                                                        >
+                                                            {task.ranges && task.ranges.map((r: any, rIdx: number) => {
+                                                                if (!r.start || !r.end) return null;
+                                                                const s = parseInt(r.start) + shift;
+                                                                const e = parseInt(r.end) + shift;
+                                                                const dur = e - s + 1;
+                                                                const delay = parseInt(r.keterlambatan) || 0;
+                                                                return (
+                                                                    <React.Fragment key={rIdx}>
                                                                         <div
-                                                                            className="absolute top-3.25 h-6 rounded border border-rose-500 bg-rose-50 flex items-center justify-center text-[11px] font-bold text-rose-800 shadow-sm z-10"
-                                                                            style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
-                                                                            title={`${delay} hari terlambat`}
+                                                                            className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 select-none ${isReadOnly || isProjectLocked ? '' : 'cursor-grab active:cursor-grabbing'} ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
+                                                                            style={{ left: (s - 1) * DAY_WIDTH, width: Math.max(18, dur * DAY_WIDTH - 1) }}
+                                                                            onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'move')}
                                                                         >
-                                                                            +{delay} hari terlambat
+                                                                            {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    aria-label="Resize mulai"
+                                                                                    className="absolute left-0 top-0 h-full w-2 rounded-l bg-white/40 hover:bg-white/70 cursor-ew-resize"
+                                                                                    onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-start')}
+                                                                                />
+                                                                            )}
+                                                                            <span className="pointer-events-none">{dur} Hari</span>
+                                                                            {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
+                                                                                <>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        aria-label="Hapus periode"
+                                                                                        title="Hapus periode"
+                                                                                        className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rounded bg-white/20 text-white hover:bg-red-600 hover:text-white flex items-center justify-center"
+                                                                                        onPointerDown={(event) => {
+                                                                                            event.preventDefault();
+                                                                                            event.stopPropagation();
+                                                                                        }}
+                                                                                        onClick={(event) => {
+                                                                                            event.preventDefault();
+                                                                                            event.stopPropagation();
+                                                                                            void removeRange(task.id, rIdx);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Trash2 className="h-3 w-3" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        aria-label="Resize selesai"
+                                                                                        className="absolute right-0 top-0 h-full w-2 rounded-r bg-white/40 hover:bg-white/70 cursor-ew-resize"
+                                                                                        onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-end')}
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        aria-label="Drag keterikatan"
+                                                                                        title="Drag ke tahapan tujuan"
+                                                                                        className="absolute left-1/2 -bottom-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-blue-600 shadow cursor-crosshair hover:bg-blue-700"
+                                                                                        onPointerDown={(event) => beginDependencyDrag(event, task.id)}
+                                                                                    />
+                                                                                </>
+                                                                            )}
                                                                         </div>
-                                                                    )}
-                                                                </React.Fragment>
-                                                            )
-                                                        })}
+                                                                        {delay > 0 && (
+                                                                            <div
+                                                                                className="absolute top-3.25 h-6 rounded border border-rose-500 bg-rose-50 flex items-center justify-center text-[11px] font-bold text-rose-800 shadow-sm z-10"
+                                                                                style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
+                                                                                title={`${delay} hari terlambat`}
+                                                                            >
+                                                                                +{delay} hari terlambat
+                                                                            </div>
+                                                                        )}
+                                                                    </React.Fragment>
+                                                                )
+                                                            })}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                </React.Fragment>
                                             )
                                         })}
 
@@ -3539,7 +4085,7 @@ function GanttBoard() {
                     </Card>
                 )}
 
-                {projectData && !isLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
+                {projectData && !isLoading && !isWorkspaceLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
                     <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
                         <>
                             {/* Tombol Hapus Draft */}
@@ -3560,6 +4106,94 @@ function GanttBoard() {
                     </div>
                 )}
             </main>
+
+
+            {pendingDependency && (() => {
+                const sourceTask = tasks.find(t => t.id === pendingDependency.sourceId);
+                const targetTask = tasks.find(t => t.id === pendingDependency.targetId);
+                return (
+                    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                        <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                            <div className="border-b border-slate-200 px-5 py-4">
+                                <h2 className="text-lg font-black text-slate-900">Keterikatan Tahapan</h2>
+                                <p className="mt-1 text-sm font-semibold text-slate-500">Konfirmasi relasi pekerjaan Gantt.</p>
+                            </div>
+                            <div className="space-y-3 px-5 py-5">
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <p className="text-xs font-black uppercase text-slate-500">Dari</p>
+                                    <p className="mt-1 font-bold text-slate-900">{sourceTask?.displayName || sourceTask?.name || '-'}</p>
+                                </div>
+                                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                                    <p className="text-xs font-black uppercase text-blue-600">Dilanjutkan ke</p>
+                                    <p className="mt-1 font-bold text-blue-900">{targetTask?.displayName || targetTask?.name || '-'}</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:justify-end">
+                                <Button type="button" variant="outline" className="font-semibold" onClick={() => setPendingDependency(null)}>
+                                    Batal
+                                </Button>
+                                <Button type="button" className="bg-blue-600 font-bold text-white hover:bg-blue-500" onClick={confirmPendingDependency}>
+                                    Simpan Keterikatan
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+            {showGrandOpeningModal && grandOpeningDocumentationUrl && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm">
+                    <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-black text-slate-900">Dokumentasi Serah Terima</h2>
+                                <p className="mt-0.5 truncate text-sm font-semibold text-slate-500">
+                                    {supervisionWorkspace?.nomor_ulok || '-'} - {grandOpeningProgressText}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowGrandOpeningModal(false)}
+                                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                                aria-label="Tutup Dokumentasi Serah Terima"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <iframe
+                            title="Dokumentasi Serah Terima"
+                            src={grandOpeningDocumentationUrl}
+                            className="h-full w-full flex-1 border-0 bg-slate-50"
+                        />
+                    </div>
+                </div>
+            )}
+            {showSerahTerimaGabunganModal && (projectData?.ulokClean || supervisionWorkspace?.nomor_ulok) && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm">
+                    <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-black text-slate-900">Dokumentasi Serah Terima Gabungan</h2>
+                                <p className="mt-0.5 truncate text-sm font-semibold text-slate-500">
+                                    {supervisionWorkspace?.nomor_ulok || projectData?.ulokClean || '-'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowSerahTerimaGabunganModal(false)}
+                                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                                aria-label="Tutup Dokumentasi Serah Terima"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <iframe
+                            title="Dokumentasi Serah Terima Gabungan"
+                            src={`/serah-terima-gabungan/${projectData?.ulokClean || supervisionWorkspace?.nomor_ulok}?embedded=1`}
+                            className="h-full w-full flex-1 border-0 bg-slate-50"
+                        />
+                    </div>
+                </div>
+            )}
 
             {showTargetStModal && (
                 <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -3595,63 +4229,89 @@ function GanttBoard() {
                                 <p className="text-xs font-black uppercase text-slate-500">Target ST</p>
                                 <p className={`mt-1 text-2xl font-black ${handoverReadiness.isGenerated ? "text-emerald-700" : "text-teal-700"}`}>{targetStText || showTargetStModal.dateString}</p>
                                 <p className="mt-1 text-sm font-semibold text-slate-600">
-                                    {handoverReadiness.isGenerated
-                                        ? "PDF Serah Terima sudah tersedia."
-                                        : handoverReadiness.isReady
-                                            ? "Semua syarat utama sudah terpenuhi. Serah Terima bisa digenerate."
-                                            : "Serah Terima belum bisa digenerate karena opname belum selesai."}
+                                    {handoverReadiness.isGenerated ? "PDF Serah Terima sudah tersedia." : handoverReadiness.isReady ? "Semua syarat sudah terpenuhi. Serah Terima bisa digenerate." : handoverReadiness.coreReady ? `Lengkapi Dokumentasi Serah Terima terlebih dahulu (${grandOpeningProgressText}).` : "Serah Terima belum bisa digenerate karena pengawasan belum selesai."}
                                 </p>
                             </div>
 
-                            {!handoverReadiness.isReady && !handoverReadiness.isGenerated && (
+                            {!handoverReadiness.coreReady && !handoverReadiness.isGenerated && (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                    <p className="font-bold">Masih menunggu kelengkapan opname</p>
+                                    <p className="font-bold">Masih menunggu kelengkapan pengawasan/opname</p>
                                     <p className="mt-1 text-xs leading-relaxed">
-                                        {handoverReadiness.readyOpnameItems > 0
-                                            ? `${handoverReadiness.readyOpnameItems} item masih perlu masuk/selesai opname sebelum Generate Serah Terima aktif.`
+                                        {handoverReadiness.missingPengawasan > 0 || handoverReadiness.incompleteExpectedItems > 0
+                                            ? `Masih ada item yang belum selesai pengawasan sebelum Dokumentasi Serah Terima aktif.`
+                                            : handoverReadiness.readyOpnameItems > 0
+                                            ? `${handoverReadiness.readyOpnameItems} item opname masih belum diajukan (tapi tidak perlu sampai approved).`
                                             : "Belum ada item yang siap untuk Serah Terima pada lingkup aktif."}
                                     </p>
                                 </div>
                             )}
 
-                            {(() => {
-                                if (handoverReadiness.readyOpnameItems > 0 || handoverReadiness.pendingOpnameDates.length > 0) {
-                                    return (
-                                        <Button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowTargetStModal(null);
-                                                const pendingScopes: any[] = [];
-                                                supervisionWorkspace?.unified_checkpoints?.forEach((ucp: any) => {
-                                                    ucp.scopes.forEach((entry: any) => {
-                                                        if (entry.gantt_id && entry.checkpoint && Number(entry.checkpoint.ready_opname_items || 0) > 0) {
-                                                            const fullScope = supervisionWorkspace.scopes?.find((s: any) => s.id_toko === entry.id_toko) || entry;
-                                                            pendingScopes.push({ scope: fullScope, checkpoint: entry.checkpoint });
+                            {handoverReadiness.coreReady && !handoverReadiness.isGenerated && (
+                                <div className={`rounded-lg border px-4 py-3 text-sm ${isGrandOpeningComplete ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="font-black">Dokumentasi Serah Terima</p>
+                                            <p className="mt-1 text-xs font-semibold">{grandOpeningProgressText}</p>
+                                        </div>
+                                        {isGrandOpeningComplete ? <CheckCircle className="h-5 w-5 text-emerald-600" /> : <ClipboardCheck className="h-5 w-5 text-amber-600" />}
+                                    </div>
+                                    {!isGrandOpeningComplete ? (
+                                        isContractorFirstWorkflow ? (
+                                            appMode === 'kontraktor' ? (
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setShowTargetStModal(null);
+                                                        const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                        if (targetUlok) {
+                                                            setShowSerahTerimaGabunganModal(true);
                                                         }
-                                                    });
-                                                });
-                                                
-                                                // Deduplicate scopes based on id_toko because multiple dates might have pending opnames for the same scope
-                                                const uniquePendingScopes = Array.from(new Map(pendingScopes.map(s => [s.scope.id_toko, s])).values());
-                                                
-                                                if (uniquePendingScopes.length > 0) {
-                                                    setUnifiedOpnameFlow({
-                                                        scopes: uniquePendingScopes,
-                                                        index: 0,
-                                                        dayIndex: showTargetStModal.dayIndex,
-                                                        dateString: "", // empty so it doesn't filter by a specific date
-                                                    });
-                                                    setShowOpnameModal(true);
-                                                }
-                                            }}
-                                            className="flex h-11 w-full items-center justify-center rounded-md bg-amber-600 px-4 font-bold text-white transition hover:bg-amber-500 shadow-sm"
-                                        >
-                                            <ClipboardCheck className="mr-2 h-4 w-4" />
-                                            Lanjut ke Form Opname
-                                        </Button>
-                                    );
-                                }
+                                                    }}
+                                                    className="mt-3 flex h-11 w-full items-center justify-center rounded-md bg-red-600 px-4 font-bold text-white transition hover:bg-red-500 shadow-sm"
+                                                >
+                                                    <FileText className="mr-2 h-4 w-4" />
+                                                    Isi Dokumentasi Serah Terima
+                                                </Button>
+                                            ) : (
+                                                <div className="mt-3 rounded-md bg-amber-100 p-3 text-center text-xs font-bold text-amber-800 shadow-sm">
+                                                    Tunggu Kontraktor untuk isi Dokumentasi Serah Terima
+                                                </div>
+                                            )
+                                        ) : (
+                                            <Button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowTargetStModal(null);
+                                                    openGrandOpeningDocumentation();
+                                                }}
+                                                className="mt-3 flex h-11 w-full items-center justify-center rounded-md bg-red-600 px-4 font-bold text-white transition hover:bg-red-500 shadow-sm"
+                                            >
+                                                <FileText className="mr-2 h-4 w-4" />
+                                                    Isi Dokumentasi Serah Terima
+                                                </Button>
+                                            )
+                                        ) : (
+                                            isContractorFirstWorkflow && appMode === 'kontraktor' && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        const targetUlok = projectData?.ulokClean || supervisionWorkspace?.nomor_ulok;
+                                                        if (targetUlok) {
+                                                            setShowSerahTerimaGabunganModal(true);
+                                                        }
+                                                    }}
+                                                    className="mt-3 h-10 w-full font-bold text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    Lihat Dokumentasi Serah Terima
+                                                </Button>
+                                            )
+                                        )}
+                                    </div>
+                            )}
 
+                            {(() => {
                                 const stCheckpoint = supervisionWorkspace?.unified_checkpoints?.find((c: any) => c.tanggal_pengawasan === showTargetStModal.dateString);
                                 if (!stCheckpoint) return null;
                                 return (
@@ -3659,12 +4319,12 @@ function GanttBoard() {
                                         type="button"
                                         onClick={() => {
                                             setShowTargetStModal(null);
-                                            openUnifiedCheckpoint(stCheckpoint as any, showTargetStModal.dayIndex, { fromSerahTerimaModal: true });
+                                            openUnifiedCheckpoint(stCheckpoint as any, showTargetStModal.dayIndex);
                                         }}
                                         className="flex h-11 w-full items-center justify-center rounded-md bg-blue-600 px-4 font-bold text-white transition hover:bg-blue-500 shadow-sm"
                                     >
                                         <ClipboardCheck className="mr-2 h-4 w-4" />
-                                        Buka Form Pengawasan
+                                        Buka Form Pengawasan / Opname
                                     </Button>
                                 );
                             })()}
@@ -3704,17 +4364,6 @@ function GanttBoard() {
                 </div>
             )}
 
-            {showTakeoverMemoModal && (
-                <TakeoverMemoModal
-                    workspace={supervisionWorkspace}
-                    onClose={() => setShowTakeoverMemoModal(false)}
-                    onSuccess={() => {
-                        setShowTakeoverMemoModal(false);
-                        window.location.reload();
-                    }}
-                />
-            )}
-
             {/* MODAL 2: Memo Pengawasan Detail */}
             {showMemoModal && (
                 <MemoPengawasanModal
@@ -3733,11 +4382,11 @@ function GanttBoard() {
                     scopeLabel={unifiedMemoFlow?.scopes?.[unifiedMemoFlow.index]?.scope?.lingkup_pekerjaan}
                     nextScopeLabel={unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length ? unifiedMemoFlow.scopes[unifiedMemoFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
                     flowStep={unifiedMemoFlow ? { current: unifiedMemoFlow.index + 1, total: unifiedMemoFlow.scopes.length } : null}
+                    activeCheckpointData={unifiedMemoFlow?.scopes?.[unifiedMemoFlow.index]?.checkpoint}
+                    appMode={appMode}
                     draft={activeMemoGanttId && activeHeaderClick ? unifiedMemoDrafts[`${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
                     missingInOtherScopes={missingInOtherScopes}
                     targetStDate={targetStInfo?.date ? formatDateForPengawasan(targetStInfo.date) : null}
-                    takeoverSequence={currentTs}
-                    fromSerahTerimaModal={Boolean(unifiedMemoFlow?.fromSerahTerimaModal)}
                     onDraftChange={(draft: any) => {
                         if (!activeMemoGanttId || !activeHeaderClick) return;
                         const key = `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
@@ -3758,11 +4407,13 @@ function GanttBoard() {
                         setShowMemoModal(true);
                     }}
                     onSuccess={async (options?: { openOpname?: boolean }) => {
-                        if (activeMemoGanttId && activeHeaderClick) {
-                            const key = `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
+                        const completedDraftKey = activeMemoGanttId && activeHeaderClick
+                            ? `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`
+                            : null;
+                        if (completedDraftKey) {
                             setUnifiedMemoDrafts((prev) => {
                                 const next = { ...prev };
-                                delete next[key];
+                                delete next[completedDraftKey];
                                 return next;
                             });
                         }
@@ -3912,21 +4563,332 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 }
 
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate, takeoverSequence, fromSerahTerimaModal }: any) {
+function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: (updated?: any) => void; }) {
     const { showAlert } = useGlobalAlert();
-    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [showRejectDialog, setShowRejectDialog] = useState(false);
+    const [rejectReason, setRejectReason] = useState('');
+
+    const submitDecision = async (decision: 'disetujui' | 'ditolak', alasan = '') => {
+        const trimmedReason = alasan.trim();
+        if (decision === 'ditolak' && !trimmedReason) {
+            showAlert({ message: 'Alasan penolakan wajib diisi.', type: 'warning' });
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const { reviewContractorFirstOpname } = await import('@/lib/api');
+            const result = await reviewContractorFirstOpname(item.id, {
+                id_opname_item: item.id,
+                decision,
+                alasan_penolakan_support: trimmedReason,
+            });
+            setShowRejectDialog(false);
+            setRejectReason('');
+            showAlert({ message: decision === 'disetujui' ? 'Opname berhasil disetujui.' : 'Opname berhasil ditolak.', type: 'success' });
+            onReviewed(result.data);
+        } catch (err: any) {
+            showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <>
+            <div className="flex gap-2">
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => submitDecision('disetujui')} disabled={isProcessing}>
+                    <ThumbsUp className="w-4 h-4 mr-1.5" /> Setuju
+                </Button>
+                <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 font-bold" onClick={() => setShowRejectDialog(true)} disabled={isProcessing}>
+                    <ThumbsDown className="w-4 h-4 mr-1.5" /> Tolak
+                </Button>
+            </div>
+
+            {showRejectDialog && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="border-b border-red-100 bg-red-50 px-5 py-4">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                                    <ThumbsDown className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900">Tolak Opname</h3>
+                                    <p className="mt-1 text-sm font-semibold text-red-700">Tuliskan alasan agar kontraktor bisa memperbaiki item ini.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-3 px-5 py-4">
+                            <label className="text-xs font-black uppercase text-slate-500">Alasan Penolakan</label>
+                            <textarea
+                                className="min-h-28 w-full resize-none rounded-lg border border-slate-300 bg-white p-3 text-sm font-medium text-slate-800 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-100"
+                                placeholder="Contoh: volume tidak sesuai foto lapangan, kualitas perlu diperbaiki..."
+                                value={rejectReason}
+                                onChange={(event) => setRejectReason(event.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
+                            <Button type="button" variant="outline" className="font-semibold" onClick={() => setShowRejectDialog(false)} disabled={isProcessing}>Batal</Button>
+                            <Button type="button" className="bg-red-600 font-bold text-white hover:bg-red-700" onClick={() => submitDecision('ditolak', rejectReason)} disabled={isProcessing || !rejectReason.trim()}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
+                                Tolak Opname
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
+function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onReviewed: (updated?: any) => void; }) {
+    const sourceItem = opname.rab_item || opname.instruksi_lapangan_item || {};
+    const volumeRab = Number(sourceItem.volume || 0);
+    const hargaSatuan = Number(sourceItem.harga_satuan ?? (Number(sourceItem.harga_material || 0) + Number(sourceItem.harga_upah || 0)));
+    const totalRab = Number(sourceItem.total_harga ?? Math.round(volumeRab * hargaSatuan));
+    const totalOpname = Number(opname.total_harga_opname ?? Math.round(Number(opname.volume_akhir || 0) * hargaSatuan));
+    const selisih = Number(opname.total_selisih ?? (totalOpname - totalRab));
+    const fotoHref = opname.foto || '';
+    const formatMoney = (value: number) => `Rp ${Math.round(value || 0).toLocaleString('id-ID')}`;
+
+    const isOverbudget = selisih > 0;
+    const isUnderbudget = selisih < 0;
+
+    return (
+        <div className="mt-6 mb-4 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm ring-1 ring-slate-900/5 transition-all">
+            {/* Header / Context */}
+            <div className="flex items-center justify-between border-b border-slate-300 bg-slate-50 px-5 py-3.5">
+                <div className="flex items-center gap-3">
+                    <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-20"></span>
+                        <ClipboardCheck className="relative h-4 w-4" />
+                    </div>
+                    <div>
+                        <h5 className="text-sm font-semibold tracking-tight text-slate-900">Inspeksi Opname: Menunggu Keputusan</h5>
+                        <p className="text-[11px] font-medium text-slate-500">Mohon verifikasi data aktual lapangan sebelum menyetujui progress.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-0">
+                {/* Section A: Kuantitatif (Volume & Biaya) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-200 border-b border-slate-200">
+                    
+                    {/* Volume Comparison */}
+                    <div className="p-5 bg-white">
+                        <div className="mb-3 flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Volume</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div>
+                                <p className="text-[10px] font-semibold text-slate-500 mb-0.5">RAB (Rencana)</p>
+                                <p className="text-base font-semibold text-slate-800">{volumeRab} <span className="text-xs font-normal text-slate-500">{sourceItem.satuan || ''}</span></p>
+                            </div>
+                            <ArrowRight className="h-4 w-4 text-slate-300" />
+                            <div>
+                                <p className="text-[10px] font-semibold text-blue-600 mb-0.5">Aktual (Opname)</p>
+                                <p className="text-base font-bold text-blue-700">{opname.volume_akhir} <span className="text-xs font-normal text-blue-500">{sourceItem.satuan || ''}</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cost Comparison */}
+                    <div className="p-5 bg-white">
+                        <div className="mb-3 flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Biaya</span>
+                            <span className="text-[10px] font-medium text-slate-500 border border-slate-200 bg-slate-50 px-1.5 py-0.5 rounded">
+                                {formatMoney(hargaSatuan)} / {sourceItem.satuan || 'unit'}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-slate-500">RAB (Rencana)</span>
+                                <span className="text-xs font-semibold text-slate-700">{formatMoney(totalRab)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-blue-600">Aktual (Opname)</span>
+                                <span className="text-xs font-bold text-slate-900">{formatMoney(totalOpname)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Selisih Callout */}
+                    <div className="p-5 flex flex-col justify-center bg-slate-50">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Delta (Selisih Biaya)</span>
+                        <div className="flex items-baseline gap-2 mt-1">
+                            <span className={`text-xl font-bold tracking-tight ${isOverbudget ? 'text-red-600' : isUnderbudget ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                {isOverbudget ? '+' : isUnderbudget ? '-' : ''} {formatMoney(Math.abs(selisih))}
+                            </span>
+                        </div>
+                        <div className="mt-2">
+                            {isOverbudget ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+                                    <TrendingUp className="h-3 w-3" /> Overbudget
+                                </span>
+                            ) : isUnderbudget ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                    <TrendingDown className="h-3 w-3" /> Penghematan
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-300">
+                                    Sesuai Anggaran
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section B: Kualitatif (Verifikasi Lapangan) */}
+                <div className="border-b border-slate-200 px-5 py-4 bg-white">
+                    <span className="mb-3 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Verifikasi Lapangan</span>
+                    <div className="flex flex-wrap items-center gap-x-12 gap-y-3">
+                        <VerificationBadge label="Desain" value={opname.desain} expected="Sesuai" />
+                        <VerificationBadge label="Kualitas" value={opname.kualitas} expected="Baik" />
+                        <VerificationBadge label="Spesifikasi" value={opname.spesifikasi} expected="Sesuai" />
+                    </div>
+                </div>
+
+                {/* Section C: Bukti & Catatan */}
+                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                    <div className="flex-1 p-5 bg-white">
+                        <span className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Catatan Kontraktor</span>
+                        {opname.catatan ? (
+                            <p className="relative pl-3 text-sm font-medium text-slate-700 before:absolute before:left-0 before:top-0.5 before:h-[calc(100%-4px)] before:w-0.5 before:rounded-full before:bg-slate-300 italic">
+                                "{opname.catatan}"
+                            </p>
+                        ) : (
+                            <p className="text-sm text-slate-400 italic">Tidak ada catatan.</p>
+                        )}
+                    </div>
+                    
+                    {fotoHref && (
+                        <div className="p-5 md:w-72 flex flex-col justify-center bg-slate-50 border-l border-slate-200">
+                            <span className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Dokumentasi Foto</span>
+                            <a 
+                                href={fotoHref} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="group flex items-center justify-between rounded-lg border border-slate-300 bg-white p-3 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <div className="rounded bg-blue-100 p-1.5 text-blue-600 transition-colors group-hover:bg-blue-200">
+                                        <Image className="h-4 w-4" />
+                                    </div>
+                                    <span className="text-xs font-semibold text-slate-700 transition-colors group-hover:text-blue-700">Lihat Foto Lampiran</span>
+                                </div>
+                                <ExternalLink className="h-3 w-3 text-slate-400 transition-colors group-hover:text-blue-500" />
+                            </a>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer: Action Zone */}
+                <div className="flex items-center justify-between border-t border-slate-300 bg-slate-50 p-5">
+                    <div className="hidden md:block">
+                        <p className="text-xs font-medium text-slate-500">Keputusan ini akan membuka form pengawasan standar.</p>
+                    </div>
+                    <div className="flex w-full md:w-auto items-center justify-end gap-3">
+                        {opname.status === 'pending' ? (
+                            <SupportReReviewActions item={opname} onReviewed={onReviewed} />
+                        ) : (
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${opname.status === 'disetujui' ? 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-600/30' : 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/30'}`}>
+                                {opname.status === 'disetujui' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                                {opname.status === 'disetujui' ? 'Disetujui Support' : 'Ditolak oleh Support'}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function VerificationBadge({ label, value, expected }: { label: string; value: string; expected: string }) {
+    if (!value) return null;
+    const isGood = value.toLowerCase() === expected.toLowerCase();
+    
+    return (
+        <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-semibold text-slate-500">{label}</span>
+            <div className="flex items-center gap-1.5">
+                {isGood ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                )}
+                <span className={`text-xs font-bold ${isGood ? 'text-slate-800' : 'text-amber-700'}`}>
+                    {value}
+                </span>
+            </div>
+        </div>
+    );
+}
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate, activeCheckpointData, appMode }: any) {
+    const { showAlert } = useGlobalAlert();
     const router = useRouter();
     const { user } = useSession();
     const canCreateInstruksiLapangan = (user?.isSuperHuman ?? false) || (user?.roles ?? []).includes('BRANCH BUILDING SUPPORT');
-    const isReadOnly = !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
+    const isContractorFirstCheckpoint = activeCheckpointData?.workflow_version === "contractor_first";
+    const isContractorSubmit = appMode === "kontraktor" && isContractorFirstCheckpoint;
+    const contractorSlotDisplayDate = isContractorSubmit
+        ? subtractOneCalendarDayKey(activeCheckpointData?.tanggal_pengawasan || activeHeaderClick?.dateString)
+        : '';
+    const modalDateLabel = isContractorSubmit ? (contractorSlotDisplayDate || activeHeaderClick.dateString) : activeHeaderClick.dateString;
+    const isReadOnly = isContractorSubmit ? false : !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
+
+    const [opnameItems, setOpnameItems] = useState<any[]>([]);
+    const contractorOpnames = useMemo(() => {
+        const map = new Map<string, any>();
+        (opnameItems || []).forEach((op: any) => {
+            if (op?.workflow_version !== 'contractor_first') return;
+            map.set(getOpnameItemKey(op), op);
+            const workTextKey = getOpnameWorkTextKey(op);
+            if (workTextKey) map.set(workTextKey, op);
+        });
+        return map;
+    }, [isContractorSubmit, opnameItems]);
+
+    const handleContractorOpnameReviewed = useCallback((updated?: any) => {
+        if (!updated?.id) return;
+        setOpnameItems((prev) => prev.map((op) => Number(op.id) === Number(updated.id) ? updated : op));
+    }, []);
     const [liveHistory, setLiveHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean, volume_akhir?: string | number, desain?: string, kualitas?: string, spesifikasi?: string, catatan_opname?: string, file_opname?: File | null, existing_foto?: string, opnameTouched?: boolean }>>({});
+
+    useEffect(() => {
+        if (!isContractorSubmit) return;
+        if (contractorOpnames.size === 0) return;
+
+        setMemoInputs(prev => {
+            const next = { ...prev };
+            let changed = false;
+            contractorOpnames.forEach((op, key) => {
+                if (op.status === 'ditolak' && !next[key]?.opnameTouched) {
+                    next[key] = {
+                        ...(next[key] || {}),
+                        volume_akhir: op.volume_akhir,
+                        desain: op.desain,
+                        kualitas: op.kualitas,
+                        spesifikasi: op.spesifikasi,
+                        catatan_opname: op.catatan,
+                        existing_foto: op.foto,
+                        opnameTouched: true
+                    };
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [contractorOpnames, isContractorSubmit]);
+
     const [isDirty, setIsDirty] = useState(false);
     const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
     const [instruksiToast, setInstruksiToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-    const [validationToast, setValidationToast] = useState<string | null>(null);
     const [nextHandoverDate, setNextHandoverDate] = useState('');
     const [blockedOpnameItemKeys, setBlockedOpnameItemKeys] = useState<Set<string>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
@@ -3957,17 +4919,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         onDraftChange?.(memoInputs);
     }, [hasLoadedInitial, memoInputs]);
 
-    const isTargetStMemo = useMemo(() => {
-        if (!activeHeaderClick) return false;
-        const clickedDate = parseDateAny(activeHeaderClick.dateString);
-        const fallbackStart = getEffectiveWorkStart();
-        const fallbackDate = new Date(fallbackStart.split('T')[0] + 'T00:00:00');
-        fallbackDate.setDate(fallbackDate.getDate() + (activeHeaderClick?.dayIndex || 0));
-        const dDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackDate;
-        const activePengawasanDateKey = formatDateForPengawasan(dDate);
-        return Boolean(targetStDate) && formatPengawasanDateKey(activePengawasanDateKey) === formatPengawasanDateKey(targetStDate);
-    }, [activeHeaderClick, getEffectiveWorkStart, targetStDate]);
-
     useEffect(() => {
         if (!selectedGanttId || (!spkInfo && !projectData) || !activeHeaderClick) {
             setIsLoadingHistory(false);
@@ -3984,7 +4935,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const formattedDate = formatDateForInput(dDate);
         const activePengawasanDateKey = formatDateForPengawasan(dDate);
         const currentDateNumeric = parseInt(formattedDate.replace(/-/g, ''), 10);
-
+        const isTargetStMemo = Boolean(targetStDate) && formatPengawasanDateKey(activePengawasanDateKey) === formatPengawasanDateKey(targetStDate);
 
         const parseDateNumeric = (value: any): number | null => {
             if (!value) return null;
@@ -4037,12 +4988,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             if (!sourceNumeric) return false;
             if (checkpointDateNumerics.length === 0) return isPreviousPengawasanBeforeCurrent(sourceDate);
             const nearestNext = checkpointDateNumerics.find((value) => value > sourceNumeric);
-            if (nearestNext) {
-                return nearestNext === currentDateNumeric;
-            }
-            // Jika belum ada checkpoint tersimpan berikutnya di database,
-            // maka tanggal pengawasan baru pertama setelah sourceDate adalah checkpoint terdekat berikutnya.
-            return currentDateNumeric > sourceNumeric;
+            return nearestNext === currentDateNumeric;
         };
 
         import('@/lib/api').then(({ fetchPengawasanList, fetchOpnameList }) => {
@@ -4053,6 +4999,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             ])
                 .then(([resLive, resAll, resOpname]) => {
                     const dataLive = resLive.data || [];
+                    const dataLiveForInitial = [...dataLive].sort((a: any, b: any) => {
+                        const aHasDoc = Boolean(String(a.dokumentasi || '').trim() || String(a.dokumentasi_base64 || '').trim());
+                        const bHasDoc = Boolean(String(b.dokumentasi || '').trim() || String(b.dokumentasi_base64 || '').trim());
+                        if (aHasDoc !== bHasDoc) return Number(aHasDoc) - Number(bHasDoc);
+                        return Number(a.id || 0) - Number(b.id || 0);
+                    });
                     if (dataLive.length > 0) {
                         setCurrentPengawasanGanttId(dataLive[0].id_pengawasan_gantt);
                     } else {
@@ -4060,11 +5012,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                     const dataAll = resAll.data || [];
                     const dataOpname = resOpname.data || [];
+                    setOpnameItems(dataOpname);
 
                     const blockedOpnameIds = new Set<string>();
                     dataOpname.forEach((op: any) => {
                         const status = (op.status || '').toLowerCase();
-                        if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
+                        if (['pending', 'disetujui', 'ditolak', 'selesai', 'progress'].includes(status)) {
                             blockedOpnameIds.add(getOpnameItemKey(op));
                             const workTextKey = getOpnameWorkTextKey(op);
                             if (workTextKey) blockedOpnameIds.add(workTextKey);
@@ -4072,32 +5025,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     });
                     setBlockedOpnameItemKeys(blockedOpnameIds);
 
-                    const hasPengawasanDocument = (row: any) =>
-                        Boolean(String(row?.dokumentasi || '').trim());
-                    const workKeyOf = (row: any) => `${String(row.kategori_pekerjaan || '').toUpperCase()}|${String(row.jenis_pekerjaan || '').toUpperCase()}`;
-                    const comparePengawasanPriority = (a: any, b: any) => {
-                        const aMissingDoc = hasPengawasanDocument(a) ? 1 : 0;
-                        const bMissingDoc = hasPengawasanDocument(b) ? 1 : 0;
-                        if (aMissingDoc !== bMissingDoc) return aMissingDoc - bMissingDoc;
-
-                        const aLate = String(a?.status || '').toLowerCase() === 'terlambat' ? 0 : 1;
-                        const bLate = String(b?.status || '').toLowerCase() === 'terlambat' ? 0 : 1;
-                        if (aLate !== bLate) return aLate - bLate;
-
-                        return Number(a?.id || 0) - Number(b?.id || 0);
-                    };
-                    const currentRowsByWorkKey = new Map<string, any>();
-
-                    dataLive.forEach((p: any) => {
-                        if (!p.kategori_pekerjaan || !p.jenis_pekerjaan || !p.status) return;
-                        const key = workKeyOf(p);
-                        const current = currentRowsByWorkKey.get(key);
-                        if (!current || comparePengawasanPriority(p, current) < 0) {
-                            currentRowsByWorkKey.set(key, p);
-                        }
-                    });
-                    const preferredLiveHistory = Array.from(currentRowsByWorkKey.values());
-                    setLiveHistory(preferredLiveHistory);
+                    setLiveHistory(dataLive);
 
                     const initial: Record<string, any> = {};
                     const map = new Map<string, string>();
@@ -4117,42 +5045,48 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         return categoryLateDays;
                     };
 
-                    preferredLiveHistory.forEach((p: any) => {
+                    dataLiveForInitial.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
-                            const key = workKeyOf(p);
-                            const hasDocument = hasPengawasanDocument(p);
-                            if (p.id) idMap.set(key, p.id);
-                            if (p.status.toLowerCase() !== 'selesai' || !hasDocument) {
-                                const isProgressResolution = Boolean(
-                                    isTargetStMemo && fromSerahTerimaModal && p.status.toLowerCase() === 'progress'
-                                );
-                                initial[key] = {
-                                    status: isProgressResolution ? '' : (p.status.charAt(0).toUpperCase() + p.status.slice(1)),
-                                    lateDays: 0,
-                                    catatan: p.catatan || '',
-                                    file: null,
-                                    dokumentasiUrl: p.dokumentasi || null,
-                                    isSaved: hasDocument,
-                                    needsCurrentCheckpointCompletion: !hasDocument,
-                                    previousStatus: p.status.charAt(0).toUpperCase() + p.status.slice(1),
-                                };
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            const hasDokumentasi = Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim());
+                            const statusLower = String(p.status || '').trim().toLowerCase();
+                            const isContractorCarryOverOnly = isContractorSubmit
+                                && !hasDokumentasi
+                                && ['progress', 'terlambat'].includes(statusLower)
+                                && dataAll.some((prev: any) => {
+                                    if (!prev?.kategori_pekerjaan || !prev?.jenis_pekerjaan) return false;
+                                    const prevKey = `${prev.kategori_pekerjaan.toUpperCase()}|${prev.jenis_pekerjaan.toUpperCase()}`;
+                                    if (prevKey !== key) return false;
+                                    const prevDate = prev.tanggal_pengawasan ?? getPengawasanDateById(prev.id_pengawasan_gantt);
+                                    const prevNumeric = parseDateNumeric(prevDate);
+                                    const prevHasDokumentasi = Boolean(String(prev.dokumentasi || '').trim() || String(prev.dokumentasi_base64 || '').trim());
+                                    return Boolean(prevNumeric && prevNumeric < currentDateNumeric && prevHasDokumentasi);
+                                });
+                            const existingInitial = initial[key];
+                            if (existingInitial?.needsCurrentCheckpointCompletion && hasDokumentasi) {
+                                return;
                             }
+                            if (p.id) idMap.set(key, p.id);
+                            initial[key] = {
+                                status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
+                                lateDays: 0,
+                                catatan: p.catatan || '',
+                                file: null,
+                                dokumentasiUrl: p.dokumentasi || null,
+                                isSaved: hasDokumentasi,
+                                needsCurrentCheckpointCompletion: !hasDokumentasi,
+                                contractorCarryOverOnly: isContractorCarryOverOnly
+                            };
                         }
                     });
-
-                    const fKeys = new Set<string>();
 
                     dataAll.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                             const sourcePengawasanDate = p.tanggal_pengawasan ?? getPengawasanDateById(p.id_pengawasan_gantt);
                             const sourceNumeric = parseDateNumeric(sourcePengawasanDate);
-                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
-                            
-                            if (sourceNumeric && sourceNumeric > currentDateNumeric) {
-                                fKeys.add(key);
-                                return;
-                            }
+                            if (sourceNumeric && sourceNumeric > currentDateNumeric) return;
 
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
                             const normalizedStatus = p.status.charAt(0).toUpperCase() + p.status.slice(1);
 
                             // dataAll sudah diurutkan terbaru lebih dulu dari backend.
@@ -4207,40 +5141,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         })
                         .filter(Boolean);
 
-                    const forcedStItems = [
-                        ...Array.from(latestUnfinishedRows.values()).map((row: any) => {
-                            const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
-                            if (!initial[key]) {
-                                initial[key] = {
-                                    status: '',
-                                    lateDays: 0,
-                                    catatan: '',
-                                    file: null,
-                                    dokumentasiUrl: null,
-                                    isSaved: false,
-                                    previousStatus: row.normalizedStatus || (row.status ? row.status.charAt(0).toUpperCase() + row.status.slice(1) : ''),
-                                    previousLateDays: getCategoryLateDays(row.kategori_pekerjaan),
-                                    previousPengawasanDate: row.tanggal_pengawasan || row.sourcePengawasanDate
-                                };
-                            }
-
-                            return {
-                                id: `forced-unfinished-${row.id || key}`,
-                                source_type: row.source_type || 'HISTORY',
-                                kategori_pekerjaan: row.kategori_pekerjaan,
-                                jenis_pekerjaan: row.jenis_pekerjaan || row.kategori_pekerjaan,
-                                satuan: row.satuan || '-',
-                                volume: row.volume || 0,
-                                harga_material: 0,
-                                harga_upah: 0,
-                                total_material: 0,
-                                total_upah: 0,
-                                total_harga: 0,
-                                previous_pengawasan_date: row.tanggal_pengawasan || row.sourcePengawasanDate,
-                                isUnfinishedCarryover: true
-                            };
-                        }),
-                        ...(isTargetStMemo ? missingOpnames.map((row: any) => {
+                    const forcedStItems = isTargetStMemo
+                        ? [
+                            ...Array.from(latestUnfinishedRows.entries())
+                                .filter(([key]) => buggedBlockedKeys.has(key))
+                                .map(([key, row]) => row),
+                            ...missingOpnames
+                        ].map((row: any) => {
                             const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
                             if (!initial[key]) {
                                 initial[key] = {
@@ -4269,19 +5176,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 total_upah: 0,
                                 total_harga: 0,
                                 previous_pengawasan_date: row.tanggal_pengawasan || row.sourcePengawasanDate,
-                                isMissingOpnameOnly: true
                             };
-                        }) : [])
-                    ];
+                        })
+                        : [];
                     setForcedStBlockerItems(forcedStItems);
 
                     const mergedInitial = mergeMemoInitialWithDraft(initial, draft);
                     setMemoInputs(mergedInitial);
                     // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
-                    // setIsDirty is no longer forced here to allow continuing without saving when no changes were made.
+                    // set isDirty agar form bisa disubmit setelah user mengupdate statusnya.
+                    if (Object.keys(mergedInitial).length > 0) {
+                        setIsDirty(true);
+                    }
                     setLatestStatusMapState(map);
                     setLatestIdMapState(idMap);
-                    setFutureStatusItemKeys(fKeys);
                 })
                 .catch(err => {
                     setForcedStBlockerItems([]);
@@ -4292,12 +5200,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     setIsLoadingHistory(false);
                 });
         });
-    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart, targetStDate]);
+    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart, targetStDate, isContractorSubmit, activeCheckpointData]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
     const [latestIdMapState, setLatestIdMapState] = useState<Map<string, number>>(new Map());
-    const [futureStatusItemKeys, setFutureStatusItemKeys] = useState<Set<string>>(new Set());
 
     const hasCurrentDateSelesaiItems = liveHistory.some((p: any) => String(p.status || '').toLowerCase() === 'selesai');
     const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
@@ -4320,49 +5227,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         nextDate.setDate(nextDate.getDate() + maxLateDays);
         return formatDateForInput(nextDate);
     }, [activeHeaderClick, getEffectiveWorkStart, maxLateDays]);
-
-    const { isLastSupervisionDay, lastSupervisionDateNumeric } = useMemo(() => {
-        if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) {
-            return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
-        }
-
-        const datesInNumeric = pengawasanHistory
-            .map((p: any) => p.tanggal_pengawasan)
-            .filter(Boolean)
-            .map((dStr: string) => {
-                const parts = dStr.split('/');
-                if (parts.length === 3) {
-                    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
-                }
-                return 0;
-            })
-            .filter((val: number) => val > 0)
-            .sort((a: number, b: number) => a - b);
-
-        if (datesInNumeric.length === 0) return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
-        const maxDate = datesInNumeric[datesInNumeric.length - 1];
-
-        const effectiveStart = getEffectiveWorkStart();
-        const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
-        const checkpointDate = parseDateAny(activeHeaderClick.dateString);
-        let offset = activeHeaderClick.dayIndex || 0;
-        if (checkpointDate && !isNaN(checkpointDate.getTime())) {
-            const diffTime = checkpointDate.getTime() - startD.getTime();
-            offset = Math.round(diffTime / (1000 * 3600 * 24));
-        }
-
-        const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
-        dDate.setDate(dDate.getDate() + offset);
-        const yyyy = dDate.getFullYear();
-        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(dDate.getDate()).padStart(2, '0');
-        const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
-
-        return {
-            isLastSupervisionDay: maxDate === currentNumeric,
-            lastSupervisionDateNumeric: maxDate
-        };
-    }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
 
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
@@ -4388,27 +5252,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
         const baseTasks = chartData.processedTasks || [];
         const baseTaskNames = new Set(baseTasks.map((task: any) => String(task.name || '').toUpperCase()));
-        
-        // Saring forcedStBlockerItems:
-        // Item yang hanya missingOpname murni (sudah Selesai di DB) dipastikan ada di rabItems untuk opname.
-        // Item yang belum selesai (isUnfinishedCarryover) SELALU disertakan agar bisa diselesaikan.
+
+        // [PERBAIKAN]: Saring forcedStBlockerItems agar item yang dipaksa masuk karena "Selesai namun belum opname" BENAR-BENAR ada di rabItems
         const validForcedStBlockerItems = forcedStBlockerItems.filter((item: any) => {
             const key = `${String(item.kategori_pekerjaan).toUpperCase()}|${String(item.jenis_pekerjaan || item.kategori_pekerjaan).toUpperCase()}`;
-            if (item.isMissingOpnameOnly && memoInputs[key]?.status === 'Selesai') {
+            if (memoInputs[key]?.status === 'Selesai') {
                 return rabItems.some((r: any) => isSameWorkText(r.kategori_pekerjaan, item.kategori_pekerjaan) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan || item.kategori_pekerjaan));
             }
             return true;
         });
 
-        const seenForcedTaskNames = new Set<string>();
         const forcedTasks = validForcedStBlockerItems
-            .filter((item: any) => {
-                if (!item?.kategori_pekerjaan) return false;
-                const upperName = String(item.kategori_pekerjaan).toUpperCase();
-                if (baseTaskNames.has(upperName) || seenForcedTaskNames.has(upperName)) return false;
-                seenForcedTaskNames.add(upperName);
-                return true;
-            })
+            .filter((item: any) => item?.kategori_pekerjaan && !baseTaskNames.has(String(item.kategori_pekerjaan).toUpperCase()))
             .map((item: any) => ({
                 name: item.kategori_pekerjaan,
                 computed: { shift: 0 },
@@ -4477,7 +5332,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (!r.start || !r.end) return;
                 const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
                 if (day === e) isLastDay = true;
-                
+
                 if (chartData?.supervisionDays) {
                     const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
                     for (const sd of sortedDays) {
@@ -4491,10 +5346,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             });
 
             // [Poin 1 & 2] Aturan visibilitas tombol status:
-            if (isTargetStMemo || isLastSupervisionDay) {
-                hideOnProgress = true;
-                hideOnTerlambat = false;
-            } else if (hasFutureHit) {
+            if (hasFutureHit) {
                 hideOnProgress = false;
                 hideOnTerlambat = true;
             } else {
@@ -4518,11 +5370,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 rawRangeMatch = task.ranges[0];
             }
 
-            const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
+            const taskScope = String(task.scope || '').trim().toUpperCase();
+            const getItemScope = (item: any) => String(item.scope || item.lingkup_pekerjaan || item.lingkup_pekerjaan_item || item.lingkup_asal || '').trim().toUpperCase();
+            const matchesTaskScope = (item: any) => {
+                const itemScope = getItemScope(item);
+                return !taskScope || !itemScope || itemScope === taskScope;
+            };
+            const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && matchesTaskScope(item));
 
             // Juga ambil item dari liveHistory yang kategorinya cocok (untuk proyek migrasi)
             const historyItemsForCat = [...liveHistory, ...validForcedStBlockerItems]
-                .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase())
+                .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase() && matchesTaskScope(lh))
                 .filter((lh: any) => !catItems.some((ci: any) => ci.jenis_pekerjaan?.toUpperCase() === lh.jenis_pekerjaan?.toUpperCase()));
 
             // Bangun list akhir: gabungkan catItems + item baru dari history
@@ -4573,8 +5431,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         return false;
                     }
                 }
-
                 const memoInput = memoInputs[key] as any;
+                const rejectedContractorOpname = contractorOpnames.get(getWorkItemKey(item)) || contractorOpnames.get(key);
+                const isRejectedContractorOpname = rejectedContractorOpname?.workflow_version === 'contractor_first' && String(rejectedContractorOpname?.status || '').toLowerCase() === 'ditolak';
+                if (isContractorSubmit && !isRejectedContractorOpname && (memoInput?.previousStatus || memoInput?.contractorCarryOverOnly || (memoInput?.needsCurrentCheckpointCompletion && ['progress', 'terlambat'].includes(latestStatusLower)))) {
+                    return false;
+                }
 
                 let isUnfinishedFromPreviousPengawasan = false;
                 if (['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus) {
@@ -4587,15 +5449,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
                 const wasSupervisedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase());
-                
-                // JIKA item ini sudah diisi di tanggal pengawasan masa depan (future),
-                // maka JANGAN tampilkan lagi di tanggal ini (kecuali jika di tanggal ini juga sudah terlanjur diisi).
-                if (futureStatusItemKeys.has(key) && !wasSupervisedToday) {
-                    return false;
-                }
 
-                const isForcedMissingOpname = validForcedStBlockerItems.some((fi: any) => 
-                    fi.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && 
+                const isForcedMissingOpname = validForcedStBlockerItems.some((fi: any) =>
+                    fi.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() &&
                     (fi.jenis_pekerjaan || fi.kategori_pekerjaan).toUpperCase() === jenisPekerjaan.toUpperCase()
                 );
 
@@ -4604,7 +5460,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
                 // DI-SUPERVISI PADA HARI INI (ada record di database untuk hari ini),
                 // ATAU merupakan opname nyangkut yang dipaksa tampil
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !wasSupervisedToday && !isForcedMissingOpname) return false;
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !wasSupervisedToday && !isForcedMissingOpname && !isRejectedContractorOpname) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 // KECUALI jika ini adalah opname nyangkut yang dipaksa tampil
@@ -4619,19 +5475,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, futureStatusItemKeys, isTargetStMemo, isLastSupervisionDay]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, isContractorSubmit, contractorOpnames]);
 
     const filteredMemoConfig = useMemo(() => {
         if (!searchQuery.trim()) return memoConfig;
         const term = searchQuery.toLowerCase();
         return memoConfig.map((d: any) => {
             const matchCat = d.category.name.toLowerCase().includes(term);
-            const filteredItems = d.items.filter((item: any) => 
+            const filteredItems = d.items.filter((item: any) =>
                 item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
             );
             return { ...d, items: filteredItems };
         }).filter((d: any) => d.items.length > 0);
     }, [memoConfig, searchQuery]);
+
+
 
     const isWorkItemBlockedByOpname = useCallback((item: any, textKey?: string) => {
         if (!item) return textKey ? blockedOpnameItemKeys.has(textKey) : false;
@@ -4658,32 +5516,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         );
         const available = candidates.filter((candidate: any) => !isWorkItemBlockedByOpname(candidate, textKey));
 
-        const matched = available.find((candidate: any) => candidate.source_type === 'IL') ?? available[0] ?? candidates[0];
-        if (matched) return matched;
-
-        if (currentItem) {
-            return {
-                ...currentItem,
-                kategori_pekerjaan: currentItem.kategori_pekerjaan || catName,
-                jenis_pekerjaan: currentItem.jenis_pekerjaan || itemJenis,
-                satuan: currentItem.satuan && currentItem.satuan !== '-' ? currentItem.satuan : 'Ls',
-                volume: Number(currentItem.volume || 1),
-                harga_material: Number(currentItem.harga_material || 0),
-                harga_upah: Number(currentItem.harga_upah || 0),
-                source_type: currentItem.source_type || 'HISTORY',
-            };
-        }
-
-        return {
-            id: `fallback-${textKey}`,
-            kategori_pekerjaan: catName,
-            jenis_pekerjaan: itemJenis,
-            satuan: 'Ls',
-            volume: 1,
-            harga_material: 0,
-            harga_upah: 0,
-            source_type: 'HISTORY',
-        };
+        return available.find((candidate: any) => candidate.source_type === 'IL') ?? available[0] ?? candidates[0] ?? null;
     }, [rabItems, isWorkItemBlockedByOpname]);
 
     const findMemoItemForSubmit = useCallback((catName: any, itemJenis: any) => {
@@ -4711,7 +5544,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const currentStatus = memoInputs[key]?.status;
                 if (currentStatus !== 'Selesai') {
                     count++;
-                } else if (!isWorkItemBlockedByOpname(item, key)) {
+                } else if (activeCheckpointData?.workflow_version !== 'contractor_first' && !isWorkItemBlockedByOpname(item, key)) {
                     const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan || cat.category.name, item);
                     if (rItem) count++;
                 }
@@ -4777,10 +5610,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             finalValue = await compressImage(value);
 
             if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
-                setFileLimitWarning({
-                    isOpen: true,
-                    fileName: finalValue.name,
-                    fileSizeMB: finalValue.size / (1024 * 1024)
+                showAlert({
+                    message: `File "${finalValue.name}" masih lebih besar dari 10MB setelah proses kompresi. Pilih file yang lebih kecil.`,
+                    type: 'warning'
                 });
                 return;
             }
@@ -4810,9 +5642,52 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }));
     };
 
+    const { isLastSupervisionDay, lastSupervisionDateNumeric } = useMemo(() => {
+        if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) {
+            return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
+        }
+
+        const datesInNumeric = pengawasanHistory
+            .map((p: any) => p.tanggal_pengawasan)
+            .filter(Boolean)
+            .map((dStr: string) => {
+                const parts = dStr.split('/');
+                if (parts.length === 3) {
+                    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
+                }
+                return 0;
+            })
+            .filter((val: number) => val > 0)
+            .sort((a: number, b: number) => a - b);
+
+        if (datesInNumeric.length === 0) return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
+        const maxDate = datesInNumeric[datesInNumeric.length - 1];
+
+        const effectiveStart = getEffectiveWorkStart();
+        const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
+        const checkpointDate = parseDateAny(activeHeaderClick.dateString);
+        let offset = activeHeaderClick.dayIndex || 0;
+        if (checkpointDate && !isNaN(checkpointDate.getTime())) {
+            const diffTime = checkpointDate.getTime() - startD.getTime();
+            offset = Math.round(diffTime / (1000 * 3600 * 24));
+        }
+
+        const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
+        dDate.setDate(dDate.getDate() + offset);
+        const yyyy = dDate.getFullYear();
+        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(dDate.getDate()).padStart(2, '0');
+        const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
+
+        return {
+            isLastSupervisionDay: maxDate === currentNumeric,
+            lastSupervisionDateNumeric: maxDate
+        };
+    }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
+
     const canCreateNextHandover = useMemo(() => {
         if (!hasLateItems) return false;
-        if (isLastSupervisionDay || isTargetStMemo) return true;
+        if (isLastSupervisionDay) return true;
 
         if (minNextHandoverDate && lastSupervisionDateNumeric > 0) {
             const parts = minNextHandoverDate.split('-');
@@ -4824,7 +5699,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }
         }
         return false;
-    }, [hasLateItems, isLastSupervisionDay, isTargetStMemo, minNextHandoverDate, lastSupervisionDateNumeric]);
+    }, [hasLateItems, isLastSupervisionDay, minNextHandoverDate, lastSupervisionDateNumeric]);
 
     useEffect(() => {
         if (!canCreateNextHandover || !minNextHandoverDate) return;
@@ -4853,16 +5728,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             for (const item of cat.items) {
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-        const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
                 const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
-                
+                const needsDocumentationRetry = Boolean((memoInputs[key] as any)?.needsCurrentCheckpointCompletion && latestIdMapState.has(key));
+
                 if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
-                
-                if (isAlreadySelesai && !needsOpnameFill) continue;
+
+                if (isAlreadySelesai && !needsOpnameFill && !needsDocumentationRetry) continue;
 
                 const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
-                const isResolvingFromSt = Boolean(fromSerahTerimaModal && ['Progress', 'Terlambat', 'progress', 'terlambat'].includes(latestStatusMapState.get(key) as string));
-                if (isSavedOnCurrentDate && !needsOpnameFill && !isResolvingFromSt) continue;
+                if (isSavedOnCurrentDate && !needsOpnameFill && !needsDocumentationRetry) continue;
 
                 editableItemCount += 1;
 
@@ -4878,7 +5752,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
-                if (input.status === 'Selesai' && !isWorkItemBlockedByOpname(item, key)) {
+                if (input.status === 'Selesai' && activeCheckpointData?.workflow_version !== 'contractor_first' && !isWorkItemBlockedByOpname(item, key)) {
                     const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
                     const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : (rItem ? rItem.volume : 0);
                     if (volA === null || String(volA) === '') return false;
@@ -4908,7 +5782,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
 
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isWorkItemBlockedByOpname, findWorkItemForMemo, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate, fromSerahTerimaModal]);
+    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isWorkItemBlockedByOpname, findWorkItemForMemo, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -4920,7 +5794,123 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         return `${dd}/${mm}/${yyyy}`;
     };
 
+    const handleContractorSubmit = async () => {
+        const validationErrors: string[] = [];
+        const itemsToSubmit: any[] = [];
+        const filesMap: any[] = [];
+
+        for (const cat of memoConfig) {
+            if (!cat.items) continue;
+            for (const item of cat.items) {
+                const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
+                const rItemForExisting = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
+                const existingOpnameKey = rItemForExisting ? getWorkItemKey(rItemForExisting) : key;
+                const existingOp = contractorOpnames.get(existingOpnameKey) || contractorOpnames.get(key);
+                if (existingOp && existingOp.status !== 'ditolak') continue;
+
+                const input = memoInputs[key] || ({} as any);
+                const baseVolFallback = rItemForExisting ? Number(rItemForExisting.volume || 0) : 0;
+                const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : baseVolFallback;
+                if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
+                if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
+                if (!input.kualitas || input.kualitas === '') validationErrors.push(`Kualitas hasil (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
+                if (!input.spesifikasi || input.spesifikasi === '') validationErrors.push(`Spesifikasi material (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
+                if (!input.file_opname && !input.existing_foto) validationErrors.push(`Upload Foto Bukti (Opname) untuk "${item.jenis_pekerjaan}" wajib diunggah.`);
+
+                const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
+                if (!rItem) continue;
+
+                const isIL = rItem.source_type === 'IL';
+                const baseVol = Number(rItem.volume || 0);
+                const hargaSatuan = Number(rItem.harga_satuan ?? (Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0)));
+
+                const selisihVolume = Number(volA) - baseVol;
+                const totalSelisih = Math.round(selisihVolume * hargaSatuan);
+                const totalHarga = Math.round(Number(volA) * hargaSatuan);
+
+                const itemData: any = {
+                    volume_akhir: Number(volA),
+                    selisih_volume: selisihVolume,
+                    total_selisih: totalSelisih,
+                    total_harga_opname: totalHarga,
+                    desain: input.desain,
+                    kualitas: input.kualitas,
+                    spesifikasi: input.spesifikasi,
+                    catatan: input.catatan_opname || '',
+                    front_index: itemsToSubmit.length
+                };
+
+                if (isIL) {
+                    itemData.id_instruksi_lapangan_item = rItem.id > 0 ? rItem.id : -rItem.id;
+                } else {
+                    itemData.id_rab_item = rItem.id;
+                }
+
+                itemsToSubmit.push(itemData);
+                if (input.file_opname) {
+                    filesMap.push({ index: itemsToSubmit.length - 1, file: input.file_opname, fieldName: 'file_foto_opname' });
+                }
+            }
+        }
+
+        if (validationErrors.length > 0) {
+            showAlert({
+                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`,
+                type: 'error'
+            });
+            return;
+        }
+
+        if (itemsToSubmit.length === 0) {
+            showAlert({ message: 'Tidak ada item yang dapat disubmit.', type: 'error' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const payloadData = {
+                id_toko: Number(id_toko),
+                id_pengawasan_gantt: Number(activeCheckpointData?.id_pengawasan_gantt),
+                email_pembuat: user?.email || '',
+                items: itemsToSubmit
+            };
+
+            if (!payloadData.id_pengawasan_gantt) {
+                throw new Error('Checkpoint pengawasan contractor-first tidak valid.');
+            }
+
+            const formData = new FormData();
+            formData.append('data', JSON.stringify(payloadData));
+            filesMap.forEach((fm) => {
+                formData.append(`file_foto_opname`, fm.file, `opname_` + fm.index + `_` + fm.file.name);
+            });
+            formData.append('file_foto_opname_indexes', JSON.stringify(filesMap.map((fm) => fm.index)));
+
+            const { submitContractorCheckpointOpname } = await import('@/lib/api');
+            const res = await submitContractorCheckpointOpname(formData as any);
+
+            if (res.data?.routed_to === 'next_checkpoint') {
+                showAlert({
+                    message: 'Opname tersimpan dan diarahkan ke checkpoint pengawasan berikutnya karena checkpoint target sudah diisi support.',
+                    type: 'success',
+                    onConfirm: () => onSuccess({ openOpname: false })
+                });
+            } else {
+                showAlert({
+                    message: 'Opname berhasil disimpan.',
+                    type: 'success',
+                    onConfirm: () => onSuccess({ openOpname: false })
+                });
+            }
+        } catch (err: any) {
+            showAlert({ message: err.message || 'Gagal menyimpan opname', type: 'error' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const handleSubmit = async () => {
+        if (isContractorSubmit) return handleContractorSubmit();
         if (!selectedGanttId) {
             showAlert({ message: 'Draft belum disimpan permanen. Simpan Gantt Chart terlebih dahulu.', type: 'warning' });
             return;
@@ -4937,27 +5927,45 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     for (const item of cat.items) {
                         const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                         const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-                const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
                         const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
-                        
+
                         if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
-                        
-                        
-                        
-                        // Jika sudah selesai/tidak dikerjakan dan BUKAN butuh opname, lewati (tidak bisa diedit)
-                        if (isAlreadyTerminal && !needsOpnameFill) continue;
+
+
+
+                        // Jika sudah selesai dan BUKAN butuh opname, lewati (tidak bisa diedit)
+                        if (isAlreadySelesai && !needsOpnameFill) continue;
 
                         // Jika sudah disimpan hari ini dan BUKAN butuh opname, lewati (tidak bisa diedit lagi hari ini)
                         const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
-                        const isResolvingFromSt = Boolean(fromSerahTerimaModal && ['Progress', 'Terlambat', 'progress', 'terlambat'].includes(latestStatusMapState.get(key) as string));
-                        if (isSavedOnCurrentDate && !needsOpnameFill && !isResolvingFromSt) continue;
+                        if (isSavedOnCurrentDate && !needsOpnameFill) continue;
 
                         editableItemCount += 1;
 
                         const input = memoInputs[key] || ({} as any);
                         const existingStatus = latestStatusMapState.get(key);
-                        if (!input.status && existingStatus && !fromSerahTerimaModal) {
+                        if (!input.status && existingStatus) {
                             input.status = existingStatus as any;
+                        }
+
+                        const memoItem = findMemoItemForSubmit(cat.category.name, item.jenis_pekerjaan);
+                        const opnameItemKey = memoItem ? getWorkItemKey(memoItem) : null;
+                        const opname = opnameItemKey ? contractorOpnames.get(opnameItemKey) : null;
+
+                        if (activeCheckpointData?.workflow_version === 'contractor_first') {
+                            const opnameStatus = String(opname?.status || '').toLowerCase();
+                            const revisionNo = Number(opname?.revision_no || 1);
+                            
+                            // Hanya blokir jika ini adalah pengajuan pertama (belum ada opname sama sekali atau masih pending revisi 1)
+                            if (!opname && input.status === 'Selesai') {
+                                validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum diisi kontraktor. (Wajib pada pengajuan pertama)`);
+                                continue;
+                            }
+                            const isPengajuanPertama = revisionNo === 1 && !opname?.alasan_penolakan_support;
+                            if (opnameStatus === 'pending' && isPengajuanPertama) {
+                                validationErrors.push(`Opname pengajuan pertama untuk "${item.jenis_pekerjaan}" belum di-review (Setuju/Tolak).`);
+                                continue;
+                            }
                         }
 
                         if (!input.status) {
@@ -4969,11 +5977,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             validationErrors.push(`Tambahan hari keterlambatan untuk "${item.jenis_pekerjaan}" wajib diisi.`);
                         }
 
-                        if (input.status === 'Selesai' && !isWorkItemBlockedByOpname(item, key)) {
-                            const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
-                            const defaultVol = rItem ? Number(rItem.volume || 0) : 0;
-                            const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : defaultVol;
-                            if (volA === null || volA === undefined || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
+                        if (input.status === 'Selesai' && activeCheckpointData?.workflow_version !== 'contractor_first' && !isWorkItemBlockedByOpname(item, key)) {
+                            const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
+                            if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
                             if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
                             if (!input.kualitas || input.kualitas === '') validationErrors.push(`Kualitas hasil (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
                             if (!input.spesifikasi || input.spesifikasi === '') validationErrors.push(`Spesifikasi material (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
@@ -4987,21 +5993,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
                     }
                 }
-                
+
                 // Allow submit if it's just a visit log for empty days, but if we have items, we expect them to be edited.
                 if (editableItemCount === 0 && canCreateNextHandover && nextHandoverDate) {
-                     // Empty day but Handover is being created. allowed.
+                    // Empty day but Handover is being created. allowed.
                 } else if (editableItemCount === 0 && !canCreateNextHandover) {
                     validationErrors.push("Tidak ada item pekerjaan aktif yang perlu diperbarui pada tanggal ini.");
                 }
             }
         } else {
-             // memoConfig.length === 0
-             if (canCreateNextHandover && !nextHandoverDate) {
-                  validationErrors.push("Wajib mengisi tanggal serah terima berikutnya karena ada item terlambat dari pengawasan sebelumnya.");
-             }
+            // memoConfig.length === 0
+            if (canCreateNextHandover && !nextHandoverDate) {
+                validationErrors.push("Wajib mengisi tanggal serah terima berikutnya karena ada item terlambat dari pengawasan sebelumnya.");
+            }
         }
-        
+
         if (canCreateNextHandover && !nextHandoverDate && memoConfig.length > 0) {
             validationErrors.push("Tanggal serah terima berikutnya wajib diisi (scroll ke paling bawah).");
         } else if (canCreateNextHandover && minNextHandoverDate && nextHandoverDate && nextHandoverDate < minNextHandoverDate) {
@@ -5009,9 +6015,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
 
         if (validationErrors.length > 0) {
-            showAlert({ 
-                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`, 
-                type: 'error' 
+            showAlert({
+                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`,
+                type: 'error'
             });
             return;
         }
@@ -5028,17 +6034,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             const entriesToSubmit = Object.entries(memoInputs).filter(([key, val]) => {
                 const existingStatus = latestStatusMapState.get(key);
-                const effectiveStatus = (fromSerahTerimaModal && val.status) ? val.status : (val.status || existingStatus);
+                const effectiveStatus = val.status || existingStatus;
                 if (!effectiveStatus) return false;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-            const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
                 const pipeIdx = key.indexOf('|');
                 const itemForKey = pipeIdx === -1 ? null : findMemoItemForSubmit(key.substring(0, pipeIdx), key.substring(pipeIdx + 1));
                 const needsOpnameFill = isAlreadySelesai && (itemForKey ? !isWorkItemBlockedByOpname(itemForKey, key) : !blockedOpnameItemKeys.has(key));
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
-                const isResolvingFromSt = Boolean(fromSerahTerimaModal && ['Progress', 'Terlambat', 'progress', 'terlambat'].includes(latestStatusMapState.get(key) as string));
-                
-                return needsOpnameFill ? isOpnameTouched(val) : (isResolvingFromSt ? true : !isSavedOnCurrentDate);
+                const needsDocumentationRetry = Boolean((val as any)?.needsCurrentCheckpointCompletion && latestIdMapState.has(key));
+
+                if (needsDocumentationRetry) return Boolean(val.file);
+                return needsOpnameFill ? isOpnameTouched(val) : !isSavedOnCurrentDate;
             });
             const shouldOpenOpname = false; // Option B: Standalone modal dinonaktifkan karena form opname sudah inline
             const hasNextHandoverAction = canCreateNextHandover && !!nextHandoverDate;
@@ -5049,34 +6055,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             fallbackSubmitDate.setDate(fallbackSubmitDate.getDate() + (activeHeaderClick?.dayIndex || 0));
             const submitDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackSubmitDate;
             const formattedDate = formatDateForPengawasan(submitDate);
-            const checkRecoveredPengawasanBatch = async (
-                mode: "insert" | "update",
-                batchItems: any[]
-            ): Promise<boolean> => {
-                try {
-                    await new Promise((resolve) => window.setTimeout(resolve, 1000));
-                    const { fetchPengawasanList } = await import('@/lib/api');
-                    const res = await fetchPengawasanList({
-                        id_gantt: Number(selectedGanttId),
-                        tanggal: formattedDate
-                    });
-                    const savedRows = Array.isArray(res?.data) ? res.data : [];
-
-                    if (mode === "update") {
-                        const savedIds = new Set(savedRows.map((row: any) => Number(row?.id)));
-                        return batchItems.every((item) => savedIds.has(Number(item.id)));
-                    }
-
-                    return batchItems.every((item) => savedRows.some((row: any) =>
-                        normalizePengawasanCompareText(row?.kategori_pekerjaan) === normalizePengawasanCompareText(item.kategori_pekerjaan) &&
-                        normalizePengawasanCompareText(row?.jenis_pekerjaan) === normalizePengawasanCompareText(item.jenis_pekerjaan) &&
-                        (!item.status || normalizePengawasanCompareText(row?.status) === normalizePengawasanCompareText(item.status))
-                    ));
-                } catch (recoveryError) {
-                    console.warn("[pengawasan] Recovery check gagal", recoveryError);
-                    return false;
-                }
-            };
 
             entriesToSubmit.forEach(([key, val]) => {
                 const pipeIdx = key.indexOf('|');
@@ -5087,11 +6065,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const existingId = latestIdMapState.get(upperKey);
 
                 const existingStatus = latestStatusMapState.get(key);
-                const effectiveStatus = (fromSerahTerimaModal && val.status) ? val.status : (val.status || existingStatus);
+                const effectiveStatus = val.status || existingStatus;
 
                 // [PERBAIKAN 1]: Mengubah status menjadi lowercase utuh agar lolos validasi strict enum backend
-                const statusLower = typeof effectiveStatus === 'string' ? effectiveStatus.toLowerCase().replace(/\s+/g, '_') : '';
-                const validStatuses = ['progress', 'selesai', 'terlambat', 'tidak_dikerjakan'];
+                const statusLower = typeof effectiveStatus === 'string' ? effectiveStatus.toLowerCase() : '';
+                const validStatuses = ['progress', 'selesai', 'terlambat'];
                 if (!validStatuses.includes(statusLower)) return; // skip jika status tidak valid
                 const statusSafe = statusLower;
                 const lateDaysSafe = Number(val.lateDays) || 0;
@@ -5112,20 +6090,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const totalSelisih = Math.round(selisihVolume * hargaSatuan);
                         const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
 
-                        const rawRabId = (rItem.source_type === 'RAB' || rItem.source_type === undefined) ? rItem.id : undefined;
-                        const safeRabId = typeof rawRabId === 'number' && Number.isInteger(rawRabId) && rawRabId > 0
-                            ? rawRabId
-                            : (typeof rawRabId === 'string' && /^\d+$/.test(rawRabId) ? Number(rawRabId) : undefined);
-
-                        const rawIlId = rItem.source_type === 'IL' ? (rItem.id_instruksi_lapangan_item || rItem.id) : undefined;
-                        const safeIlId = typeof rawIlId === 'number' && Number.isInteger(rawIlId) && rawIlId > 0
-                            ? rawIlId
-                            : (typeof rawIlId === 'string' && /^\d+$/.test(rawIlId) ? Number(rawIlId) : undefined);
-
                         opnameData = {
                             id_toko: Number(projectData?.id_toko),
-                            id_rab_item: safeRabId,
-                            id_instruksi_lapangan_item: safeIlId,
+                            id_rab_item: rItem.source_type === 'RAB' || rItem.source_type === undefined ? Number(rItem.id) : undefined,
+                            id_instruksi_lapangan_item: rItem.source_type === 'IL' ? Number(rItem.id_instruksi_lapangan_item) : undefined,
                             volume_akhir: volAkhir,
                             selisih_volume: selisihVolume,
                             total_selisih: totalSelisih,
@@ -5139,8 +6107,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
-                const isResolvingAsNewRow = Boolean(fromSerahTerimaModal && existingId);
-                if (existingId && !isResolvingAsNewRow) {
+                if (existingId) {
                     // [PERBAIKAN 2]: DILARANG mengirim keterlambatan, id_gantt, & tanggal_pengawasan pada API PUT
                     // [PERBAIKAN 3]: Hanya kirim catatan jika user mengisinya, hindari duplicate ID
                     const alreadyQueued = itemsArrayUpdate.some(i => i.id === Number(existingId));
@@ -5164,13 +6131,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         status: statusSafe,
                         // [PERBAIKAN 4]: DILARANG mengirim keterlambatan pada payload POST bulk
                     };
-                    if (isResolvingAsNewRow) {
-                        insertItem.append_resolution = true;
-                    }
                     if (val.catatan && String(val.catatan).trim()) insertItem.catatan = String(val.catatan).trim();
-                    if (!val.file && (val.dokumentasiUrl || (memoInputs[key] as any)?.dokumentasiUrl)) {
-                        insertItem.dokumentasi = val.dokumentasiUrl || (memoInputs[key] as any)?.dokumentasiUrl;
-                    }
+                    if (!val.file && val.dokumentasiUrl) insertItem.dokumentasi = val.dokumentasiUrl;
                     if (opnameData) insertItem.opname_data = opnameData;
                     itemsArrayInsert.push(insertItem);
                     if (val.file) {
@@ -5241,43 +6203,34 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         if (batch.files.length > 0 || (batch.opnameFiles && batch.opnameFiles.length > 0)) {
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
-                            
+
                             const dokFiles = batch.files.filter((f: any) => f.field_name !== "file_opname");
                             const opFiles = batch.files.filter((f: any) => f.field_name === "file_opname");
-                            
+
                             dokFiles.forEach(({ file }: any) => formData.append('file_dokumentasi', file));
                             if (dokFiles.length > 0) {
                                 formData.append('file_dokumentasi_indexes', JSON.stringify(dokFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (opFiles.length > 0) {
                                 opFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
                                 formData.append('file_foto_opname_indexes', JSON.stringify(opFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (batch.opnameFiles) {
                                 batch.opnameFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
                                 if (batch.opnameFiles.length > 0) {
                                     formData.append('file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }: any) => index)));
                                 }
                             }
-                            
+
                             insertResult = await submitPengawasanBulk(formData);
                         } else {
                             insertResult = await submitPengawasanBulk({ items: batch.items });
                         }
                     } catch (error: any) {
-                        const isNetworkError = isPengawasanNetworkError(error);
-                        if (isNetworkError && await checkRecoveredPengawasanBatch("insert", batch.items)) {
-                            insertedCount += batch.items.length;
-                            continue;
-                        }
-
-                        const detail = error?.message || 'Upload gagal';
                         throw new Error(
-                            isNetworkError
-                                ? `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${detail}`
-                                : `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal: ${detail}`
+                            `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal setelah ${insertedCount} item tersimpan: ${error?.message || 'Upload gagal'}`
                         );
                     }
 
@@ -5303,7 +6256,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         if (batch.files.length > 0 || (batch.opnameFiles && batch.opnameFiles.length > 0)) {
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
-                            
+
                             const dokFiles = batch.files.filter((f: any) => f.field_name !== "file_opname");
                             const opFiles = batch.files.filter((f: any) => f.field_name === "file_opname");
 
@@ -5311,35 +6264,26 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             if (dokFiles.length > 0) {
                                 formData.append('rev_file_dokumentasi_indexes', JSON.stringify(dokFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (opFiles.length > 0) {
                                 opFiles.forEach(({ file }: any) => formData.append('rev_file_foto_opname', file));
                                 formData.append('rev_file_foto_opname_indexes', JSON.stringify(opFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (batch.opnameFiles) {
                                 batch.opnameFiles.forEach(({ file }: any) => formData.append('rev_file_foto_opname', file));
                                 if (batch.opnameFiles.length > 0) {
                                     formData.append('rev_file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }: any) => index)));
                                 }
                             }
-                            
+
                             updateResult = await updatePengawasanBulk(formData);
                         } else {
                             updateResult = await updatePengawasanBulk({ items: batch.items });
                         }
                     } catch (error: any) {
-                        const isNetworkError = isPengawasanNetworkError(error);
-                        if (isNetworkError && await checkRecoveredPengawasanBatch("update", batch.items)) {
-                            updatedCount += batch.items.length;
-                            continue;
-                        }
-
-                        const detail = error?.message || 'Upload gagal';
                         throw new Error(
-                            isNetworkError
-                                ? `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${detail}`
-                                : `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal: ${detail}`
+                            `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal setelah ${updatedCount} item diperbarui: ${error?.message || 'Upload gagal'}`
                         );
                     }
 
@@ -5356,7 +6300,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             if (catsLate.size > 0) {
                 const { updateGanttDelay } = await import('@/lib/api');
                 const updates = Array.from(catsLate.entries()).map(([catName, totalLate]) => ({
-                    kategori_pekerjaan: catName,
+                    kategori_pekerjaan: catName.toUpperCase(),
                     keterlambatan: String(totalLate)
                 }));
                 const nextTanggalPengawasan = hasNextHandoverAction && nextHandoverDate
@@ -5424,6 +6368,46 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
     };
 
+    const sortedMemoConfig = useMemo(() => {
+        return filteredMemoConfig.map((d: any, catIdx: number) => {
+            const itemsWithPriority = d.items.map((item: any, itemIdx: number) => {
+                const rItemForStatus = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
+                const opnameKeyForStatus = rItemForStatus ? getWorkItemKey(rItemForStatus) : null;
+                const opnameForStatus = opnameKeyForStatus ? contractorOpnames.get(opnameKeyForStatus) : null;
+                
+                let priority = 1; // Default low priority
+                if (isContractorSubmit) {
+                    if (!opnameForStatus || String(opnameForStatus.status).toLowerCase() === 'ditolak') {
+                        priority = 0; // High priority for unsubmitted or rejected
+                    }
+                } else {
+                    const key = `${String(d.category.name).toUpperCase()}|${String(item.jenis_pekerjaan || d.category.name).toUpperCase()}`;
+                    const isPendingOpnameReview = opnameForStatus && String(opnameForStatus.status).toLowerCase() === 'pending';
+                    const isNotSavedYet = !latestIdMapState.has(key);
+                    
+                    if (isPendingOpnameReview || isNotSavedYet) {
+                        priority = 0; // High priority for pending review OR not yet filled in
+                    }
+                }
+                return { ...item, _sortPriority: priority, _origIdx: itemIdx };
+            });
+            
+            // Sort items inside the category (High priority / 0 first)
+            itemsWithPriority.sort((a: any, b: any) => {
+                if (a._sortPriority !== b._sortPriority) return a._sortPriority - b._sortPriority;
+                return a._origIdx - b._origIdx;
+            });
+            
+            // The category priority is the highest priority among its items
+            const catPriority = itemsWithPriority.length > 0 ? itemsWithPriority[0]._sortPriority : 1;
+            
+            return { ...d, items: itemsWithPriority, _catPriority: catPriority, _origIdx: catIdx };
+        }).sort((a: any, b: any) => {
+            if (a._catPriority !== b._catPriority) return a._catPriority - b._catPriority;
+            return a._origIdx - b._origIdx;
+        }); // Sort categories (High priority / 0 first)
+    }, [filteredMemoConfig, findWorkItemForMemo, getWorkItemKey, contractorOpnames, isContractorSubmit, latestIdMapState]);
+
     return (
         <>
             <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -5435,9 +6419,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             </div>
                             <div>
                                 <h2 className="font-bold text-xl text-slate-800 leading-tight">
-                                    {isLastSupervisionDay ? "Serah Terima" : "Memo Pengawasan"}
+                                    {isContractorSubmit ? "Opname Kontraktor" : (isLastSupervisionDay ? "Serah Terima" : "Memo Pengawasan")}
                                 </h2>
-                                <p className="text-sm text-slate-500 font-medium">{activeHeaderClick.dateString}</p>
+                                <p className="text-sm text-slate-500 font-medium">{modalDateLabel}</p>
                                 {(scopeLabel || flowStep) && (
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
                                         {scopeLabel && (
@@ -5482,7 +6466,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         {!isLoadingHistory && memoConfig.length > 0 && (
                             <div className="relative group sticky -top-6 pt-6 pb-2 z-20 bg-white/95 backdrop-blur-md -mx-6 px-6 border-b border-slate-100/50">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
-                                <Input 
+                                <Input
                                     placeholder="Cari kategori atau item pekerjaan..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -5511,16 +6495,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
                                     <Info className="w-12 h-12 mb-3 text-amber-500" />
                                     <p className="font-medium text-slate-600">Terdapat item pengawasan yang belum selesai pada lingkup pekerjaan lain.</p>
-                                    <p className="text-sm mt-1">Silakan klik tombol navigasi lingkup pekerjaan di kanan bawah (misal: "{nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}") untuk melihat dan mengisi item tersebut.</p>
-                                    {flowStep && flowStep.total > 1 && (
-                                        <Button
-                                            type="button"
-                                            onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
-                                            className="mt-4 border-2 border-amber-600 bg-white hover:bg-amber-600 text-amber-800 hover:text-white font-bold px-5 py-2 text-sm shadow-sm transition-colors"
-                                        >
-                                            {nextScopeLabel ? `Pindah ke ${String(nextScopeLabel).toUpperCase()} →` : '← Kembali ke SIPIL'}
-                                        </Button>
-                                    )}
+                                    <p className="text-sm mt-1">Silakan ubah lingkup pekerjaan di kiri atas untuk melihat dan mengisi item tersebut.</p>
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
@@ -5528,14 +6503,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     <p className="font-medium">Tidak ada kategori pekerjaan yang sedang aktif pada hari ini.</p>
                                 </div>
                             )
-                        ) : filteredMemoConfig.length === 0 ? (
+                        ) : sortedMemoConfig.length === 0 ? (
                             <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
                                 <Search className="w-12 h-12 mb-3 text-slate-300" />
                                 <h3 className="text-base font-bold text-slate-600 mb-1">Pencarian Tidak Ditemukan</h3>
                                 <p className="font-medium text-sm">Tidak ada item atau kategori yang cocok dengan "{searchQuery}".</p>
                             </div>
                         ) : (
-                            filteredMemoConfig.map((d: any, i: number) => (
+                            sortedMemoConfig.map((d: any, i: number) => (
                                 <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-300">
                                     <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
                                         <h3 className="font-bold text-slate-800">{d.category.name}</h3>
@@ -5548,17 +6523,41 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                     {d.items.map((item: any, j: number) => {
                                                         const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                                                         const latestStatusKey = latestStatusMapState.get(key);
-                                                        const currentStatus = (memoInputs.hasOwnProperty(key) && memoInputs[key]?.status !== undefined)
-                                                            ? memoInputs[key].status
-                                                            : (latestStatusKey || '');
+                                                        let currentStatus = memoInputs[key]?.status || latestStatusKey;
                                                         const lateDays = memoInputs[key]?.lateDays || 0;
-                                                        const isAlreadySavedToday = Boolean((memoInputs[key] as any)?.isSaved && latestIdMapState.has(key));
-                                                        const shouldLockAsSaved = isAlreadySavedToday && !fromSerahTerimaModal;
+
+                                                        const allowedStatuses = new Set<string>();
+                                                        const rItemForStatus = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
+                                                        const opnameKeyForStatus = rItemForStatus ? getWorkItemKey(rItemForStatus) : null;
+                                                        const opnameForStatus = opnameKeyForStatus ? contractorOpnames.get(opnameKeyForStatus) : null;
+                                                        if (activeCheckpointData?.workflow_version === 'contractor_first') {
+                                                            const opnameStatus = String(opnameForStatus?.status || '').trim().toLowerCase();
+                                                            if (!opnameForStatus) {
+                                                                if (d.category.hideOnTerlambat) allowedStatuses.add('Progress');
+                                                                else allowedStatuses.add('Terlambat');
+                                                                if (!d.category.hideOnProgress) allowedStatuses.add('Progress');
+                                                            } else {
+                                                                allowedStatuses.add('Selesai');
+                                                                if (!d.category.hideOnTerlambat) allowedStatuses.add('Terlambat');
+                                                                if (!d.category.hideOnProgress) allowedStatuses.add('Progress');
+                                                            }
+                                                        } else {
+                                                            allowedStatuses.add('Selesai');
+                                                            if (!d.category.hideOnTerlambat) allowedStatuses.add('Terlambat');
+                                                            if (!d.category.hideOnProgress) allowedStatuses.add('Progress');
+                                                        }
+
+                                                        if (currentStatus && !allowedStatuses.has(currentStatus)) {
+                                                            currentStatus = '';
+                                                        }
 
                                                         const renderOpnameForm = () => {
-                                                            if (currentStatus !== 'Selesai' || isWorkItemBlockedByOpname(item, key)) return null;
-                                                            // Sembunyikan form opname di memo biasa jika item sudah berstatus Selesai (bukan sedang diedit)
-                                                            if (!isTargetStMemo && !memoInputs.hasOwnProperty(key)) return null;
+                                                            if (isContractorFirstCheckpoint && !isContractorSubmit) return null;
+                                                            const isRejectedContractorRevision = isContractorSubmit && opnameForStatus?.workflow_version === 'contractor_first' && String(opnameForStatus?.status || '').toLowerCase() === 'ditolak';
+
+                                                            if (isRejectedContractorRevision) return null;
+
+                                                            if ((!isContractorSubmit && currentStatus !== 'Selesai') || isWorkItemBlockedByOpname(item, key)) return null;
                                                             const rItem = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
                                                             if (!rItem) return null;
 
@@ -5574,7 +6573,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                 <div className="mt-4 rounded-xl border border-blue-200 bg-white shadow-md overflow-hidden animate-in slide-in-from-top-1">
                                                                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
                                                                         <div className="flex items-center gap-2">
-                                                                            <div className="bg-blue-600 p-1.5 rounded-full"><CheckCircle className="w-4 h-4 text-white"/></div>
+                                                                            <div className="bg-blue-600 p-1.5 rounded-full"><CheckCircle className="w-4 h-4 text-white" /></div>
                                                                             <div>
                                                                                 <h5 className="font-bold text-blue-900 text-sm">Formulir Opname & Verifikasi Pekerjaan</h5>
                                                                                 <p className="text-[10px] text-blue-600 font-medium mt-0.5">Lengkapi data di bawah ini karena pekerjaan telah selesai</p>
@@ -5586,24 +6585,24 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                             <p className="text-[9px] text-slate-500">(Mat: Rp {Number(rItem?.harga_material || 0).toLocaleString('id-ID')} | Upah: Rp {Number(rItem?.harga_upah || 0).toLocaleString('id-ID')})</p>
                                                                         </div>
                                                                     </div>
-                                                                    
+
                                                                     <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-200 flex flex-col xl:flex-row gap-4 xl:gap-6 w-full overflow-hidden">
                                                                         {/* Kolom 1: Volume & Biaya */}
                                                                         <div className="flex-1 min-w-[200px]">
                                                                             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">1</span> Volume & Biaya</h4>
-                                                                            
+
                                                                             <div className="grid grid-cols-2 gap-2 mb-2">
                                                                                 <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm flex flex-col justify-center">
                                                                                     <label className="text-[9px] font-bold text-slate-400 uppercase block">Vol RAB</label>
                                                                                     <div className="flex items-baseline gap-1 mt-0.5">
                                                                                         <span className="font-bold text-slate-700 text-sm leading-none">{volumeRAB}</span>
-                                                                                        <span className="text-[9px] text-slate-500">{item.satuan && item.satuan !== '-' ? item.satuan : (rItem?.satuan || 'Ls')}</span>
+                                                                                        <span className="text-[9px] text-slate-500">{item.satuan}</span>
                                                                                     </div>
                                                                                 </div>
                                                                                 <div className="bg-white p-2 rounded-md border border-blue-200 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 relative transition-all">
                                                                                     <label className="text-[9px] font-bold text-blue-600 uppercase block">Vol Akhir *</label>
                                                                                     <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? volumeRAB} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
-                                                                                    <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan && item.satuan !== '-' ? item.satuan : (rItem?.satuan || 'Ls')}</span>
+                                                                                    <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan}</span>
                                                                                 </div>
                                                                             </div>
 
@@ -5627,7 +6626,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                     <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}><option value="">- Pilih -</option><option value="Baik">Baik</option><option value="Tidak Baik">Tidak Baik</option></select>
                                                                                 </div>
                                                                                 <div className="flex items-center justify-between gap-2">
-                                                                                    <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Material *</label>
+                                                                                    <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Spesifikasi *</label>
                                                                                     <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}><option value="">- Pilih -</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
                                                                                 </div>
                                                                             </div>
@@ -5638,7 +6637,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">3</span> Bukti & Catatan</h4>
                                                                             <div className="bg-white p-2.5 rounded-md border border-slate-200 shadow-sm flex flex-col h-[calc(100%-24px)]">
                                                                                 <textarea className="w-full flex-1 min-h-[55px] p-2 border border-slate-200 rounded text-[10px] font-medium text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 focus:bg-white resize-none mb-2.5 shadow-sm transition-colors placeholder:text-slate-400" placeholder="Keterangan opname, masalah, selisih volume..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
-                                                                                
+
                                                                                 <div className="pt-2 border-t border-slate-100">
                                                                                     <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1.5">Upload Foto *</label>
                                                                                     <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer outline-none" />
@@ -5661,13 +6660,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                     )}
                                                                 </td>
                                                                 <td className="p-4 align-middle w-2/3">
-                                                                    {['Selesai', 'Tidak Dikerjakan'].includes(latestStatusKey as string) ? (
+                                                                    {latestStatusKey === 'Selesai' ? (
                                                                         <div className="flex flex-col gap-2">
-                                                                            <div className={`flex items-center justify-center p-2.5 rounded-lg border shadow-sm w-full ${latestStatusKey === 'Selesai' ? 'bg-green-50 border-green-200/60' : 'bg-slate-50 border-slate-200/60'}`}>
-                                                                                {latestStatusKey === 'Selesai' ? <CheckCircle className="w-5 h-5 text-green-500 mr-2" /> : <MinusCircle className="w-5 h-5 text-slate-500 mr-2" />}
-                                                                                <span className={`font-bold text-sm ${latestStatusKey === 'Selesai' ? 'text-green-700' : 'text-slate-700'}`}>{latestStatusKey === 'Selesai' ? 'Telah Selesai' : 'Tidak Dikerjakan'}</span>
+                                                                            <div className="flex items-center justify-center p-2.5 rounded-lg bg-green-50 border border-green-200/60 shadow-sm w-full">
+                                                                                <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                                                                                <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
                                                                             </div>
-                                                                            {!isReadOnly && memoInputs.hasOwnProperty(key) && !(memoInputs[key] as any)?.dokumentasiUrl && (
+                                                                            {!isReadOnly && !isContractorSubmit && !(memoInputs[key] as any)?.dokumentasiUrl && (
                                                                                 <div className="flex flex-col gap-2 p-3 bg-red-50 border border-red-200 rounded-lg animate-in fade-in">
                                                                                     <div className="text-xs font-bold text-red-600 flex items-center gap-1.5">
                                                                                         <AlertCircle className="w-4 h-4" />
@@ -5684,7 +6683,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                             )}
                                                                             {!isReadOnly && renderOpnameForm()}
                                                                         </div>
-                                                                    ) : shouldLockAsSaved ? (
+                                                                    ) : !isContractorSubmit && (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
                                                                         <div className={`flex items-center justify-between p-3 rounded-xl border shadow-sm w-full ${currentStatus === 'Terlambat' ? 'bg-red-50 border-red-200/60' : 'bg-blue-50 border-blue-200/60'}`}>
                                                                             <div className="flex items-center gap-2.5">
                                                                                 {currentStatus === 'Terlambat' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Clock className="w-5 h-5 text-blue-500" />}
@@ -5694,7 +6693,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                 )}
                                                                             </div>
                                                                             {memoInputs[key]?.dokumentasiUrl && (
-                                                                                <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
+                                                                                <a href={buildDriveProxyHref(memoInputs[key].dokumentasiUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
                                                                                     <FileText className="w-3.5 h-3.5" /> Lihat Dokumen
                                                                                 </a>
                                                                             )}
@@ -5726,99 +6725,142 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                 </div>
 
                                                                             )}
-                                                                            {!isReadOnly ? (
-                                                                                <>
-                                                                                    <div className="flex gap-2">
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
-                                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                        >
-                                                                                            Selesai
-                                                                                        </button>
-
-                                                                                        
-
-                                                                                        {!d.category.hideOnTerlambat && (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
-                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                            >
-                                                                                                Terlambat
-                                                                                            </button>
-                                                                                        )}
-
-                                                                                        {!d.category.hideOnProgress && (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
-                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                            >
-                                                                                                Progress
-                                                                                            </button>
-                                                                                        )}
-                                                                                    </div>
-
-                                                                                    {/* Input Hari Keterlambatan jika status Terlambat */}
-                                                                                    {currentStatus === 'Terlambat' && (
-                                                                                        <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                                                                                                className="w-16 rounded border border-slate-300 p-1 text-center text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white shadow-inner"
-                                                                                                min={0}
-                                                                                                value={lateDays === 0 ? '' : lateDays}
-                                                                                                onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
-                                                                                                placeholder="+ Hari"
-                                                                                                title="Masukkan tambahan hari keterlambatan dari hari ini"
-                                                                                            />
-                                                                                            <span className="text-xs text-slate-500">tambahan hari</span>
-                                                                                        </div>
-                                                                                    )}
-
-                                                                                    {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
-                                                                                    {currentStatus ? (
+                                                                            {!isReadOnly && !isContractorSubmit ? (
+                                                                                (() => {
+                                                                                    const isPendingReview = isContractorFirstCheckpoint && opnameForStatus?.status === 'pending' && (!opnameForStatus?.revision_no || opnameForStatus.revision_no === 0);
+                                                                                    
+                                                                                    if (isPendingReview) {
+                                                                                        return <SupportReviewOpnameInline opname={opnameForStatus} onReviewed={handleContractorOpnameReviewed} />;
+                                                                                    }
+                                                                                    
+                                                                                    return (
                                                                                         <>
-                                                                                            {/* 1. Pengawasan Catatan & Foto Form (SELALU MUNCUL saat status diisi) */}
-                                                                                            <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
-                                                                                                {currentStatus === 'Selesai' && isWorkItemBlockedByOpname(item, key) && (
-                                                                                                    <div className="mb-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 flex items-center gap-2">
-                                                                                                        <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                                                                                                        <div>
-                                                                                                            <p className="font-bold text-sm">Data Opname Sudah Terisi</p>
-                                                                                                            <p className="text-xs">Anda sudah mengisi form opname untuk item ini sebelumnya. Tidak perlu mengisi ulang.</p>
-                                                                                                        </div>
-                                                                                                    </div>
+                                                                                            <div className="flex gap-2">
+                                                                                                {allowedStatuses.has('Selesai') && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
+                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                                    >
+                                                                                                        Selesai
+                                                                                                    </button>
                                                                                                 )}
-                                                                                                <textarea
-                                                                                                    className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
-                                                                                                    placeholder="Tambahkan catatan/keterangan (opsional)..."
-                                                                                                    value={memoInputs[key]?.catatan || ''}
-                                                                                                    onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
-                                                                                                    rows={2}
-                                                                                                />
-                                                                                                <div className="flex items-center text-xs">
-                                                                                                    <span className="text-slate-600 font-medium w-32">Foto/Dok Pengawasan<span className="text-red-500">*</span>:</span>
-                                                                                                    <input
-                                                                                                        type="file"
-                                                                                                        accept="image/*,.pdf,application/pdf"
-                                                                                                        onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
-                                                                                                        className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
-                                                                                                    />
-                                                                                                    {memoInputs[key]?.dokumentasiUrl && (
-                                                                                                        <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="ml-2 flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200 transition-colors shrink-0">
-                                                                                                            <FileText className="w-3.5 h-3.5" /> Foto Sebelumnya
-                                                                                                        </a>
-                                                                                                    )}
-                                                                                                </div>
+
+                                                                                                {allowedStatuses.has('Terlambat') && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
+                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                                    >
+                                                                                                        Terlambat
+                                                                                                    </button>
+                                                                                                )}
+
+                                                                                                {allowedStatuses.has('Progress') && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
+                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                                    >
+                                                                                                        Progress
+                                                                                                    </button>
+                                                                                                )}
                                                                                             </div>
 
-                                                                                            {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
-                                                                                            {renderOpnameForm()}
+                                                                                            {/* Input Hari Keterlambatan jika status Terlambat */}
+                                                                                            {currentStatus === 'Terlambat' && (
+                                                                                                <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
+                                                                                                    <input
+                                                                                                        type="number"
+                                                                                                        onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                                                                                        className="w-16 rounded border border-slate-300 p-1 text-center text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white shadow-inner"
+                                                                                                        min={0}
+                                                                                                        value={lateDays === 0 ? '' : lateDays}
+                                                                                                        onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
+                                                                                                        placeholder="+ Hari"
+                                                                                                        title="Masukkan tambahan hari keterlambatan dari hari ini"
+                                                                                                    />
+                                                                                                    <span className="text-xs text-slate-500">tambahan hari</span>
+                                                                                                </div>
+                                                                                            )}
+
+                                                                                            {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
+                                                                                            {currentStatus ? (
+                                                                                                <>
+                                                                                                    {/* 1. Pengawasan Catatan & Foto Form (SELALU MUNCUL saat status diisi) */}
+                                                                                                    <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
+                                                                                                        {currentStatus === 'Selesai' && isWorkItemBlockedByOpname(item, key) && (
+                                                                                                            <div className={`mb-2 p-3 border rounded-lg flex items-center gap-2 ${opnameForStatus?.status === 'pending' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+                                                                                                                    opnameForStatus?.status === 'ditolak' ? 'bg-red-50 border-red-200 text-red-700' :
+                                                                                                                        'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                                                                                                }`}>
+                                                                                                                {opnameForStatus?.status === 'pending' ? (
+                                                                                                                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                                ) : opnameForStatus?.status === 'ditolak' ? (
+                                                                                                                    <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                                                                                                                ) : (
+                                                                                                                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                                )}
+                                                                                                                <div>
+                                                                                                                    {opnameForStatus?.status === 'pending' ? (
+                                                                                                                        <>
+                                                                                                                            <p className="font-bold text-sm">Menunggu Review</p>
+                                                                                                                            <p className="text-xs">Kontraktor sudah mengajukan opname untuk item ini dan sedang menunggu persetujuan tim Support.</p>
+                                                                                                                        </>
+                                                                                                                    ) : opnameForStatus?.status === 'ditolak' ? (
+                                                                                                                        <>
+                                                                                                                            <p className="font-bold text-sm">Opname Ditolak</p>
+                                                                                                                            <p className="text-xs">Pengajuan opname sebelumnya kamu tolak, silahkan beritahu Kontraktor untuk ajukan ulang</p>
+                                                                                                                        </>
+                                                                                                                    ) : (
+                                                                                                                        <>
+                                                                                                                            <p className="font-bold text-sm">Opname Disetujui</p>
+                                                                                                                            <p className="text-xs">Pengajuan opname untuk item ini telah disetujui oleh tim Support.</p>
+                                                                                                                        </>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                        <textarea
+                                                                                                            className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
+                                                                                                            placeholder="Tambahkan catatan/keterangan (opsional)..."
+                                                                                                            value={memoInputs[key]?.catatan || ''}
+                                                                                                            onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
+                                                                                                            rows={2}
+                                                                                                        />
+                                                                                                        <div className="flex items-center text-xs">
+                                                                                                            <span className="text-slate-600 font-medium w-32">Foto/Dok Pengawasan<span className="text-red-500">*</span>:</span>
+                                                                                                            <input
+                                                                                                                type="file"
+                                                                                                                accept="image/*,.pdf,application/pdf"
+                                                                                                                onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
+                                                                                                                className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                                                                                                            />
+                                                                                                        </div>
+                                                                                                    </div>
+
+                                                                                                    {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
+                                                                                                    {renderOpnameForm()}
+                                                                                                </>
+                                                                                            ) : null}
                                                                                         </>
-                                                                                    ) : null}
-                                                                                </>
+                                                                                    );
+                                                                                })()
+                                                                            ) : isContractorSubmit ? (
+                                                                                opnameForStatus && opnameForStatus.status === 'ditolak' && opnameForStatus.workflow_version === 'contractor_first' ? (
+                                                                                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-center gap-2 text-center">
+                                                                                        <AlertCircle className="w-4 h-4 text-red-600" />
+                                                                                        <span className="text-xs font-semibold text-red-600">Ditolak oleh Support. Silakan ajukan ulang pada menu Opname.</span>
+                                                                                    </div>
+                                                                                ) : opnameForStatus && opnameForStatus.status !== 'ditolak' ? (
+                                                                                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
+                                                                                        <span className="text-xs font-semibold text-slate-600">Opname sudah diajukan</span>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div className="flex flex-col gap-2">
+                                                                                        {renderOpnameForm()}
+                                                                                    </div>
+                                                                                )
                                                                             ) : (
                                                                                 <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-center">
                                                                                     <span className="text-xs font-semibold text-slate-400">Belum ada status pengawasan</span>
@@ -5886,27 +6928,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             <Button variant="outline" className="font-semibold" onClick={onClose}>
                                 {(memoConfig.length > 0 && activeItemsCount === 0 && !canCreateNextHandover) ? "Tutup" : "Batal"}
                             </Button>
-                            {!isReadOnly && (memoConfig.length === 0 || activeItemsCount > 0 || canCreateNextHandover || isDirty) && (
-                                <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
-                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                                    Simpan
-                                </Button>
-                            )}
                             {flowStep && flowStep.total > 1 && (
                                 <Button
                                     variant="outline"
                                     className="font-semibold text-slate-600"
-                                    onClick={() => {
-                                        if (isDirty) {
-                                            setValidationToast("Ada perubahan yang belum disimpan. Simpan dulu baru lanjut.");
-                                            setTimeout(() => setValidationToast(null), 3500);
-                                        } else {
-                                            onNavigateScope?.(nextScopeLabel ? flowStep.current : 0);
-                                        }
-                                    }}
+                                    onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
                                     disabled={isSubmitting}
                                 >
                                     {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
+                                </Button>
+                            )}
+                            {!isReadOnly && (memoConfig.length === 0 || activeItemsCount > 0 || canCreateNextHandover || isDirty) && (
+                                <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                    Simpan
                                 </Button>
                             )}
                         </div>
@@ -5930,16 +6965,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 </div>
             )}
 
-            {validationToast && (
-                <div
-                    role="alert"
-                    className="fixed bottom-6 right-6 z-[10000] flex items-center gap-3 rounded-lg px-5 py-4 text-sm font-semibold text-slate-700 bg-white border-l-4 border-orange-500 shadow-xl animate-in fade-in slide-in-from-bottom-5 duration-300"
-                >
-                    <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0" />
-                    <span>{validationToast}</span>
-                </div>
-            )}
-
             {showInstruksiModal && (
                 <InstruksiLapanganModal
                     onClose={() => setShowInstruksiModal(false)}
@@ -5951,18 +6976,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         showInstruksiToast(message || "Gagal menyimpan Instruksi Lapangan.", "error");
                     }}
                     initialTokoId={id_toko}
-                    />
-                )}
-                
-                <FileLimitWarningModal
-                    isOpen={fileLimitWarning.isOpen}
-                    onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
-                    fileName={fileLimitWarning.fileName}
-                    fileSizeMB={fileLimitWarning.fileSizeMB}
                 />
-            </>
-        );
-    }
+            )}
+        </>
+    );
+}
 
 // Komponen OpnameModal
 function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose, selectedGanttId, onSuccess, spkInfo, scopeLabel, nextScopeLabel, flowStep, onNavigateScope }: any) {
@@ -5971,7 +6989,6 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
     const [isLoading, setIsLoading] = useState(true);
     const [opnameInputs, setOpnameInputs] = useState<Record<string, any>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
     const [hasOpnameFinal, setHasOpnameFinal] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [completedPengawasanCount, setCompletedPengawasanCount] = useState(0);
@@ -6175,26 +7192,12 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         };
     }, [selectedGanttId, activeHeaderClick?.dateString, rabItems, id_toko, nomorUlok]);
 
-    const handleSetOpname = async (id: string | number, field: string, value: any) => {
-        let finalValue = value;
-        if (field === 'file' && value instanceof File) {
-            const { compressImage } = await import('@/lib/utils');
-            finalValue = await compressImage(value);
-            
-            if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
-                setFileLimitWarning({
-                    isOpen: true,
-                    fileName: finalValue.name,
-                    fileSizeMB: finalValue.size / (1024 * 1024)
-                });
-                return;
-            }
-        }
+    const handleSetOpname = (id: string | number, field: string, value: any) => {
         setOpnameInputs(prev => ({
             ...prev,
             [id]: {
                 ...prev[id],
-                [field]: finalValue
+                [field]: value
             }
         }));
     };
@@ -6214,7 +7217,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         const term = searchQuery.toLowerCase();
         return groupedByCategory.map(group => {
             const matchCat = group.name.toLowerCase().includes(term);
-            const filteredItems = group.items.filter((item: any) => 
+            const filteredItems = group.items.filter((item: any) =>
                 item.jenis_pekerjaan?.toLowerCase().includes(term) || matchCat
             );
             return { ...group, items: filteredItems };
@@ -6406,7 +7409,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     {!isLoading && groupedByCategory.length > 0 && (
                         <div className="relative group sticky -top-6 pt-6 pb-2 z-20 bg-white/95 backdrop-blur-md -mx-6 px-6 border-b border-slate-100/50">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
-                            <Input 
+                            <Input
                                 placeholder="Cari kategori atau item pekerjaan..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -6621,12 +7624,6 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     </Button>
                 </div>
             </div>
-            <FileLimitWarningModal
-                isOpen={fileLimitWarning.isOpen}
-                onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
-                fileName={fileLimitWarning.fileName}
-                fileSizeMB={fileLimitWarning.fileSizeMB}
-            />
         </div>
     );
 }
@@ -6644,3 +7641,28 @@ export default function Page() {
         </Suspense>
     );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

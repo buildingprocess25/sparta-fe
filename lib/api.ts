@@ -1,3 +1,4 @@
+import { groupRabRevisions } from './rab-revisions';
 // =============================================================================
 // lib/api.ts
 // Seluruh fungsi komunikasi ke backend API.
@@ -36,7 +37,7 @@ export const clearApiAuthSession = () => {
     sessionStorage.removeItem(AUTH_EXPIRES_STORAGE_KEY);
 };
 
-const getApiAuthToken = (): string | null => {
+export const getApiAuthToken = (): string | null => {
     if (typeof window === "undefined") return null;
     return sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 };
@@ -1263,6 +1264,7 @@ export type RABRevisionItem = {
 };
 
 export type RABDetailResponse = {
+    document_scopes?: Omit<RABDetailResponse, "document_scopes">[];
     rab:          RABDetailData;
     toko:         RABDetailToko;
     items:        RABDetailItem[];
@@ -1306,28 +1308,8 @@ export const checkRevisionStatus = async (email: string, _cabang: string) => {
             email_pembuat: email,
         }, { suppressGlobalError: true });
 
-        // Filter RAB yang ditolak/dikembalikan, dan pastikan cabang cocok (double-check client-side)
-        const rejected = res.data.filter(rab => {
-            if (!rab.status) return false;
-            const s = rab.status.toUpperCase();
-            const isRejected = s.includes('TOLAK') || s === 'REJECTED';
-            const isMine = (rab.email_pembuat || '').toLowerCase() === (email || '').toLowerCase();
-            return isMine && isRejected;
-        });
-
-        if (rejected.length === 0) return { rejected_submissions: [] };
-
-        const formatted = rejected.map(r => ({
-            id: r.id,
-            "Nomor Ulok": r.nomor_ulok,
-            "lingkup_pekerjaan": (r as any).lingkup_pekerjaan || (r.toko as any)?.lingkup_pekerjaan,
-            "nama_toko": r.nama_toko || r.toko?.nama_toko,
-            "Proyek": r.proyek || r.toko?.proyek,
-            "alasan_penolakan": r.alasan_penolakan,
-            // Sisa field detail akan diambil saat tombol 'Revisi Sekarang' diklik
-        }));
-
-        return { rejected_submissions: formatted };
+        const mine = res.data.filter(rab => (rab.email_pembuat || '').toLowerCase() === email.toLowerCase());
+        return { rejected_submissions: groupRabRevisions(mine) };
     } catch (err) {
         console.error("Error checkRevisionStatus:", err);
         return { rejected_submissions: [] };
@@ -2022,6 +2004,7 @@ export type GanttDetailData = {
 export type SupervisionCheckpoint = {
     id_pengawasan_gantt: number;
     tanggal_pengawasan: string;
+    workflow_version?: 'legacy' | 'contractor_first';
     total_items: number;
     selesai_items: number;
     filled_items: number;
@@ -2029,14 +2012,17 @@ export type SupervisionCheckpoint = {
     missing_documentation_items?: number;
     ready_opname_items: number;
     opname_items: number;
+    contractor_submitted_opname_items?: number;
 };
 
 export type UnifiedSupervisionCheckpoint = {
     tanggal_pengawasan: string;
+    workflow_version?: 'legacy' | 'contractor_first';
     total_items: number;
     selesai_items: number;
     ready_opname_items: number;
     opname_items: number;
+    contractor_submitted_opname_items?: number;
     scopes: Array<{
         id_toko: number;
         gantt_id: number | null;
@@ -2069,6 +2055,7 @@ export type SupervisionScope = {
     opname_final_id: number | null;
     status_opname_final: string | null;
     opname_aksi: string | null;
+    opname_item_count?: number | null;
     berkas_serah_terima_id: number | null;
     link_pdf_serah_terima: string | null;
     spk_start_date: string | null;
@@ -2089,6 +2076,16 @@ export type SupervisionScope = {
     checkpoints: SupervisionCheckpoint[];
 };
 
+
+export type GrandOpeningDocumentationStatus = {
+    nomor_ulok: string;
+    dokumentasi_id: number | null;
+    required_count: number;
+    uploaded_count: number;
+    is_complete: boolean;
+    link_pdf: string | null;
+    submitted_at: string | null;
+};
 export type SupervisionWorkspace = {
     nomor_ulok: string;
     nama_toko: string | null;
@@ -2100,6 +2097,7 @@ export type SupervisionWorkspace = {
     serah_terima_generated: boolean;
     unified_serah_terima_ready?: boolean;
     unified_serah_terima_generated?: boolean;
+    grand_opening_documentation?: GrandOpeningDocumentationStatus | null;
     master_scope?: string;
     master_scope_id_toko?: number | null;
     master_gantt_id?: number | null;
@@ -2447,7 +2445,7 @@ export const manageGanttPengawasan = async (
 };
 
 /** Submit Bulk Pengawasan (Items Pekerjaan dari Memo) */
-export const submitPengawasanBulk = async (payload: FormData | { items: any[] }) => {
+export const submitPengawasanBulk = async (payload: FormData | { items: any[]; opname_reviews?: SupportContractorFirstOpnameReviewPayload[] }) => {
     const isFormData = payload instanceof FormData;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 300000); // 5 menit timeout
@@ -2464,7 +2462,7 @@ export const submitPengawasanBulk = async (payload: FormData | { items: any[] })
 };
 
 /** Update Bulk Pengawasan (Items Pekerjaan dari Memo) */
-export const updatePengawasanBulk = async (payload: FormData | { items: any[] }) => {
+export const updatePengawasanBulk = async (payload: FormData | { items: any[]; opname_reviews?: SupportContractorFirstOpnameReviewPayload[] }) => {
     const isFormData = payload instanceof FormData;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 300000); // 5 menit timeout
@@ -2610,6 +2608,19 @@ export type OpnameItem = {
     spesifikasi:     string | null;
     foto:            string | null;
     catatan:         string | null;
+    workflow_version?: "legacy" | "contractor_first" | string;
+    id_pengawasan_gantt_target?: number | null;
+    tanggal_slot_opname?: string | null;
+    target_pengawasan_status?: string | null;
+    target_gantt_id?: number | null;
+    target_tanggal_pengawasan?: string | null;
+    submitted_by_email?: string | null;
+    submitted_at?: string | null;
+    reviewed_by_email?: string | null;
+    reviewed_at?: string | null;
+    alasan_penolakan_support?: string | null;
+    locked_at?: string | null;
+    revision_no?: number;
     created_at:      string;
     // Joined from rab_item relation
     rab_item?: {
@@ -2657,7 +2668,45 @@ export type OpnameListFilters = {
     id_instruksi_lapangan_item?: number;
     status?:          string;
     tipe_opname?:     "OPNAME" | "OPNAME_FINAL";
+    workflow_version?: "legacy" | "contractor_first";
+    assigned_to?: "contractor" | "support";
 };
+
+export type ContractorCheckpointOpnameItemPayload = {
+    id_rab_item?: number;
+    id_instruksi_lapangan_item?: number;
+    volume_akhir: number;
+    selisih_volume: number;
+    total_selisih: number;
+    total_harga_opname?: number;
+    desain: "Sesuai" | "Tidak Sesuai" | string;
+    kualitas: "Baik" | "Tidak Baik" | string;
+    spesifikasi: "Sesuai" | "Tidak Sesuai" | string;
+    catatan?: string;
+    foto: string;
+};
+
+export type ContractorCheckpointOpnameSubmitPayload = {
+    id_toko: number;
+    id_pengawasan_gantt: number;
+    email_pembuat: string;
+    items: ContractorCheckpointOpnameItemPayload[];
+};
+
+export type ContractorFirstOpnameListFilters = {
+    id_toko?: number;
+    id_pengawasan_gantt_target?: number;
+    status?: string;
+    assigned_to?: "contractor" | "support";
+};
+
+export type SupportContractorFirstOpnameReviewPayload = {
+    id_opname_item: number;
+    decision: "disetujui" | "ditolak";
+    alasan_penolakan_support?: string;
+};
+
+export type ContractorFirstOpnameRevisionPayload = Omit<ContractorCheckpointOpnameItemPayload, "id_rab_item" | "id_instruksi_lapangan_item">;
 
 // --- Fungsi ---
 
@@ -2791,6 +2840,51 @@ export const submitOpnameBulk = async (
     }
 };
 
+export const submitContractorCheckpointOpname = async (payload: ContractorCheckpointOpnameSubmitPayload | FormData): Promise<{ status: string; message: string; data: { opname_final: any; items: OpnameItem[]; routed_to: string; target_pengawasan_gantt_id: number | null } }> => {
+    const isFormData = payload instanceof FormData;
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/checkpoint-submit`, {
+        method: "POST",
+        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        body: isFormData ? payload : JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan opname checkpoint kontraktor."));
+    return result;
+};
+
+export const fetchContractorFirstOpnameList = async (filters?: ContractorFirstOpnameListFilters): Promise<{ status: string; data: OpnameItem[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    if (filters?.id_toko) params.append("id_toko", String(filters.id_toko));
+    if (filters?.id_pengawasan_gantt_target) params.append("id_pengawasan_gantt_target", String(filters.id_pengawasan_gantt_target));
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.assigned_to) params.append("assigned_to", filters.assigned_to);
+    return safeFetchJSON(`${base}/api/opname/contractor-first/list${params.toString() ? `?${params}` : ""}`);
+};
+
+export const reviewContractorFirstOpname = async (id: number, payload: SupportContractorFirstOpnameReviewPayload): Promise<{ status: string; message: string; data: OpnameItem }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}/support-review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal mereview opname kontraktor."));
+    return result;
+};
+
+export const reviseContractorFirstOpname = async (id: number, payload: ContractorFirstOpnameRevisionPayload | FormData): Promise<{ status: string; message: string; data: OpnameItem }> => {
+    const isFormData = payload instanceof FormData;
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}/revision`, {
+        method: "PATCH",
+        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        body: isFormData ? payload : JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan revisi opname kontraktor."));
+    return result;
+};
+
 /** Ambil daftar Opname dengan filter opsional. */
 export const fetchOpnameList = async (
     filters?: OpnameListFilters
@@ -2803,6 +2897,8 @@ export const fetchOpnameList = async (
     if (filters?.id_instruksi_lapangan_item) params.append("id_instruksi_lapangan_item", filters.id_instruksi_lapangan_item.toString());
     if (filters?.status)          params.append("status", filters.status);
     if (filters?.tipe_opname)     params.append("tipe_opname", filters.tipe_opname);
+    if (filters?.workflow_version) params.append("workflow_version", filters.workflow_version);
+    if (filters?.assigned_to)      params.append("assigned_to", filters.assigned_to);
     const url = `${base}/api/opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
@@ -2929,6 +3025,7 @@ export const fetchOpnameFinalList = async (filters?: {
     cabang?: string;
     nama_kontraktor?: string;
     tipe_opname?: "OPNAME" | "OPNAME_FINAL";
+    workflow_version?: "legacy" | "contractor_first";
 }, options?: ApiRequestOptions) => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
@@ -2939,6 +3036,7 @@ export const fetchOpnameFinalList = async (filters?: {
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.nama_kontraktor) params.append("nama_kontraktor", filters.nama_kontraktor);
     if (filters?.tipe_opname) params.append("tipe_opname", filters.tipe_opname);
+    if (filters?.workflow_version) params.append("workflow_version", filters.workflow_version);
     const url = `${base}/api/final_opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };
@@ -2961,6 +3059,7 @@ export const kunciOpnameFinal = async (id: number, payload: {
     grand_total_opname: string;
     grand_total_rab: string;
     opname_item: any[];
+    workflow_version?: "legacy" | "contractor_first";
 }) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/kunci_opname_final`, {
         method: "POST",
@@ -3096,6 +3195,8 @@ export const fetchTaskNotifications = async (
 // --- Types ---
 
 export type SPKSubmitPayload = {
+    member_toko_ids?: number[];
+    spk_group_id?: string | null;
     id_toko: number;
     nomor_ulok: string;
     email_pembuat: string;
@@ -3112,6 +3213,9 @@ export type SPKSubmitPayload = {
 };
 
 export type SPKListItem = {
+    spk_group_id?: string | null;
+    group_members?: SPKListItem[];
+    group_grand_total?: number;
     id: number;
     id_toko: number;
     nomor_ulok: string;
@@ -3165,6 +3269,24 @@ export type SPKDetailResponse = {
     };
     approvalLogs: SPKApprovalLog[];
     pertambahan_spk?: PertambahanSPKListItem[];
+};
+
+export type SPKCandidate = {
+    id_toko: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    member_toko_ids: number[];
+    spk_group_id: string | null;
+    group_members?: Array<{ id_toko: number; lingkup_pekerjaan: string; grand_total: number | string }>;
+    blocked_reason?: string | null;
+    [key: string]: any;
+};
+
+export const fetchSPKCandidates = async (): Promise<{ status: string; data: SPKCandidate[] }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/candidates`);
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal memuat kandidat SPK.");
+    return result;
 };
 
 export type SPKApprovalPayload = {
@@ -4365,7 +4487,7 @@ export const processInstruksiLapanganApproval = async (
 };
 
 export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean> => {
-    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf?t=${Date.now()}`);
     if (!res.ok) throw new Error(`Gagal download PDF Instruksi Lapangan (${res.status})`);
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
@@ -4881,6 +5003,33 @@ export const submitDokumentasiBangunan = async (
     return result;
 };
 
+
+export const fetchGrandOpeningDocumentationStatus = async (nomorUlok: string): Promise<{ status: string; data: GrandOpeningDocumentationStatus }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dok/grand-opening/${encodeURIComponent(nomorUlok)}/status`);
+};
+
+export const submitGrandOpeningDocumentation = async (
+    fields: Record<string, string>,
+    photos: Record<number, { url: string; note: string | null; timestamp: string }>
+) => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/dok/grand-opening`;
+    const form = new FormData();
+    Object.entries({ ...fields, jenis_dokumentasi: "GRAND_OPENING" }).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) form.append(key, value);
+    });
+
+    for (const [idStr, data] of Object.entries(photos)) {
+        if (data.url.startsWith('data:') || data.url.startsWith('/')) {
+            const blob = await compressImageUrlToBlob(data.url);
+            form.append(`foto_items_${idStr}`, blob, `grand_opening_${idStr}.jpg`);
+        }
+    }
+
+    const res = await apiFetch(url, { method: "POST", body: form });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(result.message || "Gagal menyimpan Dokumentasi Grand Opening.");
+    return result;
+};
 export const updateDokumentasiBangunan = async (
     id: number,
     fields: Record<string, string>,
@@ -6226,3 +6375,8 @@ export async function exportGlobalDcData(
   a.remove();
   window.URL.revokeObjectURL(downloadUrl);
 }
+
+
+
+
+
