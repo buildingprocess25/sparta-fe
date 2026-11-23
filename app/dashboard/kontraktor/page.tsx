@@ -175,7 +175,7 @@ export default function ContractorPerformanceDashboard() {
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `Rp${(val/1000000).toFixed(0)}M`} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val: number) => `Rp${(val/1000000).toFixed(0)}M`} />
                                         <Tooltip 
                                             formatter={(value: any) => formatRupiah(value as number)}
                                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}
@@ -209,7 +209,7 @@ export default function ContractorPerformanceDashboard() {
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `Rp${(val/1000000).toFixed(0)}M`} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val: number) => `Rp${(val/1000000).toFixed(0)}M`} />
                                         <Tooltip 
                                             formatter={(value: any) => formatRupiah(value as number)}
                                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}

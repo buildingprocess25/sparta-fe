@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +17,7 @@ import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { PHOTO_POINTS, ALL_POINTS, TOTAL_PHOTOS, FLOOR_IMAGES, PAGE_LABELS, type PhotoPoint } from './photoPoints';
 import CameraModal from './CameraModal';
-import { submitDokumentasiBangunan, fetchDokumentasiBangunanPrefillOptions, fetchDokumentasiBangunanList } from '@/lib/api';
+import { submitDokumentasiBangunan, submitGrandOpeningDocumentation, fetchDokumentasiBangunanPrefillOptions, fetchDokumentasiBangunanList } from '@/lib/api';
 import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
 
 
@@ -58,8 +59,18 @@ const emptyForm: FormData = {
 // MAIN PAGE
 // =============================================================================
 
-export default function FTDokumenPage() {
+function FTDokumenContent() {
     const { showAlert } = useGlobalAlert();
+    const searchParams = useSearchParams();
+    const isGrandOpeningMode = searchParams.get("mode") === "grand-opening";
+    const isEmbedded = searchParams.get("embedded") === "1";
+    const requestedUlok = searchParams.get("ulok") || "";
+    const requestedNamaToko = searchParams.get("nama_toko") || "";
+    const requestedKodeToko = searchParams.get("kode_toko") || "";
+    const requestedCabang = searchParams.get("cabang") || "";
+    const requestedTanggalSt = searchParams.get("tanggal_st") || "";
+    const requestedSpkAwal = searchParams.get("spk_awal") || "";
+    const requestedSpkAkhir = searchParams.get("spk_akhir") || "";
     const [currentStep, setCurrentStep] = useState<'form' | 'floorplan'>('form');
     const [formData, setFormData] = useState<FormData>(emptyForm);
     const [photos, setPhotos] = useState<Record<number, PhotoData>>({});
@@ -88,8 +99,8 @@ export default function FTDokumenPage() {
                 const [prefillRes, dokRes] = await Promise.all([
                     fetchDokumentasiBangunanPrefillOptions(
                         canViewAllBranches(user.roles, user.isSuperHuman ?? false)
-                            ? undefined
-                            : { cabang: user.cabang }
+                            ? { include_submitted: isGrandOpeningMode }
+                            : { cabang: user.cabang, include_submitted: isGrandOpeningMode }
                     ),
                     fetchDokumentasiBangunanList()
                 ]);
@@ -108,7 +119,7 @@ export default function FTDokumenPage() {
 
                 for (const item of prefillList) {
                     const ulok = item.nomor_ulok;
-                    if (!ulok || submittedUlokSet.has(String(ulok).trim().toUpperCase())) continue;
+                    if (!ulok || (!isGrandOpeningMode && submittedUlokSet.has(String(ulok).trim().toUpperCase()))) continue;
 
                     // Filter based on user branch
                     const rabCabang = item.cabang || '';
@@ -131,7 +142,34 @@ export default function FTDokumenPage() {
                     });
                 }
 
+                if (isGrandOpeningMode && requestedUlok && !options.some((option) => option.nomorUlok === requestedUlok)) {
+                    options.unshift({
+                        nomorUlok: requestedUlok,
+                        kontraktor: "",
+                        spkAwal: requestedSpkAwal,
+                        spkAkhir: requestedSpkAkhir,
+                        tanggalSt: requestedTanggalSt,
+                        tanggalStSource: "NEEDS_ST",
+                        kodeToko: requestedKodeToko,
+                        namaToko: requestedNamaToko,
+                        cabang: requestedCabang || user.cabang || "",
+                    });
+                }
+
                 setUlokOptions(options);
+                if (isGrandOpeningMode && requestedUlok) {
+                    const requestedOption = options.find(option => option.nomorUlok === requestedUlok);
+                    setFormData(prev => ({
+                        ...prev,
+                        cabang: requestedCabang || requestedOption?.cabang || user.cabang || prev.cabang,
+                        nomorUlok: requestedUlok,
+                        kodeToko: requestedKodeToko || requestedOption?.kodeToko || prev.kodeToko,
+                        namaToko: requestedNamaToko || requestedOption?.namaToko || prev.namaToko,
+                        tanggalSt: requestedTanggalSt || requestedOption?.tanggalSt || prev.tanggalSt,
+                        spkAwal: requestedSpkAwal || requestedOption?.spkAwal || prev.spkAwal,
+                        spkAkhir: requestedSpkAkhir || requestedOption?.spkAkhir || prev.spkAkhir,
+                    }));
+                }
                 if (options.length === 0) {
                     showAlert({ message: 'Tidak ada data proyek/RAB yang terdaftar.', type: 'warning' });
                 }
@@ -144,10 +182,16 @@ export default function FTDokumenPage() {
         };
 
         loadUlokData();
-    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user, isGrandOpeningMode, requestedUlok, requestedNamaToko, requestedKodeToko, requestedCabang, requestedTanggalSt, requestedSpkAwal, requestedSpkAkhir]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const completedCount = Object.keys(photos).length;
-    const progressPct = Math.round((completedCount / TOTAL_PHOTOS) * 100);
+    const requiredPhotoIds = useMemo(() => {
+        const optionalIds = isGrandOpeningMode ? new Set((PHOTO_POINTS[4] || []).map(point => point.id)) : new Set<number>();
+        return ALL_POINTS.filter(point => !optionalIds.has(point.id)).map(point => point.id);
+    }, [isGrandOpeningMode]);
+    const requiredCompletedCount = requiredPhotoIds.filter(id => Boolean(photos[id])).length;
+    const requiredTotalPhotos = requiredPhotoIds.length;
+    const progressPct = Math.round((requiredCompletedCount / requiredTotalPhotos) * 100);
 
     const handleFormChange = (field: keyof FormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -162,10 +206,11 @@ export default function FTDokumenPage() {
         if (!formData.nomorUlok) { showAlert({ message: 'Pilih Nomor ULOK terlebih dahulu.', type: 'warning' }); return; }
         if (!formData.namaToko) { showAlert({ message: 'Isi Nama Toko.', type: 'warning' }); return; }
         const selectedUlok = ulokOptions.find(u => u.nomorUlok === formData.nomorUlok);
-        if (formData.jenisToko === 'REGULAR' && selectedUlok?.tanggalStSource === 'NEEDS_ST') {
+        if (!isGrandOpeningMode && formData.jenisToko === 'REGULAR' && selectedUlok?.tanggalStSource === 'NEEDS_ST') {
             showAlert({ message: 'ST harus dibuat terlebih dahulu untuk ULOK ini.', type: 'warning' });
             return;
         }
+
         if (!formData.tanggalSt) { showAlert({ message: 'Tanggal ST wajib terisi.', type: 'warning' }); return; }
         if (formData.jenisToko === 'FRANCHISE' && submittedUloks.has(formData.nomorUlok.trim().toUpperCase())) {
             showAlert({ message: 'Nomor ULOK ini sudah pernah dibuat dokumentasi.', type: 'warning' });
@@ -198,8 +243,9 @@ export default function FTDokumenPage() {
             showAlert({ message: 'Role ini hanya memiliki akses view.', type: 'warning' });
             return;
         }
-        if (completedCount < TOTAL_PHOTOS) {
-            showAlert({ message: `Mohon lengkapi seluruh ${TOTAL_PHOTOS} foto sebelum menyimpan.`, type: 'warning' });
+        if (requiredCompletedCount < requiredTotalPhotos) {
+            const suffix = isGrandOpeningMode ? ' Foto Kompetitor opsional.' : '';
+            showAlert({ message: `Mohon lengkapi ${requiredTotalPhotos} foto wajib sebelum menyimpan.${suffix}`, type: 'warning' });
             return;
         }
 
@@ -233,8 +279,15 @@ export default function FTDokumenPage() {
                 sudut_foto_items: JSON.stringify(sudutItems)
             };
 
-            await submitDokumentasiBangunan(payloadFields, photos);
-            showAlert({ message: 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
+            if (isGrandOpeningMode) {
+                await submitGrandOpeningDocumentation(payloadFields, photos);
+                if (isEmbedded && typeof window !== 'undefined') {
+                    window.parent.postMessage({ type: 'grand-opening:saved', nomorUlok: formData.nomorUlok }, window.location.origin);
+                }
+            } else {
+                await submitDokumentasiBangunan(payloadFields, photos);
+            }
+            showAlert({ message: isGrandOpeningMode ? 'Dokumentasi Serah Terima lengkap. Serah Terima sudah bisa diproses.' : 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
             
             // Reset form
             setFormData({ ...emptyForm, cabang: user?.cabang || '', tanggalAmbilFoto: todayLocalIso() });
@@ -252,9 +305,11 @@ export default function FTDokumenPage() {
 
     return (
         <>
-            <AppNavbar title="Dokumentasi Bangunan Toko Baru" showBackButton backHref="/dashboard" />
+            {!isEmbedded && (
+                <AppNavbar title={isGrandOpeningMode ? "Dokumentasi Serah Terima" : "Dokumentasi Bangunan Toko Baru"} showBackButton backHref={isGrandOpeningMode ? "/gantt" : "/dashboard"} />
+            )}
 
-            <main className="max-w-6xl mx-auto p-4 md:p-8 mt-4 pb-24">
+            <main className={isEmbedded ? "p-4 md:p-5 pb-8" : "max-w-6xl mx-auto p-4 md:p-8 mt-4 pb-24"}>
                 {currentStep === 'form' ? (
                     <DataFormView
                         formData={formData}
@@ -265,6 +320,7 @@ export default function FTDokumenPage() {
                         isLoadingUlok={isLoadingUlok}
                         isReadOnly={isReadOnly}
                         defaultCabang={user?.cabang || ''}
+                        isGrandOpeningMode={isGrandOpeningMode}
                     />
                 ) : (
                     <FloorPlanView
@@ -274,7 +330,10 @@ export default function FTDokumenPage() {
                         setCurrentPage={setCurrentPage}
                         currentPhotoNumber={currentPhotoNumber}
                         completedCount={completedCount}
+                        requiredCompletedCount={requiredCompletedCount}
+                        requiredTotalPhotos={requiredTotalPhotos}
                         progressPct={progressPct}
+                        isGrandOpeningMode={isGrandOpeningMode}
                         isSubmitting={isSubmitting}
                         onBack={() => setCurrentStep('form')}
                         onPointClick={(p) => !isReadOnly && setCameraPoint(p)}
@@ -299,7 +358,7 @@ export default function FTDokumenPage() {
 // =============================================================================
 // DATA FORM VIEW
 // =============================================================================
-function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, isLoadingUlok, isReadOnly, defaultCabang }: {
+function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, isLoadingUlok, isReadOnly, defaultCabang, isGrandOpeningMode }: {
     formData: FormData;
     onChange: (field: keyof FormData, value: string) => void;
     onSubmit: (e: React.FormEvent) => void;
@@ -308,6 +367,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
     isLoadingUlok: boolean;
     isReadOnly: boolean;
     defaultCabang: string;
+    isGrandOpeningMode: boolean;
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [ulokDropdownOpen, setUlokDropdownOpen] = useState(false);
@@ -397,6 +457,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
             </CardHeader>
             <CardContent className="pt-6">
                 <form onSubmit={onSubmit}>
+                    {!isGrandOpeningMode && (
                     <div className={`mb-6 rounded-lg border px-4 py-3 transition-colors ${isFranchise ? 'border-red-200 bg-red-50/70' : 'border-slate-200 bg-white'}`}>
                         <label className="flex cursor-pointer items-start gap-3">
                             <Checkbox
@@ -416,6 +477,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                             </span>
                         </label>
                     </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="space-y-2">
                             <Label>Nomor ULOK <span className="text-red-500">*</span></Label>
@@ -527,10 +589,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                                 tabIndex={isFranchise ? 0 : -1}
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label>Tanggal GO <span className="text-red-500">*</span></Label>
-                            <DatePicker value={formData.tanggalGo} onChange={val => onChange('tanggalGo', val)} disabled={isReadOnly} />
-                        </div>
+
                         <div className="space-y-2">
                             <Label>Tanggal ST <span className="text-red-500">*</span></Label>
                             <DatePicker
@@ -562,10 +621,11 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
 // =============================================================================
 // FLOOR PLAN VIEW
 // =============================================================================
-function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentPhotoNumber, completedCount, progressPct, isSubmitting, onBack, onPointClick, onSavePdf }: {
+function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentPhotoNumber, completedCount, requiredCompletedCount, requiredTotalPhotos, progressPct, isGrandOpeningMode, isSubmitting, onBack, onPointClick, onSavePdf }: {
     formData: FormData; photos: Record<number, PhotoData>;
     currentPage: number; setCurrentPage: (p: number) => void;
-    currentPhotoNumber: number; completedCount: number; progressPct: number;
+    currentPhotoNumber: number; completedCount: number; requiredCompletedCount: number; requiredTotalPhotos: number; progressPct: number;
+    isGrandOpeningMode: boolean;
     isSubmitting: boolean;
     onBack: () => void; onPointClick: (p: PhotoPoint) => void; onSavePdf: () => void;
 }) {
@@ -588,7 +648,9 @@ function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentP
                 <div className="bg-slate-100 h-2.5 rounded-full overflow-hidden mb-1">
                     <div className="bg-green-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
                 </div>
-                <div className="text-right text-xs text-slate-500 font-medium">Progress: {completedCount}/{TOTAL_PHOTOS} foto</div>
+                <div className="text-right text-xs text-slate-500 font-medium">
+                    Progress wajib: {requiredCompletedCount}/{requiredTotalPhotos} foto{isGrandOpeningMode ? ` (Kompetitor opsional, total terisi ${completedCount}/${TOTAL_PHOTOS})` : ""}
+                </div>
             </div>
 
             <CardContent className="p-5">
@@ -600,7 +662,7 @@ function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentP
                             {Object.keys(PHOTO_POINTS).map(Number).sort((a, b) => a - b).map(pg => (
                                 <button key={pg} onClick={() => setCurrentPage(pg)}
                                     className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${currentPage === pg ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:border-red-300'}`}>
-                                    {pg}. {PAGE_LABELS[pg]}
+                                    {pg}. {PAGE_LABELS[pg]}{isGrandOpeningMode && pg === 4 ? " (Opsional)" : ""}
                                 </button>
                             ))}
                         </div>
@@ -639,7 +701,7 @@ function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentP
                     {/* Right: Photo list */}
                     <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col max-h-150">
                         <h3 className="font-bold text-red-600 text-sm mb-3 flex items-center gap-1.5">
-                            <ImageIcon className="w-4 h-4" /> Daftar Foto ({completedCount}/{TOTAL_PHOTOS})
+                            <ImageIcon className="w-4 h-4" /> Daftar Foto ({isGrandOpeningMode ? `${requiredCompletedCount}/${requiredTotalPhotos} wajib` : `${completedCount}/${TOTAL_PHOTOS}`})
                         </h3>
                         <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                             {pagePoints.map(p => {
@@ -678,14 +740,33 @@ function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentP
                 </div>
 
                 {/* Completion banner */}
-                {completedCount === TOTAL_PHOTOS && (
+                {requiredCompletedCount >= requiredTotalPhotos && (
                     <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl text-center">
                         <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                        <h3 className="font-bold text-green-800">Semua Foto Lengkap! 🎉</h3>
+                        <h3 className="font-bold text-green-800">Foto Wajib Lengkap!</h3>
                         <p className="text-sm text-green-600">Silakan tekan tombol &quot;Simpan & Kirim PDF&quot; di atas.</p>
                     </div>
                 )}
             </CardContent>
         </Card>
+    );
+}
+export default function FTDokumenPage() {
+    return (
+        <Suspense fallback={
+            <>
+                <AppNavbar title="Dokumentasi Bangunan Toko Baru" showBackButton backHref="/dashboard" />
+                <main className="max-w-6xl mx-auto p-4 md:p-8 mt-4 pb-24">
+                    <Card className="shadow-sm border-slate-200">
+                        <CardContent className="flex min-h-64 items-center justify-center text-slate-500">
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin text-red-600" />
+                            Memuat dokumentasi...
+                        </CardContent>
+                    </Card>
+                </main>
+            </>
+        }>
+            <FTDokumenContent />
+        </Suspense>
     );
 }
