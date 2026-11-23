@@ -43,17 +43,9 @@ export const getApiAuthToken = (): string | null => {
 };
 
 const withApiAuthQuery = (url: string): string => {
-    const token = getApiAuthToken();
-    if (!token) return url;
-
-    try {
-        const target = new URL(url, typeof window !== "undefined" ? window.location.origin : API_URL);
-        if (!isSpartaApiUrl(target)) return url;
-        target.searchParams.set("access_token", token);
-        return target.toString();
-    } catch {
-        return url;
-    }
+    // Keamanan: Hindari melewatkan token di URL query string agar tidak bocor
+    // ke access log, proxy logs, maupun browser history.
+    return url;
 };
 
 const isSpartaApiUrl = (input: RequestInfo | URL): boolean => {
@@ -82,10 +74,15 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
         headers.set("Authorization", `Bearer ${token}`);
     }
 
-    // Bypass dev tunnel and ngrok warning pages.
-    headers.set("ngrok-skip-browser-warning", "69420");
+    // Bypass dev tunnel and ngrok warning pages in non-production only
+    if (process.env.NODE_ENV !== "production") {
+        headers.set("ngrok-skip-browser-warning", "69420");
+        headers.set("X-Tunnel-Skip-AntiPhishing-Page", "true");
+        headers.set("bypass-tunnel-reminder", "true");
+    }
 
     const response = await globalThis.fetch(input, {
+        cache: "no-store",
         ...init,
         headers
     });
@@ -353,8 +350,26 @@ export type DcArchiveProject = {
     docs_pembangunan: number;
     docs_renovasi: number;
     docs_perluasan: number;
+    custom_items_pembangunan?: number;
+    custom_items_renovasi?: number;
+    custom_items_perluasan?: number;
     total_notes?: number;
     kategori_counts?: Record<string, number>;
+};
+
+export type DcCategoryActivityLog = {
+    id: number;
+    project_id: number;
+    actor_email: string;
+    actor_role: string;
+    created_at: string;
+    metadata: {
+        category_id: string;
+        category_name: string;
+        action_details?: string[];
+        itemized_details?: Record<string, string[]>;
+        [key: string]: any;
+    };
 };
 
 export type CreateDcArchiveProjectPayload = {
@@ -461,6 +476,32 @@ export const createDcArchiveProject = async (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
     });
+};
+
+export const logDcCategoryEdit = async (
+    archiveId: number,
+    payload: { category_id: string; category_name: string; actor_email: string; actor_role: string; action_details?: string[]; itemized_details?: Record<string, string[]> },
+    options?: ApiRequestOptions
+): Promise<{ status: string; message: string }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/archive-projects/${archiveId}/category-log`, {
+        ...options,
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            ...options?.headers,
+        },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const getDcCategoryEditLogs = async (
+    archiveId: number,
+    categoryId: string,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcCategoryActivityLog[] }> => {
+    const params = new URLSearchParams();
+    params.append("category_id", categoryId);
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/archive-projects/${archiveId}/category-logs?${params}`, options);
 };
 
 export const fetchDcVendors = async (
@@ -627,6 +668,13 @@ export const deleteDcDocument = async (
     if (res.status === 404) throw new Error(result.message || "Dokumen DC tidak ditemukan.");
     if (!res.ok) throw new Error(result.message || "Gagal menghapus dokumen DC.");
     return result;
+};
+
+export const getDcDocumentProxyUrl = (linkDokumen: string, mode: "view" | "download" = "view") => {
+    const cleanApiUrl = API_URL.replace(/\/$/, "");
+    const encodedUrl = encodeURIComponent(linkDokumen);
+    const downloadParam = mode === "download" ? "&download=true" : "";
+    return `${cleanApiUrl}/api/proxy-file?url=${encodedUrl}${downloadParam}`;
 };
 
 export const buildDcDocumentViewUrl = (id: number, actor: DcDocumentActor, mode: "view" | "download" = "view") => {
@@ -1135,6 +1183,7 @@ export type RABDetailToko = {
     cabang:           string;
     alamat:           string;
     nama_kontraktor:  string;
+    takeover_sequence?: number;
 };
 
 export type RABDetailData = {
@@ -1613,8 +1662,19 @@ export const fetchTokoDetail = async (id: number) => {
 };
 
 /** Ambil daftar seluruh Toko. */
-export const fetchTokoList = async (): Promise<{ status: string; data: RABDetailToko[] }> => {
-    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/toko`);
+export const fetchTokoList = async (params?: any): Promise<{ status: string; data: RABDetailToko[] }> => {
+    let url = `${API_URL.replace(/\/$/, "")}/api/toko`;
+    if (params) {
+        const queryParams = new URLSearchParams();
+        Object.keys(params).forEach(key => {
+            if (params[key] !== undefined && params[key] !== null) {
+                queryParams.append(key, String(params[key]));
+            }
+        });
+        const qString = queryParams.toString();
+        if (qString) url += `?${qString}`;
+    }
+    return safeFetchJSON(url);
 };
 
 /** URL endpoint untuk download logo RAB. */
@@ -1887,6 +1947,7 @@ export type GanttDetailToko = {
     cabang:           string;
     alamat:           string;
     nama_kontraktor:  string;
+    takeover_sequence: number;
     pic_proyek?:      string | null;
     pic_bersama?:     string | null;
 };
@@ -1986,6 +2047,7 @@ export type SupervisionScope = {
     nama_toko: string | null;
     kode_toko: string | null;
     cabang: string | null;
+    takeover_sequence?: number | null;
     gantt_id: number | null;
     gantt_status: string | null;
     pic_id: number | null;
@@ -2043,16 +2105,24 @@ export type SupervisionWorkspace = {
     unified_checkpoints?: UnifiedSupervisionCheckpoint[];
     scope_date_alignment?: SupervisionScopeDateAlignment[];
     has_date_mismatch?: boolean;
+    tanggal_takeover?: string | null;
 };
 
 export const fetchSupervisionWorkspace = async (
     nomorUlok: string,
-    options?: ApiRequestOptions
-): Promise<{ status: string; data: SupervisionWorkspace }> =>
-    safeFetchJSON(
-        `${API_URL.replace(/\/$/, "")}/api/gantt/supervision-workspace/${encodeURIComponent(nomorUlok)}`,
-        options
-    );
+    ts?: number
+): Promise<{ status: string; data: SupervisionWorkspace }> => {
+    let url = `${API_URL.replace(/\/$/, "")}/api/gantt/supervision-workspace/${encodeURIComponent(nomorUlok)}`;
+    if (ts !== undefined) {
+        url += `?ts=${ts}`;
+    }
+    const res = await apiFetch(url);
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Gagal (${res.status}): ${err}`);
+    }
+    return res.json();
+};
 
 export type GanttNoteItem = {
     id:           number;
@@ -2087,6 +2157,7 @@ export type GanttTokoDetailResponse = {
     day_gantt_data:      GanttDetailDayItem[];
     dependency_data:     GanttDetailDependency[];
     pengawasan_data:     GanttDetailPengawasan[];
+    pengawasan_items?:   any[];
     kategori_pekerjaan:  GanttDetailKategori[];
     instruksi_lapangan_items?: any[];
     toko:                GanttDetailToko;
@@ -2376,11 +2447,18 @@ export const manageGanttPengawasan = async (
 /** Submit Bulk Pengawasan (Items Pekerjaan dari Memo) */
 export const submitPengawasanBulk = async (payload: FormData | { items: any[]; opname_reviews?: SupportContractorFirstOpnameReviewPayload[] }) => {
     const isFormData = payload instanceof FormData;
-    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
-        method: "POST",
-        headers: isFormData ? undefined : { "Content-Type": "application/json" },
-        body: isFormData ? payload : JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 300000); // 5 menit timeout
+    try {
+        return await safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+            method: "POST",
+            headers: isFormData ? undefined : { "Content-Type": "application/json" },
+            body: isFormData ? payload : JSON.stringify(payload),
+            signal: controller.signal,
+        });
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
 };
 
 /** Update Bulk Pengawasan (Items Pekerjaan dari Memo) */
@@ -2906,6 +2984,22 @@ export const updateOpname = async (
     return result;
 };
 
+/** Menyetujui semua item opname berstatus pending pada suatu toko sekaligus */
+export const bulkApproveOpname = async (
+    idToko: number
+): Promise<{ status: string; message: string; data: { updated_count: number } }> => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/opname/bulk-approve`;
+    const res = await apiFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_toko: idToko })
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, `Gagal menyetujui semua opname (${res.status}).`));
+    return result;
+};
+
 /** Hapus data Opname. */
 export const deleteOpname = async (id: number) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`, {
@@ -3031,10 +3125,10 @@ export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
     }
 
     const disposition = res.headers.get("Content-Disposition");
-    let filename = `OPNAME_${id}.pdf`;
+    let filename = `KTK_${id}.pdf`;
     if (disposition?.includes("filename=")) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match?.[1]) filename = match[1];
+        const match = disposition.match(/filename=["']?([^"';]+)["']?/);
+        if (match?.[1]) filename = match[1].trim();
     }
 
     const blob = await res.blob();
@@ -3167,8 +3261,14 @@ export type SPKApprovalLog = {
 };
 
 export type SPKDetailResponse = {
-    pengajuan: SPKListItem;
+    pengajuan: SPKListItem & {
+        effective_waktu_selesai?: string | null;
+        st_target_date?: string | null;
+        st_offset_days?: number;
+        st_offset_label?: string | null;
+    };
     approvalLogs: SPKApprovalLog[];
+    pertambahan_spk?: PertambahanSPKListItem[];
 };
 
 export type SPKCandidate = {
@@ -3883,6 +3983,8 @@ export type PertambahanSPKListFilters = {
 };
 
 export type PertambahanSPKDetailResponse = PertambahanSPKListItem & {
+    nomor_spk_sipil?: string | null;
+    nomor_spk_me?: string | null;
     spk?: {
         id: number;
         nomor_ulok: string;
@@ -3968,7 +4070,10 @@ export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
 
     const result = await res.json();
     if (res.status === 404) throw new Error(result.message || "SPK tidak ditemukan.");
-    if (res.status === 422) throw new Error(result.message || "Validasi gagal. Pastikan semua field terisi.");
+    if (res.status === 422) {
+        const issuesMsg = result.issues ? ": " + JSON.stringify(result.issues) : "";
+        throw new Error((result.message || "Validasi gagal.") + issuesMsg);
+    }
     if (!res.ok || result.status !== "success") {
         throw new Error(result.message || "Gagal menyimpan data pertambahan SPK.");
     }
@@ -4573,12 +4678,12 @@ export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
     }
 };
 
-export const createPdfSerahTerimaUnified = async (nomor_ulok: string): Promise<any> => {
+export const createPdfSerahTerimaUnified = async (nomor_ulok: string, takeover_sequence?: number): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima_unified`;
     const res = await apiFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomor_ulok }),
+        body: JSON.stringify({ nomor_ulok, takeover_sequence }),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima gabungan.");
@@ -4679,7 +4784,7 @@ export const downloadDokumentasiBangunanPdf = async (id: number): Promise<boolea
 
 export const viewGeneratedPdfOnline = async (
     id: number,
-    tipe: "RAB" | "SPK" | "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK"
+    tipe: "RAB" | "SPK" | "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK" | "PROJECT_PLANNING_PHOTOS"
 ): Promise<boolean> => {
     const popup = window.open("about:blank", "_blank");
     if (!popup) throw new Error("Browser memblokir tab baru. Izinkan popup untuk membuka PDF online.");
@@ -4703,6 +4808,7 @@ export const viewGeneratedPdfOnline = async (
         OPNAME_FINAL: `/api/final_opname/${id}/pdf`,
         INSTRUKSI_LAPANGAN: `/api/instruksi-lapangan/${id}/pdf`,
         PROJECT_PLANNING: `/api/projek-planning/${id}/pdf`,
+        PROJECT_PLANNING_PHOTOS: `/api/projek-planning/${id}/photos-pdf`,
         BERKAS_SERAH_TERIMA: `/api/berkas_serah_terima/${id}/pdf`,
         PENGAWASAN: `/api/pengawasan/${id}/pdf`,
         PERTAMBAHAN_SPK: `/api/pertambahan-spk/${id}/pdf`,
@@ -5043,6 +5149,8 @@ export const downloadDashboardExport = async (params: {
     jobTypes?: string[];
     cabangs?: string[];
     spkStatus?: 'all' | 'with_spk' | 'without_spk';
+    jenisProyek?: 'all' | 'reguler' | 'renovasi';
+    beanspot?: 'all' | 'yes' | 'no';
 }): Promise<boolean> => {
     const query = new URLSearchParams();
     query.set("format", params.format);
@@ -5050,14 +5158,16 @@ export const downloadDashboardExport = async (params: {
     query.set("actor_cabang", params.actorCabang);
     if (params.cabang && params.cabang !== "ALL") query.set("cabang", params.cabang);
     if (params.search?.trim()) query.set("search", params.search.trim());
-    if (params.tokoIds?.length) query.set("toko_ids", params.tokoIds.join(","));
-    if (params.months?.length) query.set("months", params.months.join(","));
+    if (params.tokoIds?.length) query.set("toko_ids", params.tokoIds.join("|"));
+    if (params.months?.length) query.set("months", params.months.join("|"));
     if (params.year) query.set("year", String(params.year));
     if (params.periodMode) query.set("period_mode", params.periodMode);
-    if (params.dataTypes?.length) query.set("data_types", params.dataTypes.join(","));
-    if (params.jobTypes?.length) query.set("job_types", params.jobTypes.join(","));
-    if (params.cabangs?.length) query.set("cabangs", params.cabangs.join(","));
+    if (params.dataTypes?.length) query.set("data_types", params.dataTypes.join("|"));
+    if (params.jobTypes?.length) query.set("job_types", params.jobTypes.join("|"));
+    if (params.cabangs?.length) query.set("cabangs", params.cabangs.join("|"));
     if (params.spkStatus && params.spkStatus !== "all") query.set("spk_status", params.spkStatus);
+    if (params.jenisProyek && params.jenisProyek !== "all") query.set("jenis_proyek", params.jenisProyek);
+    if (params.beanspot && params.beanspot !== "all") query.set("beanspot", params.beanspot);
 
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
     if (!res.ok) {
@@ -5461,6 +5571,7 @@ export type ProjekPlanningListFilters = {
     cabang?: string;
     email_pembuat?: string;
     id_toko?: number;
+    jenis?: string;
 };
 
 export type ProjekPlanningTaskCounts = {
@@ -5524,6 +5635,53 @@ export type ProjectPlanningInterventionPayload = {
 
 // --- Fungsi ---
 
+const compressFileIfNeeded = async (file: File): Promise<File> => {
+    if (!file.type.startsWith("image/")) return file;
+    // Jika file sudah berukuran kecil (<= 2MB), jangan lakukan kompresi ulang agar cepat
+    if (file.size <= 2 * 1024 * 1024) return file;
+
+    try {
+        const imageCompression = (await import("browser-image-compression")).default;
+        const options = {
+            maxSizeMB: 1.5,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+        };
+        // Beri batas waktu kompresi maksimal 8 detik per file agar tidak menggantung selamanya
+        const compressPromise = imageCompression(file, options);
+        const timeoutPromise = new Promise<File>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout kompresi")), 8000)
+        );
+
+        const compressedBlob = await Promise.race([compressPromise, timeoutPromise]) as Blob;
+        return new File([compressedBlob], file.name, { type: file.type });
+    } catch (error) {
+        console.warn("[Kompresi] Melewati kompresi file:", file.name, error);
+        return file;
+    }
+};
+
+const compressFilesIfNeeded = async (fileOrFiles?: File | File[]): Promise<File | File[] | undefined> => {
+    if (!fileOrFiles) return fileOrFiles;
+    if (Array.isArray(fileOrFiles)) {
+        return await Promise.all(fileOrFiles.map(compressFileIfNeeded));
+    }
+    return await compressFileIfNeeded(fileOrFiles);
+};
+
+const compressPhotoDictIfNeeded = async (fotoFiles?: { [key: number]: File }): Promise<{ [key: number]: File } | undefined> => {
+    if (!fotoFiles) return fotoFiles;
+    const entries = Object.entries(fotoFiles);
+    // Jalankan kompresi paralel menggunakan Promise.all (bukan sekuensial)
+    const compressedEntries = await Promise.all(
+        entries.map(async ([key, file]) => {
+            const compressed = await compressFileIfNeeded(file);
+            return [Number(key), compressed] as const;
+        })
+    );
+    return Object.fromEntries(compressedEntries);
+};
+
 /** Submit FPD baru (Coordinator/Cabang). */
 export const submitProjekPlanning = async (
     payload: Record<string, unknown>,
@@ -5534,6 +5692,13 @@ export const submitProjekPlanning = async (
     fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
+    fileFpd = await compressFilesIfNeeded(fileFpd) as any;
+    fileGambarKerjaMe = await compressFilesIfNeeded(fileGambarKerjaMe) as any;
+    fileGambarKompetitor = await compressFilesIfNeeded(fileGambarKompetitor) as any;
+    fileSiteplan = await compressFilesIfNeeded(fileSiteplan) as any;
+    fileBaTidakSesuaiStandar = await compressFilesIfNeeded(fileBaTidakSesuaiStandar) as any;
+    fotoFiles = await compressPhotoDictIfNeeded(fotoFiles);
+
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/submit`;
 
     let body: BodyInit;
@@ -5574,7 +5739,17 @@ export const submitProjekPlanning = async (
         headers,
         body,
     });
-    const result = await res.json();
+    let result: any;
+    try {
+        result = await res.json();
+    } catch {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 524 || rawText.includes("524") || rawText.includes("A timeout occurred")) {
+            throw new Error("Server timeout (Cloudflare 524). Koneksi upload cabang atau pemrosesan server membutuhkan waktu lebih dari 100 detik.");
+        }
+        throw new Error(`Server error (${res.status}): Server mengembalikan respons tidak valid.`);
+    }
+
     if (res.status === 409) throw new Error(result.message || "Project planning aktif sudah ada untuk toko ini.");
     if (res.status === 422) {
         const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
@@ -5595,6 +5770,13 @@ export const resubmitProjekPlanning = async (
     fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
+    fileFpd = await compressFilesIfNeeded(fileFpd) as any;
+    fileGambarKerjaMe = await compressFilesIfNeeded(fileGambarKerjaMe) as any;
+    fileGambarKompetitor = await compressFilesIfNeeded(fileGambarKompetitor) as any;
+    fileSiteplan = await compressFilesIfNeeded(fileSiteplan) as any;
+    fileBaTidakSesuaiStandar = await compressFilesIfNeeded(fileBaTidakSesuaiStandar) as any;
+    fotoFiles = await compressPhotoDictIfNeeded(fotoFiles);
+
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/resubmit`;
 
     let body: BodyInit;
@@ -5635,7 +5817,17 @@ export const resubmitProjekPlanning = async (
         headers,
         body,
     });
-    const result = await res.json();
+    let result: any;
+    try {
+        result = await res.json();
+    } catch {
+        const rawText = await res.text().catch(() => "");
+        if (res.status === 524 || rawText.includes("524") || rawText.includes("A timeout occurred")) {
+            throw new Error("Server timeout (Cloudflare 524). Koneksi upload cabang atau pemrosesan server membutuhkan waktu lebih dari 100 detik.");
+        }
+        throw new Error(`Server error (${res.status}): Server mengembalikan respons tidak valid.`);
+    }
+
     if (res.status === 409) throw new Error(result.message || "Hanya DRAFT yang bisa di-resubmit.");
     if (res.status === 422) {
         const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
@@ -5657,6 +5849,7 @@ export const fetchProjekPlanningList = async (
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
     if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
+    if (filters?.jenis) params.append("jenis", filters.jenis);
     const url = `${base}/api/projek-planning${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };
@@ -5769,7 +5962,48 @@ export const downloadProjekPlanningPdf = async (id: number): Promise<boolean> =>
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(blobUrl);
-    document.body.removeChild(a);
+    a.remove();
+    return true;
+};
+
+/**
+ * Download PDF Lampiran Foto Dokumentasi Project Planning ke browser.
+ */
+export const downloadProjekPlanningPhotosPdf = async (id: number, mode: "view" | "download" = "download", targetWindow?: Window | null): Promise<boolean> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/photos-pdf`);
+    if (res.status === 404) throw new Error(`Project Planning dengan ID ${id} tidak ditemukan.`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengunduh PDF Lampiran (${res.status}): ${text.substring(0, 100)}`);
+    }
+
+    const disposition = res.headers.get("Content-Disposition");
+    let filename = `Project_Planning_Photos_${id}.pdf`;
+    if (disposition?.includes("filename=")) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match?.[1]) filename = match[1];
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    if (mode === "view") {
+        if (targetWindow) {
+            targetWindow.location.href = blobUrl;
+        } else {
+            window.open(blobUrl, "_blank");
+        }
+        // Catatan: blobUrl tidak bisa di-revoke langsung karena dibutuhkan oleh window baru
+    } else {
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+    }
     return true;
 };
 
@@ -5781,29 +6015,64 @@ export const proxyProjekPlanningFile = async (
     id: number,
     field: string,
     mode: "view" | "download" = "view",
-    itemIndex?: number
+    itemIndex?: number,
+    newWindow?: Window | null,
+    fileIndex?: number
 ): Promise<void> => {
     let url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/proxy-file?field=${field}&mode=${mode}`;
     if (itemIndex !== undefined) url += `&item_index=${itemIndex}`;
+    if (fileIndex !== undefined) url += `&file_index=${fileIndex}`;
 
     const res = await apiFetch(url);
     if (!res.ok) {
+        if (newWindow) newWindow.close();
         const text = await res.text();
+        try {
+            const json = JSON.parse(text);
+            if (json.status === "redirect" && json.url) {
+                if (mode === "view" && newWindow) {
+                    newWindow.location.href = json.url;
+                } else {
+                    window.open(json.url, "_blank", "noopener,noreferrer");
+                }
+                return;
+            }
+        } catch (e) {
+            // Abaikan jika bukan JSON
+        }
         throw new Error(`Gagal mengambil file (${res.status}): ${text.substring(0, 100)}`);
     }
 
     const contentType = res.headers.get("Content-Type") || "application/octet-stream";
     const disposition = res.headers.get("Content-Disposition") || "";
     let filename = `file_${field}_${id}`;
-    const fnMatch = disposition.match(/filename="?([^";\n]+)"?/);
-    if (fnMatch?.[1]) filename = decodeURIComponent(fnMatch[1]);
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;\n]+)/i);
+    const standardMatch = disposition.match(/filename="?([^";\n]+)"?/);
+    if (utf8Match?.[1]) {
+        try {
+            filename = decodeURIComponent(utf8Match[1]);
+        } catch {
+            filename = utf8Match[1];
+        }
+    } else if (standardMatch?.[1]) {
+        try {
+            filename = decodeURIComponent(standardMatch[1]);
+        } catch {
+            filename = standardMatch[1];
+        }
+    }
 
     const blob = await res.blob();
     const blobUrl = window.URL.createObjectURL(blob);
 
     if (mode === "view" && (contentType.startsWith("image/") || contentType === "application/pdf")) {
-        window.open(blobUrl, "_blank");
+        if (newWindow) {
+            newWindow.location.href = blobUrl;
+        } else {
+            window.open(blobUrl, "_blank");
+        }
     } else {
+        if (newWindow) newWindow.close();
         const a = document.createElement("a");
         a.style.display = "none";
         a.href = blobUrl;
@@ -5813,6 +6082,30 @@ export const proxyProjekPlanningFile = async (
         document.body.removeChild(a);
     }
     setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+};
+
+/**
+ * Mengekstrak file ID dari berbagai variasi URL Google Drive.
+ */
+export const extractGdriveFileId = (url?: string | null): string | null => {
+    if (!url) return null;
+    const cleanUrl = String(url).split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || "";
+    const match = cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                  cleanUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+                  cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+};
+
+/**
+ * Mengembalikan direct export download URL jika merupakan link Google Drive,
+ * atau URL asli jika bukan.
+ */
+export const getGdriveDirectDownloadUrl = (url?: string | null): string => {
+    const fileId = extractGdriveFileId(url);
+    if (fileId) {
+        return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    }
+    return String(url || "").split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || "";
 };
 
 /** Proses approval BM Manager. */
@@ -5918,7 +6211,10 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         keterangan?: string;
     }[];
     keterangan?: string;
-}, fileGambarSipil?: File | File[], fileGambarMe?: File | File[]) => {
+    nomor_ulok?: string;
+    nama_toko?: string;
+    jenis_proyek?: string;
+}, fileGambarSipil?: File | File[], fileGambarMe?: File | File[], fileRabSipil?: File | File[], fileRabMe?: File | File[]) => {
     let body: BodyInit;
     const headers: Record<string, string> = {};
 
@@ -5926,7 +6222,7 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         const files = Array.isArray(fileOrFiles) ? fileOrFiles : fileOrFiles ? [fileOrFiles] : [];
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
-    const hasFiles = [fileGambarSipil, fileGambarMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
+    const hasFiles = [fileGambarSipil, fileGambarMe, fileRabSipil, fileRabMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
 
     if (hasFiles) {
         const formData = new FormData();
@@ -5938,10 +6234,15 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         if (payload.link_gambar_kerja) formData.append("link_gambar_kerja", payload.link_gambar_kerja);
         if (payload.link_gambar_kerja_final_sipil) formData.append("link_gambar_kerja_final_sipil", payload.link_gambar_kerja_final_sipil);
         if (payload.link_gambar_kerja_final_me) formData.append("link_gambar_kerja_final_me", payload.link_gambar_kerja_final_me);
+        if (payload.nomor_ulok) formData.append("nomor_ulok", payload.nomor_ulok);
+        if (payload.nama_toko) formData.append("nama_toko", payload.nama_toko);
+        if (payload.jenis_proyek) formData.append("jenis_proyek", payload.jenis_proyek);
         if (payload.fasilitas) formData.append("fasilitas", JSON.stringify(payload.fasilitas));
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
         appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
         appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
+        appendFiles(formData, "file_rab_sipil", fileRabSipil);
+        appendFiles(formData, "file_rab_me", fileRabMe);
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";

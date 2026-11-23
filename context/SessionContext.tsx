@@ -139,7 +139,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setIsMaintenanceBlocked(false);
     setMaintenanceStatus(null);
     setAccessSchedule(null);
-    router.push('/');
+    const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+    const ssoUrl = isLocal ? (process.env.NEXT_PUBLIC_SSO_URL || 'http://localhost:5173') : 'https://sparta-alfamart.web.id';
+    window.location.href = ssoUrl;
   }, [router]);
 
   useEffect(() => {
@@ -224,7 +226,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       if (ignore) return;
 
-      setUser(sessionUser);
+      setUser((prev) => {
+      if (prev && prev.email === sessionUser.email && prev.role === sessionUser.role) {
+        return prev;
+      }
+      return sessionUser;
+    });
       setMaintenanceStatus(nextMaintenanceStatus);
       setIsMaintenanceBlocked(nextMaintenanceBlocked);
       setAccessSchedule(nextAccessSchedule);

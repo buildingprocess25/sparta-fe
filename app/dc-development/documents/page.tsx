@@ -204,25 +204,22 @@ export default function DcDocumentsPage() {
     const customItemMap = new Map<string, DcDocumentCustomItem>();
     customItemsForNotes.forEach(item => customItemMap.set(`CUSTOM_K_${item.id}`, item));
 
-    const resolveNote = (note: DcDocument): NoteDisplay => {
-      const [jenisKey = "", rawFormat = ""] = (note.document_type || "").split("__");
+    const resolveNote = (note: DcDocument): NoteDisplay | null => {
+      const [rawJenisKey = "", rawFormat = ""] = (note.document_type || "").split("__");
       const stageKey = normalizeNoteStage(note.stage);
 
-      if (jenisKey.startsWith("CAT_NOTE_")) {
-        const utamaId = jenisKey.replace("CAT_NOTE_", "");
-        for (const utama of getDcDocumentConfigForStage(stageKey)) {
-          if (utama.id === utamaId) {
-            return {
-              note,
-              stageKey,
-              stageLabel: NOTE_STAGE_LABELS[stageKey],
-              category: utama.title,
-              itemTitle: "Catatan Kategori (Umum)",
-              format: "Kategori Utama",
-              isCategoryNote: true
-            };
-          }
+      let jenisKey = rawJenisKey;
+      let displayFormat = formatDocumentSlotLabel(rawFormat);
+
+      if (rawJenisKey.startsWith("ITEM_NOTE_")) {
+        jenisKey = rawJenisKey.replace("ITEM_NOTE_", "");
+        if (!rawFormat) {
+          displayFormat = "CATATAN ITEM";
         }
+      }
+
+      if (jenisKey.startsWith("CAT_NOTE_")) {
+        return null;
       }
 
       const customItem = customItemMap.get(jenisKey);
@@ -233,7 +230,7 @@ export default function DcDocumentsPage() {
           stageLabel: NOTE_STAGE_LABELS[stageKey],
           category: "DATA PENTING LAINNYA",
           itemTitle: customItem.title,
-          format: formatDocumentSlotLabel(rawFormat),
+          format: displayFormat,
         };
       }
 
@@ -247,7 +244,7 @@ export default function DcDocumentsPage() {
               stageLabel: NOTE_STAGE_LABELS[stageKey],
               category: utama.title,
               itemTitle: jenis.title,
-              format: formatDocumentSlotLabel(rawFormat),
+              format: displayFormat,
             };
           }
         }
@@ -259,12 +256,13 @@ export default function DcDocumentsPage() {
         stageLabel: NOTE_STAGE_LABELS[stageKey],
         category: "Kategori tidak diketahui",
         itemTitle: jenisKey || "Item tidak diketahui",
-        format: formatDocumentSlotLabel(rawFormat),
+        format: displayFormat,
       };
     };
 
     const stageMap = new Map<string, Map<string, NoteDisplay[]>>();
     projectNotes.map(resolveNote).forEach(item => {
+      if (!item) return;
       if (!stageMap.has(item.stageKey)) stageMap.set(item.stageKey, new Map());
       const categoryMap = stageMap.get(item.stageKey)!;
       if (!categoryMap.has(item.category)) categoryMap.set(item.category, []);
@@ -350,7 +348,7 @@ export default function DcDocumentsPage() {
   }, [archives]);
 
   const filteredArchives = useMemo(() => {
-    return archives.filter((item) => {
+    const filtered = archives.filter((item) => {
       const matchesTipe = tipeDcFilter === "all"
         ? true
         : (item.archive_type || item.project_type) === tipeDcFilter;
@@ -362,6 +360,29 @@ export default function DcDocumentsPage() {
         : getArchiveParentBranch(item) === branchFilter;
 
       return matchesTipe && matchesStatus && matchesBranch;
+    });
+
+    const typeOrder = ["DC", "WAREHOUSE", "DEPO", "BULKY", "STORE_HUB", "GUDANG_ANAK"];
+
+    return filtered.sort((a, b) => {
+      if (tipeDcFilter === "all") {
+        const typeA = (a.archive_type || a.project_type || "").toUpperCase();
+        const typeB = (b.archive_type || b.project_type || "").toUpperCase();
+        const indexA = typeOrder.indexOf(typeA);
+        const indexB = typeOrder.indexOf(typeB);
+
+        if (indexA !== -1 && indexB !== -1) {
+          if (indexA !== indexB) return indexA - indexB;
+        } else if (indexA !== -1) {
+          return -1;
+        } else if (indexB !== -1) {
+          return 1;
+        }
+      }
+
+      const nameA = (a.archive_name || a.archive_code || "").toUpperCase();
+      const nameB = (b.archive_name || b.archive_code || "").toUpperCase();
+      return nameA.localeCompare(nameB);
     });
   }, [archives, tipeDcFilter, statusFilter, branchFilter]);
 
@@ -558,16 +579,16 @@ export default function DcDocumentsPage() {
                         <td className="px-6 py-5 text-slate-500">{index + 1}</td>
                         <td className="px-6 py-5 font-bold text-slate-700">{archive.archive_code}</td>
                         <td className="px-6 py-5">
-                          <span className="font-semibold text-slate-900">{archive.archive_name}</span>
-                          {archive.location_name && <div className="mt-0.5 text-xs text-slate-500">{archive.location_name}</div>}
+                          <span className="font-semibold text-slate-900 uppercase">{archive.archive_name}</span>
+                          {archive.location_name && <div className="mt-0.5 text-xs text-slate-500 uppercase">{archive.location_name}</div>}
                         </td>
                         {/* <td className="px-6 py-5 font-medium text-slate-700">{archive.branch_name}</td> */}
                         {/* <td className="px-6 py-5 font-medium text-slate-700">{getArchiveParentBranch(archive)}</td> */}
                         <td className="px-6 py-5 text-slate-600">
                           {archive.parent_dc_code ? (
                             <div className="font-medium">
-                              <span className="font-bold text-slate-800">{archive.parent_dc_code}</span>
-                              <div className="mt-0.5 text-xs text-slate-500">{archive.parent_dc_name}</div>
+                              <span className="font-bold text-slate-800 uppercase">{archive.parent_dc_code}</span>
+                              <div className="mt-0.5 text-xs text-slate-500 uppercase">{archive.parent_dc_name}</div>
                             </div>
                           ) : <span className="text-slate-400">-</span>}
                         </td>
@@ -581,17 +602,17 @@ export default function DcDocumentsPage() {
                             <MiniProgress
                               label="Pembangunan"
                               current={archive.docs_pembangunan || 0}
-                              total={getTotalRequiredDcDocumentSlots('Pembangunan')}
+                              total={getTotalRequiredDcDocumentSlots('Pembangunan') + (archive.custom_items_pembangunan || 0)}
                             />
                             <MiniProgress
                               label="Renovasi"
                               current={archive.docs_renovasi || 0}
-                              total={getTotalRequiredDcDocumentSlots('Renovasi')}
+                              total={getTotalRequiredDcDocumentSlots('Renovasi') + (archive.custom_items_renovasi || 0)}
                             />
                             <MiniProgress
                               label="Perluasan"
                               current={archive.docs_perluasan || 0}
-                              total={getTotalRequiredDcDocumentSlots('Perluasan')}
+                              total={getTotalRequiredDcDocumentSlots('Perluasan') + (archive.custom_items_perluasan || 0)}
                             />
                           </div>
                         </td>
@@ -664,7 +685,7 @@ export default function DcDocumentsPage() {
       <Dialog open={!!selectedArchiveForType} onOpenChange={(open) => !open && setSelectedArchiveForType(null)}>
         <DialogContent className="max-w-3xl overflow-hidden rounded-[2rem] border-0 p-0 shadow-2xl">
           <div className="bg-gradient-to-br from-red-700 to-red-600 p-8 text-center text-white relative overflow-hidden">
-            <div className="absolute inset-0 bg-[url('/assets/pattern-light.svg')] opacity-10"></div>
+            <div className="absolute inset-0 bg-red-900 opacity-20 pointer-events-none"></div>
             <h2 className="relative z-10 text-3xl font-black tracking-tight">{selectedArchiveForType?.archive_name}</h2>
             <p className="relative z-10 mt-2 text-red-100 font-medium">Pilih tipe pekerjaan untuk mengelola dokumen terkait.</p>
           </div>

@@ -13,16 +13,17 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  CheckCircle2, XCircle, Clock, FileText, ClipboardList,
+  CheckCircle2, XCircle, Clock, FileText, ClipboardList, PenTool,
   User, Building2, Droplets, Wind, Zap, History, Loader2, Send, Eye, Download, AlertTriangle,
 } from "lucide-react";
 import {
   fetchProjekPlanningDetail, processBmApproval, processBmRegionalApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
-  downloadProjekPlanningPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
+  downloadProjekPlanningPdf, downloadProjekPlanningPhotosPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
+  extractGdriveFileId, getGdriveDirectDownloadUrl,
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
-import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch } from "@/lib/constants";
+import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch, BRANCH_TO_ULOK } from "@/lib/constants";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700" },
@@ -153,25 +154,25 @@ const isDirectUserLink = (url?: string | null) => {
   return !!first && !shouldUseDriveProxy(first);
 };
 
-function FpdTimeline({ currentStatus }: { currentStatus: string }) {
+function FpdTimeline({ currentStatus, cabang }: { currentStatus: string, cabang?: string | null }) {
   const isRejected = currentStatus === "REJECTED";
 
-  let activeIndex = -1;
-  if (currentStatus === "WAITING_BM_APPROVAL") activeIndex = 0;
-  if (currentStatus === "WAITING_PP_APPROVAL_1") activeIndex = 1;
-  if (currentStatus === "PP_DESIGN_3D_REQUIRED" || currentStatus === "WAITING_RAB_UPLOAD") activeIndex = 2;
-  if (currentStatus === "WAITING_BM_APPROVAL_2") activeIndex = 3;
-  if (currentStatus === "WAITING_BM_REGIONAL_APPROVAL") activeIndex = 4;
-  if (currentStatus === "WAITING_PP_APPROVAL_2") activeIndex = 5;
-  if (currentStatus === "WAITING_PP_MANAGER_APPROVAL") activeIndex = 6;
-  if (currentStatus === "COMPLETED") activeIndex = 7;
+  const isSkipBm = (cabang || "").toUpperCase() === "BATAM";
+  const steps = FPD_STEPS.filter(s => {
+    if (isSkipBm && (s.id === "WAITING_BM_APPROVAL" || s.id === "WAITING_BM_APPROVAL_2")) return false;
+    return true;
+  });
+
+  const targetId = currentStatus === "PP_DESIGN_3D_REQUIRED" ? "WAITING_RAB_UPLOAD" : currentStatus;
+  let activeIndex = steps.findIndex(s => s.id === targetId);
+  if (currentStatus === "COMPLETED") activeIndex = steps.length - 1;
 
   return (
     <div className="mb-10 mt-2 w-full relative">
       <div className="relative flex justify-between items-center w-full px-2 sm:px-6">
         <div className="absolute left-4 right-4 sm:left-10 sm:right-10 top-1/2 -translate-y-1/2 h-1 bg-slate-200 z-0"></div>
-        <div className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 h-1 bg-green-500 z-0 transition-all duration-500" style={{ width: `calc(${Math.max(0, (activeIndex / (FPD_STEPS.length - 1)) * 100)}% - 2rem)` }}></div>
-        {FPD_STEPS.map((step, idx) => {
+        <div className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 h-1 bg-green-500 z-0 transition-all duration-500" style={{ width: `calc(${Math.max(0, (activeIndex / (steps.length - 1)) * 100)}% - 2rem)` }}></div>
+        {steps.map((step, idx) => {
           const isCompleted = activeIndex > idx || currentStatus === "COMPLETED";
           const isActive = activeIndex === idx;
           const isError = isRejected;
@@ -216,7 +217,7 @@ function FileProxyRow({
 }) {
   const [loading, setLoading] = React.useState<"view" | "download" | null>(null);
   const [viewed, setViewed] = React.useState(false);
-  const showDownload = !isDirectUserLink(fileUrl);
+  const showDownload = !!firstFileUrl(fileUrl);
 
   React.useEffect(() => {
     const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
@@ -256,22 +257,35 @@ function FileProxyRow({
   if (!hasFile) return null;
 
   const handle = async (mode: "view" | "download") => {
-    setLoading(mode);
-    try {
-      const directUrl = firstFileUrl(fileUrl);
-      if (directUrl && !shouldUseDriveProxy(directUrl)) {
-        window.open(directUrl, "_blank", "noopener,noreferrer");
-      } else {
-        await proxyProjekPlanningFile(projektId, field, mode);
-      }
+    const directUrl = firstFileUrl(fileUrl);
+    if (!directUrl) return;
+
+    if (mode === "view") {
+      // Langsung buka link asli dokumen di tab baru (dapat diakses oleh akun @sat.co.id)
+      window.open(directUrl, "_blank", "noopener,noreferrer");
       setViewed(true);
       onViewed(field);
       const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
       const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
-      // Lihat atau unduh sama-sama dihitung sudah membuka dokumen untuk approval.
       localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
-    } catch (e: any) { alert(`Gagal: ${e.message}`); }
-    setLoading(null);
+      return;
+    }
+
+    if (mode === "download") {
+      setLoading("download");
+      try {
+        await proxyProjekPlanningFile(projektId, field, "download");
+        setViewed(true);
+        onViewed(field);
+        const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
+        const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
+        localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
+      } catch (e: any) {
+        alert(`Gagal mengunduh: ${e.message}`);
+      } finally {
+        setLoading(null);
+      }
+    }
   };
 
   return (
@@ -317,6 +331,70 @@ function FileProxyRow({
   );
 }
 
+function PhotosPdfRow({
+  label, hasFile, projektId
+}: {
+  label: string; hasFile: boolean; projektId: number;
+}) {
+  const [loading, setLoading] = React.useState<"view" | "download" | null>(null);
+
+  if (!hasFile) return null;
+
+  const handle = async (mode: "view" | "download") => {
+    setLoading(mode);
+    let newWindow: Window | null = null;
+    if (mode === "view") {
+      newWindow = window.open("about:blank", "_blank");
+      if (newWindow) {
+        newWindow.document.write("<html><body style='font-family:sans-serif;padding:20px;text-align:center;'><h3 style='color:#666'>Memuat dokumen, harap tunggu...</h3></body></html>");
+      }
+    }
+    try {
+      await downloadProjekPlanningPhotosPdf(projektId, mode, newWindow);
+    } catch (e: any) {
+      if (newWindow) newWindow.close();
+      alert(`Gagal: ${e.message}`);
+    }
+    setLoading(null);
+  };
+
+  return (
+    <div className={`flex flex-col rounded-xl border bg-white shadow-sm transition-colors overflow-hidden border-slate-200`}>
+      <div className="flex justify-between items-start gap-2 bg-red-50 px-3 py-2 border-b border-red-100">
+        <span className="text-sm font-bold text-slate-800 leading-tight">
+          {label}
+        </span>
+        <span className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-white text-slate-500 border-slate-200">
+          Info
+        </span>
+      </div>
+      <div className="flex flex-col gap-3 p-3 h-full justify-end">
+        <span className={`text-xs font-semibold text-slate-500`}>
+          Khusus View & Download
+        </span>
+        <div className="flex gap-2 mt-auto">
+          <button
+            onClick={() => handle("view")}
+            disabled={!!loading}
+            className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 flex-1 bg-white text-slate-700 hover:bg-slate-50 border-slate-300"
+          >
+            {loading === "view" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+            Lihat
+          </button>
+          <button
+            onClick={() => handle("download")}
+            disabled={!!loading}
+            className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 transition-colors disabled:opacity-50 flex-1"
+          >
+            {loading === "download" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            Unduh
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReviewSelect({
   label, value, onChange,
 }: {
@@ -325,21 +403,33 @@ function ReviewSelect({
   onChange: (value: "APPROVE" | "REJECT") => void;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1">
       <Label className="text-xs font-semibold text-slate-600">{label}</Label>
       <div className="flex gap-2 shrink-0">
         <button
           type="button"
           onClick={() => onChange("APPROVE")}
-          className={`h-9 px-6 rounded-md border text-sm font-semibold ${value === "APPROVE" ? "bg-green-600 text-white border-green-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+          className={`
+            relative flex items-center justify-center gap-2 h-10 px-5 rounded-lg border text-sm font-bold transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500
+            ${value === "APPROVE"
+              ? "bg-green-600 text-white border-green-600 shadow-md shadow-green-600/20 scale-[1.02]"
+              : "bg-white text-slate-600 border-slate-200 hover:bg-green-50 hover:border-green-200 hover:text-green-700"}
+          `}
         >
+          <CheckCircle2 className={`w-4 h-4 transition-colors ${value === "APPROVE" ? "text-white" : "text-green-600 opacity-70"}`} />
           Approve
         </button>
         <button
           type="button"
           onClick={() => onChange("REJECT")}
-          className={`h-9 px-6 rounded-md border text-sm font-semibold ${value === "REJECT" ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+          className={`
+            relative flex items-center justify-center gap-2 h-10 px-5 rounded-lg border text-sm font-bold transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500
+            ${value === "REJECT"
+              ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20 scale-[1.02]"
+              : "bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-700"}
+          `}
         >
+          <XCircle className={`w-4 h-4 transition-colors ${value === "REJECT" ? "text-white" : "text-red-600 opacity-70"}`} />
           Reject
         </button>
       </div>
@@ -377,13 +467,13 @@ function RabRejectEditor({
       <div className="border-b border-red-100 bg-red-50/80 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2 min-w-0">
-          <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
             <div className="min-w-0">
-            <p className="text-sm font-bold text-red-800">Detail Revisi RAB</p>
-            <p className="text-xs text-red-700 mt-0.5">
-              Isi catatan general untuk revisi umum, atau tambahkan item RAB jika koreksi hanya pada pekerjaan tertentu.
-            </p>
-          </div>
+              <p className="text-sm font-bold text-red-800">Detail Revisi RAB</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                Isi catatan general untuk revisi umum, atau tambahkan item RAB jika koreksi hanya pada pekerjaan tertentu.
+              </p>
+            </div>
           </div>
           <span className="shrink-0 rounded-full border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700">
             {selectedIds.size}/{rabItems.length} item
@@ -400,126 +490,126 @@ function RabRejectEditor({
             </div>
             <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-200">Opsional</span>
           </div>
-        <Textarea
-          value={generalNote}
-          onChange={e => onGeneralNoteChange(e.target.value)}
+          <Textarea
+            value={generalNote}
+            onChange={e => onGeneralNoteChange(e.target.value)}
             placeholder="Tulis catatan revisi umum di sini..."
-          rows={2}
+            rows={2}
             className="bg-white"
-        />
-      </div>
+          />
+        </div>
 
         <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div>
               <Label className="text-xs font-semibold text-slate-700">Item Spesifik</Label>
               <p className="text-[11px] text-slate-500">
                 Pilih item dari RAB asli. Item yang sudah dipilih tidak bisa dipilih lagi.
               </p>
             </div>
-        </div>
-        {rows.length === 0 ? (
+          </div>
+          {rows.length === 0 ? (
             <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
               <p className="text-xs font-semibold text-slate-600">Belum ada item spesifik</p>
               <p className="text-[11px] text-slate-500 mt-0.5">Kalau revisinya hanya umum, cukup isi catatan general di atas.</p>
             </div>
-        ) : rows.map((row, idx) => (
+          ) : rows.map((row, idx) => (
             <div key={idx} className="rounded-md border border-slate-200 bg-white p-3 space-y-3">
               {(() => {
                 const selectedItem = rabItems.find(item => String(item.id) === row.itemId);
                 return (
                   <>
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                <span className="text-xs font-bold text-slate-600">Item Revisi #{idx + 1}</span>
-                <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50">
-                  Hapus
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-500">Item RAB</Label>
-                <select
-                  value={row.itemId}
-                  onChange={e => updateRow(idx, { itemId: e.target.value })}
-                    className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-slate-700 min-w-0"
-                >
-                  <option value="">Pilih item RAB...</option>
-                  {rabItems.map(item => {
-                    const itemId = String(item.id);
-                    const disabled = selectedIds.has(itemId) && row.itemId !== itemId;
-                    return (
-                      <option key={`${item.rabScope || "RAB"}-${item.id}`} value={itemId} disabled={disabled}>
-                        {formatRabItemSelectOption(item)}
-                      </option>
-                    );
-                  })}
-                </select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-500">Catatan Item</Label>
-                <Input
-                  value={row.note}
-                  onChange={e => updateRow(idx, { note: e.target.value })}
-                  placeholder="Catatan untuk item ini..."
-                  className="bg-white"
-                />
-                </div>
-              </div>
-              {selectedItem && (
-                <div className="rounded-md bg-slate-50 border border-slate-100 p-3">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 break-words">{selectedItem.jenis_pekerjaan}</p>
-                      <p className="text-[11px] text-slate-500 break-words">{selectedItem.kategori_pekerjaan}</p>
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <span className="text-xs font-bold text-slate-600">Item Revisi #{idx + 1}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50">
+                        Hapus
+                      </Button>
                     </div>
-                    <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      #{selectedItem.id}{selectedItem.rabScope ? ` - ${selectedItem.rabScope}` : ""}
-                    </span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Volume</p>
-                      <p className="text-xs font-semibold text-slate-700">{Number(selectedItem.volume || 0).toLocaleString("id-ID")} {selectedItem.satuan || ""}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-500">Item RAB</Label>
+                        <select
+                          value={row.itemId}
+                          onChange={e => updateRow(idx, { itemId: e.target.value })}
+                          className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-slate-700 min-w-0"
+                        >
+                          <option value="">Pilih item RAB...</option>
+                          {rabItems.map(item => {
+                            const itemId = String(item.id);
+                            const disabled = selectedIds.has(itemId) && row.itemId !== itemId;
+                            return (
+                              <option key={`${item.rabScope || "RAB"}-${item.id}`} value={itemId} disabled={disabled}>
+                                {formatRabItemSelectOption(item)}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-500">Catatan Item</Label>
+                        <Input
+                          value={row.note}
+                          onChange={e => updateRow(idx, { note: e.target.value })}
+                          placeholder="Catatan untuk item ini..."
+                          className="bg-white"
+                        />
+                      </div>
                     </div>
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Material</p>
-                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_material)}</p>
-                    </div>
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Upah</p>
-                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_upah)}</p>
-                    </div>
-                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
-                      <p className="text-[10px] text-slate-400">Total</p>
-                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.total_harga)}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                    {selectedItem && (
+                      <div className="rounded-md bg-slate-50 border border-slate-100 p-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 break-words">{selectedItem.jenis_pekerjaan}</p>
+                            <p className="text-[11px] text-slate-500 break-words">{selectedItem.kategori_pekerjaan}</p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                            #{selectedItem.id}{selectedItem.rabScope ? ` - ${selectedItem.rabScope}` : ""}
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Volume</p>
+                            <p className="text-xs font-semibold text-slate-700">{Number(selectedItem.volume || 0).toLocaleString("id-ID")} {selectedItem.satuan || ""}</p>
+                          </div>
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Material</p>
+                            <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_material)}</p>
+                          </div>
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Upah</p>
+                            <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_upah)}</p>
+                          </div>
+                          <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                            <p className="text-[10px] text-slate-400">Total</p>
+                            <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.total_harga)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 );
               })()}
+            </div>
+          ))}
+          <div className="flex justify-end pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              disabled={!canAddItem}
+              className="h-8 text-xs bg-white border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={hasEmptyRow ? "Pilih item pada baris kosong dulu" : selectedIds.size >= rabItems.length ? "Semua item sudah dipilih" : undefined}
+            >
+              + Tambah Item
+            </Button>
           </div>
-        ))}
-        <div className="flex justify-end pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addRow}
-            disabled={!canAddItem}
-            className="h-8 text-xs bg-white border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={hasEmptyRow ? "Pilih item pada baris kosong dulu" : selectedIds.size >= rabItems.length ? "Semua item sudah dipilih" : undefined}
-          >
-            + Tambah Item
-          </Button>
+          {rabItems.length === 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md p-2">
+              Item RAB belum berhasil dimuat. Revisi general tetap bisa digunakan.
+            </p>
+          )}
         </div>
-        {rabItems.length === 0 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md p-2">
-            Item RAB belum berhasil dimuat. Revisi general tetap bisa digunakan.
-          </p>
-        )}
-      </div>
       </div>
     </div>
   );
@@ -550,9 +640,15 @@ export default function DetailProjekPlanning() {
   const [fileGambarSipil, setFileGambarSipil] = useState<File[]>([]);
   const [linkGambarMe, setLinkGambarMe] = useState("");
   const [fileGambarMe, setFileGambarMe] = useState<File[]>([]);
+  const [linkRabSipilManual, setLinkRabSipilManual] = useState("");
+  const [fileRabSipilManual, setFileRabSipilManual] = useState<File[]>([]);
+  const [linkRabMeManual, setLinkRabMeManual] = useState("");
+  const [fileRabMeManual, setFileRabMeManual] = useState<File[]>([]);
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
   const [allRabsForUlok, setAllRabsForUlok] = useState<any[]>([]);
+  const [branchApprovedRabs, setBranchApprovedRabs] = useState<any[]>([]);
+  const [rawBranchApprovedRabs, setRawBranchApprovedRabs] = useState<any[]>([]);
   const [fasilitasTahap2, setFasilitasTahap2] = useState<FacilityInput[]>(DEFAULT_FASILITAS_TAHAP2);
   const [approvalNote, setApprovalNote] = useState("");
   const [rabReviewAction, setRabReviewAction] = useState<ReviewDecision>("");
@@ -563,6 +659,30 @@ export default function DetailProjekPlanning() {
   const [gambarRejectReason, setGambarRejectReason] = useState("");
   const [rabApprovalNote, setRabApprovalNote] = useState("");
   const [gambarApprovalNote, setGambarApprovalNote] = useState("");
+
+  const [revisiUlok, setRevisiUlok] = useState(false);
+  const [revisiUlokMode, setRevisiUlokMode] = useState<"dropdown" | "manual" | "">("");
+  const [selectedBranchRabId, setSelectedBranchRabId] = useState<string>("");
+  const [newUlok, setNewUlok] = useState("");
+  const [manualCabang, setManualCabang] = useState("");
+  const [manualTanggal, setManualTanggal] = useState("");
+  const [manualUrutan, setManualUrutan] = useState("");
+  const [newNamaToko, setNewNamaToko] = useState("");
+  const [newProyek, setNewProyek] = useState("");
+  const [searchUlok, setSearchUlok] = useState("");
+
+  useEffect(() => {
+    if (data && data.cabang && !manualCabang) {
+      const code = BRANCH_TO_ULOK[data.cabang] || BRANCH_TO_ULOK[data.cabang.toUpperCase()] || data.cabang;
+      setManualCabang(code);
+    }
+  }, [data, manualCabang]);
+
+  useEffect(() => {
+    if (revisiUlokMode === "manual") {
+      setNewUlok(`${manualCabang}-${manualTanggal}-${manualUrutan}`);
+    }
+  }, [revisiUlokMode, manualCabang, manualTanggal, manualUrutan]);
 
   const markFieldViewed = React.useCallback((field: string) => {
     setOpenedLinks(prev => {
@@ -639,19 +759,49 @@ export default function DetailProjekPlanning() {
       }
       if (projek.status === "WAITING_RAB_UPLOAD") {
         try {
-          const [rabApprovedRes, rabAllRes] = await Promise.all([
+          const [rabApprovedRes, rabAllRes, branchRabsRes] = await Promise.all([
             fetchRABList({ nomor_ulok: projek.nomor_ulok, status: "Disetujui" }, { suppressGlobalError: true }),
             fetchRABList({ nomor_ulok: projek.nomor_ulok }, { suppressGlobalError: true }),
+            fetchRABList({ status: "Disetujui" }, { suppressGlobalError: true }),
           ]);
           setApprovedRabs(rabApprovedRes.data || []);
           setAllRabsForUlok(rabAllRes.data || []);
+
+          const rawBranchRabs = branchRabsRes.data || [];
+          setRawBranchApprovedRabs(rawBranchRabs);
+
+          const mergedMap = new Map<string, any>();
+          rawBranchRabs.forEach((r: any) => {
+            const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "";
+            const scope = r.lingkup_pekerjaan || r.scope || "";
+            if (!ulok) return;
+            if (!mergedMap.has(ulok)) {
+              mergedMap.set(ulok, {
+                ...r,
+                nomor_ulok: ulok,
+                nama_toko: r.toko?.nama_toko || r.nama_toko || "",
+                scopes: new Set([scope])
+              });
+            } else {
+              mergedMap.get(ulok).scopes.add(scope);
+            }
+          });
+
+          setBranchApprovedRabs(Array.from(mergedMap.values()).map(item => ({
+            ...item,
+            lingkup_gabungan: Array.from(item.scopes).filter(Boolean).join(", ") || "SIPIL, ME"
+          })).sort((a, b) => a.nomor_ulok.localeCompare(b.nomor_ulok)));
         } catch {
           setApprovedRabs([]);
           setAllRabsForUlok([]);
+          setBranchApprovedRabs([]);
+          setRawBranchApprovedRabs([]);
         }
       } else {
         setApprovedRabs([]);
         setAllRabsForUlok([]);
+        setBranchApprovedRabs([]);
+        setRawBranchApprovedRabs([]);
       }
       if (projek.fasilitas && projek.fasilitas.length > 0) {
         setFasilitasTahap2(() => {
@@ -674,6 +824,10 @@ export default function DetailProjekPlanning() {
         setLinkGambarMe(projek.link_gambar_kerja_final_me || "");
         setFileGambarSipil([]);
         setFileGambarMe([]);
+        setLinkRabSipilManual(projek.link_rab_sipil || "");
+        setLinkRabMeManual(projek.link_rab_me || "");
+        setFileRabSipilManual([]);
+        setFileRabMeManual([]);
       }
     } catch (e: any) {
       setAlertMsg({ title: "Error", desc: e.message }); setAlertOpen(true);
@@ -716,7 +870,8 @@ export default function DetailProjekPlanning() {
   };
 
   const handleFinalReview = async (type: "bm_regional" | "pp2" | "pp_mgr") => {
-    if (!rabReviewAction || !gambarReviewAction) {
+    const effectiveRabAction = type === "bm_regional" ? "APPROVE" : rabReviewAction;
+    if (!effectiveRabAction || !gambarReviewAction) {
       showAlert("Peringatan", "Pilih keputusan Review RAB dan Review Gambar Final terlebih dahulu.");
       return;
     }
@@ -735,7 +890,7 @@ export default function DetailProjekPlanning() {
       ...rejectedItemNotes,
     ].filter(Boolean).join("\n");
 
-    if (rabReviewAction === "REJECT" && !combinedRabNotes && rejectedIds.length === 0) {
+    if (effectiveRabAction === "REJECT" && !combinedRabNotes && rejectedIds.length === 0) {
       showAlert("Peringatan", "Isi revisi general RAB atau tambahkan minimal satu item RAB yang perlu direvisi.");
       return;
     }
@@ -743,14 +898,14 @@ export default function DetailProjekPlanning() {
       showAlert("Peringatan", "Isi alasan penolakan gambar final.");
       return;
     }
-    const isFullApprove = rabReviewAction === "APPROVE" && gambarReviewAction === "APPROVE";
+    const isFullApprove = effectiveRabAction === "APPROVE" && gambarReviewAction === "APPROVE";
     const combinedApprovalNotes = [
-      rabReviewAction === "APPROVE" && rabApprovalNote.trim() ? `Catatan approval RAB: ${rabApprovalNote.trim()}` : "",
+      effectiveRabAction === "APPROVE" && rabApprovalNote.trim() ? `Catatan approval RAB: ${rabApprovalNote.trim()}` : "",
       gambarReviewAction === "APPROVE" && gambarApprovalNote.trim() ? `Catatan approval gambar final: ${gambarApprovalNote.trim()}` : "",
     ].filter(Boolean).join("\n");
     const payload = {
       approver_email: userEmail,
-      rab_tindakan: rabReviewAction,
+      rab_tindakan: effectiveRabAction as "APPROVE" | "REJECT",
       gambar_tindakan: gambarReviewAction,
       catatan: isFullApprove ? combinedApprovalNotes : undefined,
       alasan_penolakan: gambarReviewAction === "REJECT" ? gambarRejectReason : undefined,
@@ -810,69 +965,6 @@ export default function DetailProjekPlanning() {
     try {
       await uploadDesain3d(id, { uploader_email: userEmail, link_desain_3d: link3d }, file3d ?? undefined);
       showAlert("Berhasil", "Desain 3D berhasil diupload."); setLink3d(""); setFile3d(null); await load();
-    } catch (e: any) { showAlert("Gagal", e.message); }
-    setActionLoading(false);
-  };
-
-  const handleUploadRab = async () => {
-    const selectedRabSipil = approvedRabs.find(r => getRabScope(r).includes("SIPIL"));
-    const selectedRabMe = approvedRabs.find(r => getRabScope(r).includes("ME"));
-    if (approvedRabs.length === 0) {
-      showAlert("RAB Belum Tersedia", "RAB untuk ULOK ini belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.");
-      return;
-    }
-    if (!selectedRabSipil || !selectedRabMe) {
-      showAlert("RAB Belum Lengkap", "RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ini sebelum melanjutkan FPD.");
-      return;
-    }
-    if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) return;
-    
-    // Wajib buka desain 3D jika ada
-    if (data?.link_desain_3d && !openedLinks.has("desain_3d")) {
-      showAlert("Peringatan", "Anda harus membuka dan melihat file Desain 3D terlebih dahulu sebelum mengupload RAB.");
-      return;
-    }
-    
-    // Validasi re-upload saat ditolak
-    if (data?.pp2_alasan_penolakan || data?.pp_manager_alasan_penolakan) {
-      const noChange = fileGambarSipil.length === 0 && fileGambarMe.length === 0
-        && (selectedRabSipil?.id ?? null) === ((data as any).id_rab_sipil ?? null)
-        && (selectedRabMe?.id ?? null) === ((data as any).id_rab_me ?? null)
-        && linkGambarSipil.trim() === (((data as any).link_gambar_kerja_final_sipil || "")).trim()
-        && linkGambarMe.trim() === ((data as any).link_gambar_kerja_final_me || "").trim();
-      if (noChange) {
-        showAlert("Peringatan", "Minimal harus melakukan satu perubahan pada gambar final atau fasilitas.");
-        return;
-      }
-    }
-
-    const changedRabFields = [
-      ((selectedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null)) ? "rab_sipil_final" : null,
-      ((selectedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)) ? "rab_me_final" : null,
-      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim()) ? "gambar_kerja_final_sipil" : null,
-      (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
-    ].filter(Boolean) as string[];
-
-    setActionLoading(true);
-    try {
-      await uploadRabGambarKerja(
-        id,
-        {
-          uploader_email: userEmail,
-          id_rab_sipil: selectedRabSipil?.id,
-          id_rab_me: selectedRabMe?.id,
-          fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
-          link_gambar_kerja_final_sipil: linkGambarSipil,
-          link_gambar_kerja_final_me: linkGambarMe,
-        } as any,
-        fileGambarSipil,
-        fileGambarMe
-      );
-      clearViewedFields(changedRabFields);
-      showAlert("Berhasil", "Input tahap kedua berhasil dikirim ke B&M Manager.");
-      setLinkGambarSipil(""); setFileGambarSipil([]);
-      setLinkGambarMe(""); setFileGambarMe([]);
-      await load();
     } catch (e: any) { showAlert("Gagal", e.message); }
     setActionLoading(false);
   };
@@ -937,8 +1029,8 @@ export default function DetailProjekPlanning() {
     data.link_fpd_approved ? "fpd_approved" : null,
   ].filter(Boolean) as string[];
   const rabFinalFields = [
-    data.link_rab_sipil ? "rab_sipil_final" : null,
-    data.link_rab_me ? "rab_me_final" : null,
+    (!isBMRegional && data.link_rab_sipil) ? "rab_sipil_final" : null,
+    (!isBMRegional && data.link_rab_me) ? "rab_me_final" : null,
     data.link_gambar_kerja_final_sipil ? "gambar_kerja_final_sipil" : null,
     data.link_gambar_kerja_final_me ? "gambar_kerja_final_me" : null,
   ].filter(Boolean) as string[];
@@ -947,16 +1039,167 @@ export default function DetailProjekPlanning() {
     : [...coordinatorFields, ...ppSpecialistFields, ...rabFinalFields];
   const allLinksOpened = requiredFields.length === 0 || requiredFields.every(f => openedLinks.has(f));
   const isRabReupload = !!(data.pp2_alasan_penolakan || data.pp_manager_alasan_penolakan);
-  const selectedApprovedRabSipil = approvedRabs.find(r => getRabScope(r).includes("SIPIL"));
-  const selectedApprovedRabMe = approvedRabs.find(r => getRabScope(r).includes("ME"));
+  const currentActiveRabs = revisiUlok ? rawBranchApprovedRabs.filter(r => {
+    const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+    return u === newUlok.trim().toUpperCase();
+  }) : approvedRabs;
+  const selectedApprovedRabSipil = currentActiveRabs.find(r => getRabScope(r).includes("SIPIL"));
+  const selectedApprovedRabMe = currentActiveRabs.find(r => getRabScope(r).includes("ME"));
   const hasCompleteApprovedRab = !!selectedApprovedRabSipil && !!selectedApprovedRabMe;
-  const hasRabUploadInput = hasCompleteApprovedRab && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
+
+  const sipilRabExists = revisiUlok
+    ? rawBranchApprovedRabs.some(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("SIPIL");
+    })
+    : allRabsForUlok.some(r => getRabScope(r).includes("SIPIL"));
+  const meRabExists = revisiUlok
+    ? rawBranchApprovedRabs.some(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes("ME");
+    })
+    : allRabsForUlok.some(r => getRabScope(r).includes("ME"));
+
+  const hasManualRabSipil = !!(linkRabSipilManual.trim() || fileRabSipilManual.length > 0);
+  const hasManualRabMe = !!(linkRabMeManual.trim() || fileRabMeManual.length > 0);
+
+  const isSipilComplete = Boolean(selectedApprovedRabSipil || (!sipilRabExists && hasManualRabSipil));
+  const isMeComplete = Boolean(selectedApprovedRabMe || (!meRabExists && hasManualRabMe));
+  const hasCompleteRab = isSipilComplete && isMeComplete;
+
+  const hasRabUploadInput = hasCompleteRab && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
   const hasRabUploadChange = !!(
     fileGambarSipil.length > 0 ||
     fileGambarMe.length > 0 ||
+    fileRabSipilManual.length > 0 ||
+    fileRabMeManual.length > 0 ||
     linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim() ||
-    linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()
+    linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim() ||
+    linkRabSipilManual.trim() !== (((data as any).link_rab_sipil || "")).trim() ||
+    linkRabMeManual.trim() !== (((data as any).link_rab_me || "")).trim() ||
+    (selectedApprovedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null) ||
+    (selectedApprovedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)
   );
+  const targetUlokForRab = revisiUlok ? newUlok : data?.nomor_ulok || "";
+
+  const rabUploadChecklist = [
+    ...(data?.link_desain_3d ? [{
+      id: "desain_3d",
+      title: "Desain 3D Ditinjau",
+      isPassed: openedLinks.has("desain_3d"),
+      passedText: "Dokumen Desain 3D sudah dibuka / ditinjau",
+      failedText: "Buka dokumen Desain 3D pada kartu Dokumen PP Specialist di atas",
+    }] : []),
+    {
+      id: "rab_sipil",
+      title: "RAB Sipil Disetujui",
+      isPassed: isSipilComplete,
+      passedText: selectedApprovedRabSipil
+        ? `RAB Sipil Disetujui (${selectedApprovedRabSipil.nomor_ulok || targetUlokForRab})`
+        : "RAB Sipil diunggah secara manual",
+      failedText: sipilRabExists
+        ? "RAB Sipil sedang dalam proses approval. Silakan tunggu hingga disetujui."
+        : `RAB Sipil untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum diupload manual`,
+    },
+    {
+      id: "rab_me",
+      title: "RAB ME Disetujui",
+      isPassed: isMeComplete,
+      passedText: selectedApprovedRabMe
+        ? `RAB ME Disetujui (${selectedApprovedRabMe.nomor_ulok || targetUlokForRab})`
+        : "RAB ME diunggah secara manual",
+      failedText: meRabExists
+        ? "RAB ME sedang dalam proses approval. Silakan tunggu hingga disetujui."
+        : `RAB ME untuk ULOK ${targetUlokForRab || "-"} belum tersedia atau belum diupload manual`,
+    },
+    {
+      id: "gambar_kerja",
+      title: "Gambar Kerja Final",
+      isPassed: Boolean(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0),
+      passedText: "Link atau berkas Gambar Kerja Final sudah diinput",
+      failedText: "Isi link Google Drive atau pilih file Gambar Kerja Final Sipil / ME di atas",
+    },
+    ...(isRabReupload ? [{
+      id: "revisi_change",
+      title: "Perubahan Berkas Revisi",
+      isPassed: hasRabUploadChange,
+      passedText: "Perubahan data dibanding upload sebelumnya terdeteksi",
+      failedText: "Ubah minimal satu link gambar atau upload berkas baru dibanding upload sebelumnya",
+    }] : []),
+  ];
+
+  const isRabUploadAllPassed = rabUploadChecklist.every(item => item.isPassed);
+  const missingRabUploadItems = rabUploadChecklist.filter(item => !item.isPassed);
+
+  const handleUploadRab = async () => {
+    if (missingRabUploadItems.length > 0) {
+      const htmlList = `
+        <div style="text-align: left; font-size: 13px; margin-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+          ${missingRabUploadItems.map((item, idx) => `
+            <div style="padding: 10px 12px; background-color: #ffffff; border: 2px solid #ef4444; border-radius: 8px; color: #1e293b;">
+              <div style="font-weight: 700; color: #dc2626; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: #dc2626;"></span>
+                ${idx + 1}. ${item.title}
+              </div>
+              <div style="font-size: 12px; color: #475569; margin-left: 14px;">
+                ${item.failedText}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+
+      const errorSummary = missingRabUploadItems.map((item, idx) => `${idx + 1}. ${item.title}: ${item.failedText}`).join("\n");
+      showAlert("Persyaratan Belum Lengkap", `Mohon lengkapi persyaratan berikut:\n\n${errorSummary}`);
+      return;
+    }
+
+    const changedRabFields = [
+      ((selectedApprovedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null)) ? "rab_sipil_final" : null,
+      ((selectedApprovedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)) ? "rab_me_final" : null,
+      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim()) ? "gambar_kerja_final_sipil" : null,
+      (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
+    ].filter(Boolean) as string[];
+
+    setActionLoading(true);
+    try {
+      const payload: any = {
+          uploader_email: userEmail,
+          id_rab_sipil: selectedApprovedRabSipil?.id,
+          id_rab_me: selectedApprovedRabMe?.id,
+          link_rab_sipil: linkRabSipilManual.trim() ? linkRabSipilManual : undefined,
+          link_rab_me: linkRabMeManual.trim() ? linkRabMeManual : undefined,
+          fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
+          link_gambar_kerja_final_sipil: linkGambarSipil,
+          link_gambar_kerja_final_me: linkGambarMe,
+      };
+      
+      if (revisiUlok) {
+          if (newUlok.trim()) payload.nomor_ulok = newUlok.trim();
+          if (newNamaToko.trim()) payload.nama_toko = newNamaToko.trim();
+          if (newProyek.trim()) payload.jenis_proyek = newProyek.trim();
+      }
+
+      await uploadRabGambarKerja(
+        id,
+        payload,
+        fileGambarSipil,
+        fileGambarMe,
+        fileRabSipilManual,
+        fileRabMeManual
+      );
+      clearViewedFields(changedRabFields);
+      showAlert("Berhasil!", "Input tahap kedua berhasil dikirim ke B&M Manager.");
+      setLinkGambarSipil(""); setFileGambarSipil([]);
+      setLinkGambarMe(""); setFileGambarMe([]);
+      setLinkRabSipilManual(""); setFileRabSipilManual([]);
+      setLinkRabMeManual(""); setFileRabMeManual([]);
+      await load();
+    } catch (e: any) { 
+      showAlert("Gagal Mengirim", e.message || "Terjadi kesalahan saat memproses data.");
+    }
+    setActionLoading(false);
+  };
   const latestRevisionSummary = [...logs]
     .reverse()
     .find(log =>
@@ -987,7 +1230,7 @@ export default function DetailProjekPlanning() {
       <AppNavbar title="Detail FPD" showBackButton backHref={backHref} />
       <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-4">
 
-        <FpdTimeline currentStatus={data.status} />
+        <FpdTimeline currentStatus={data.status} cabang={(data as any).toko?.cabang || data.cabang} />
 
         {/* Status Banner */}
         <div className={`px-4 py-3 rounded-xl ${st.color} flex items-center justify-between`}>
@@ -1011,12 +1254,12 @@ export default function DetailProjekPlanning() {
         <Card>
           <CardHeader className="pb-2 border-b border-slate-100 mb-3"><CardTitle className="text-sm font-bold flex items-center gap-2"><Building2 className="w-4 h-4 text-red-600" /> Informasi Toko</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            
+
             <div>
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Informasi Utama</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                 <InfoRow label="Nomor ULOK" value={data.nomor_ulok} />
-                <InfoRow label="Nama Toko / Lokasi" value={data.nama_lokasi || data.nama_toko} />
+                <InfoRow label="Nama Toko / Lokasi" value={(data as any).toko?.nama_toko || data.nama_toko || data.nama_lokasi} />
                 <InfoRow label="Cabang" value={data.cabang} />
                 <InfoRow label="Proyek" value={data.proyek || data.jenis_proyek} />
                 <InfoRow label="Akhir Masa Sewa" value={(data as any).akhir_masa_sewa ? fmtDateLong((data as any).akhir_masa_sewa) : null} />
@@ -1057,18 +1300,23 @@ export default function DetailProjekPlanning() {
             <div>
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Lokasi & Keterangan</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                <InfoRow 
-                  label="Link Google Maps" 
+                <InfoRow
+                  label="Link Google Maps"
                   value={(data as any).link_google_maps ? (
-                    <a 
-                      href={String((data as any).link_google_maps).startsWith('http') ? (data as any).link_google_maps : `https://${(data as any).link_google_maps}`} 
-                      target="_blank" 
+                    <a
+                      href={(() => {
+                        let u = String((data as any).link_google_maps);
+                        if (u.startsWith('http:/') && !u.startsWith('http://')) u = u.replace('http:/', 'http://');
+                        if (u.startsWith('https:/') && !u.startsWith('https://')) u = u.replace('https:/', 'https://');
+                        return u.startsWith('http') ? u : `https://${u}`;
+                      })()}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline break-all"
                     >
                       Buka Google Maps
                     </a>
-                  ) : null} 
+                  ) : null}
                 />
                 <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
               </div>
@@ -1087,7 +1335,7 @@ export default function DetailProjekPlanning() {
                 if (label === 'AIR_BERSIH') label = "Sumber Air Bersih";
                 else if (label === 'DRAINASE') label = "Drain Air Kotor";
                 else if (label === 'LAINNYA') label = f.nama_fasilitas_lainnya || "Lainnya";
-                
+
                 return <InfoRow key={idx} label={label} value={f.is_tersedia ? `Ya — ${f.keterangan || ""}` : "Tidak"} />;
               })}
             </CardContent>
@@ -1121,7 +1369,7 @@ export default function DetailProjekPlanning() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-1">
-            
+
             {/* Kategori 1: Dokumen Pengajuan Awal */}
             <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
               <div className="flex justify-between items-center bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-4 py-3">
@@ -1136,6 +1384,19 @@ export default function DetailProjekPlanning() {
                 <FileProxyRow label="Gambar Kompetitor" hasFile={!!data.link_gambar_kompetitor} projektId={id} field="gambar_kompetitor" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kompetitor} />
               </div>
             </div>
+
+            {/* Kategori Tambahan: Lampiran Foto Dokumentasi */}
+            {data.foto_items && data.foto_items.length > 0 && (
+              <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
+                <div className="flex justify-between items-center bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-4 py-3">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Lampiran Dokumentasi (PDF)</h3>
+                  <span className="text-xs font-semibold text-red-700 bg-white px-2 py-0.5 rounded-md shadow-sm">1 file</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/30">
+                  <PhotosPdfRow label="Lampiran Foto Dokumentasi" hasFile={true} projektId={id} />
+                </div>
+              </div>
+            )}
 
             {/* Kategori 2: Dokumen PP Specialist */}
             {(data.link_desain_3d || data.link_fpd_approved) && (
@@ -1155,12 +1416,12 @@ export default function DetailProjekPlanning() {
             {(data.link_rab_sipil || data.link_rab_me || data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final_me) && (
               <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
                 <div className="flex justify-between items-center bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-4 py-3">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Dokumen RAB & Final (Koordinator)</h3>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">{isBMRegional ? "Dokumen Final (Koordinator)" : "Dokumen RAB & Final (Koordinator)"}</h3>
                   <span className="text-xs font-semibold text-red-700 bg-white px-2 py-0.5 rounded-md shadow-sm">{rabFinalFields.length} file</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/30">
-                  <FileProxyRow label="RAB Sipil Final" hasFile={!!data.link_rab_sipil} projektId={id} field="rab_sipil_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_sipil} />
-                  <FileProxyRow label="RAB ME Final" hasFile={!!data.link_rab_me} projektId={id} field="rab_me_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_me} />
+                  {!isBMRegional && <FileProxyRow label="RAB Sipil Final" hasFile={!!data.link_rab_sipil} projektId={id} field="rab_sipil_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_sipil} />}
+                  {!isBMRegional && <FileProxyRow label="RAB ME Final" hasFile={!!data.link_rab_me} projektId={id} field="rab_me_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_me} />}
                   <FileProxyRow label="Gambar Kerja Final Sipil" hasFile={!!data.link_gambar_kerja_final_sipil} projektId={id} field="gambar_kerja_final_sipil" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_sipil} />
                   <FileProxyRow label="Gambar Kerja Final ME" hasFile={!!data.link_gambar_kerja_final_me} projektId={id} field="gambar_kerja_final_me" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_me} />
                 </div>
@@ -1176,7 +1437,7 @@ export default function DetailProjekPlanning() {
         </Card>
 
         {/* ACTION PANELS */}
-        
+
         {/* DRAFT (Ditolak) -> Revisi Form */}
         {data.status === "DRAFT" && canActAsSubmitter && (data.bm_alasan_penolakan || data.pp1_alasan_penolakan) && (
           <Card className="border-red-300 bg-red-50/50">
@@ -1201,14 +1462,14 @@ export default function DetailProjekPlanning() {
               {data.bm_alasan_penolakan && (
                 <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">
                   <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Revisi Pengajuan:</span>
-                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br/>
+                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br />
                   <span className="italic">"{data.bm_alasan_penolakan}"</span>
                 </div>
               )}
               {data.pp1_alasan_penolakan && (
                 <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">
                   <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Catatan PP Specialist:</span>
-                  Pengajuan ini pernah ditolak oleh PP Specialist tahap 1. Pastikan revisi berikut sudah menjawab catatan ini sebelum disetujui kembali:<br/>
+                  Pengajuan ini pernah ditolak oleh PP Specialist tahap 1. Pastikan revisi berikut sudah menjawab catatan ini sebelum disetujui kembali:<br />
                   <span className="italic">"{data.pp1_alasan_penolakan}"</span>
                 </div>
               )}
@@ -1249,44 +1510,8 @@ export default function DetailProjekPlanning() {
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-sky-800">Approval B&M Regional Manager</CardTitle></CardHeader>
             <CardContent className="p-4 space-y-3">
               <p className="text-sm text-sky-800 bg-white/70 p-3 rounded-lg border border-sky-100">
-                Review RAB dan gambar final tahap 2 sebelum diteruskan ke PP Specialist.
+                Review gambar final tahap 2 sebelum diteruskan ke PP Specialist.
               </p>
-
-              <div className="rounded-lg border border-sky-100 bg-white p-3 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-bold text-sky-900">Review RAB</p>
-                    <p className="text-xs text-slate-500">Jika RAB ditolak, kontraktor akan mendapat revisi RAB.</p>
-                  </div>
-                  {!rabReviewAction && <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Belum dipilih</span>}
-                </div>
-                <ReviewSelect label="Keputusan RAB" value={rabReviewAction} onChange={(value) => {
-                  setRabReviewAction(value);
-                  if (value === "REJECT") {
-                    setRabApprovalNote("");
-                    if (rabRejectedRows.length === 0) setRabRejectedRows([{ itemId: "", note: "" }]);
-                  }
-                  if (value === "APPROVE") {
-                    setRabRejectedRows([]);
-                    setRabRejectedItemNotes("");
-                  }
-                }} />
-                {rabReviewAction === "REJECT" && (
-                  <RabRejectEditor
-                    rabItems={rabReviewItems}
-                    rows={rabRejectedRows}
-                    onRowsChange={setRabRejectedRows}
-                    generalNote={rabRejectedItemNotes}
-                    onGeneralNoteChange={setRabRejectedItemNotes}
-                  />
-                )}
-                {rabReviewAction === "APPROVE" && (
-                  <div className="rounded-lg border border-green-100 bg-green-50/40 p-3 space-y-1.5">
-                    <Label className="text-xs font-semibold text-green-700">Catatan Approval RAB</Label>
-                    <Textarea value={rabApprovalNote} onChange={e => setRabApprovalNote(e.target.value)} placeholder="Opsional, catatan khusus approval RAB..." rows={2} className="bg-white" />
-                  </div>
-                )}
-              </div>
 
               <div className="rounded-lg border border-sky-100 bg-white p-3 space-y-3">
                 <div className="flex items-center justify-between gap-2">
@@ -1314,7 +1539,7 @@ export default function DetailProjekPlanning() {
                   </div>
                 )}
               </div>
-              <Button onClick={() => handleApprove("bm_regional")} className="w-full bg-sky-600 hover:bg-sky-700 text-white shadow-sm" disabled={actionLoading || !allLinksOpened || !rabReviewAction || !gambarReviewAction}>
+              <Button onClick={() => handleApprove("bm_regional")} className="w-full bg-sky-600 hover:bg-sky-700 text-white shadow-sm" disabled={actionLoading || !allLinksOpened || !gambarReviewAction}>
                 <CheckCircle2 className="w-4 h-4 mr-1.5" /> Simpan Review B&M Regional
               </Button>
             </CardContent>
@@ -1329,7 +1554,7 @@ export default function DetailProjekPlanning() {
               {data.pp1_alasan_penolakan && (
                 <div className="text-sm text-blue-800 bg-blue-100/50 p-3 rounded-lg border border-blue-200 mb-2">
                   <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Revisi Pengajuan:</span>
-                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br/>
+                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br />
                   <span className="italic">"{data.pp1_alasan_penolakan}"</span>
                 </div>
               )}
@@ -1407,6 +1632,167 @@ export default function DetailProjekPlanning() {
                 </div>
               )}
 
+              {true && (
+                <div className="p-4 border border-blue-200 bg-blue-50/50 rounded-lg space-y-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={revisiUlok} onChange={e => setRevisiUlok(e.target.checked)} id="rev-ulok" className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4" />
+                    <Label htmlFor="rev-ulok" className="font-semibold text-blue-900 cursor-pointer">Revisi Identitas Toko (Opsional)</Label>
+                  </div>
+                  {revisiUlok && (
+                    <div className="mt-3 p-4 bg-white border border-blue-100 rounded-lg space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Option 1: Dropdown */}
+                        <div
+                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${revisiUlokMode === "dropdown" ? "border-blue-500 bg-blue-50 shadow-sm" : "border-slate-200 hover:border-blue-300 bg-white"
+                            }`}
+                          onClick={() => setRevisiUlokMode("dropdown")}
+                        >
+                          <div className={`p-2.5 w-max rounded-full transition-colors ${revisiUlokMode === "dropdown" ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
+                            <ClipboardList className="w-5 h-5" />
+                          </div>
+                          <div className="mt-3">
+                            <h3 className={`font-bold ${revisiUlokMode === "dropdown" ? "text-blue-900" : "text-slate-700"}`}>Pilih dari RAB</h3>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Pilih Nomor ULOK dari daftar RAB yang sudah diinput oleh kontraktor.</p>
+                          </div>
+                          {revisiUlokMode === "dropdown" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-blue-500" />}
+                        </div>
+
+                        {/* Option 2: Manual */}
+                        <div
+                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${revisiUlokMode === "manual" ? "border-amber-500 bg-amber-50 shadow-sm" : "border-slate-200 hover:border-amber-300 bg-white"
+                            }`}
+                          onClick={() => setRevisiUlokMode("manual")}
+                        >
+                          <div className={`p-2.5 w-max rounded-full transition-colors ${revisiUlokMode === "manual" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+                            <PenTool className="w-5 h-5" />
+                          </div>
+                          <div className="mt-3">
+                            <h3 className={`font-bold ${revisiUlokMode === "manual" ? "text-amber-900" : "text-slate-700"}`}>Input Manual</h3>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Input Nomor ULOK secara manual jika RAB belum dibuat.</p>
+                          </div>
+                          {revisiUlokMode === "manual" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-amber-500" />}
+                        </div>
+                      </div>
+
+                      {revisiUlokMode === "dropdown" && (
+                        <div className="space-y-4 pt-2 border-t border-blue-100">
+                          <Label className="text-sm font-bold text-slate-700">Pilih RAB yang Benar *</Label>
+                          {branchApprovedRabs.length === 0 ? (
+                            <div className="text-sm text-slate-500 italic p-3 bg-slate-50 rounded border border-slate-100">
+                              Tidak ada RAB yang berstatus Disetujui di cabang ini.
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Input
+                                placeholder="Cari ULOK / Nama Toko..."
+                                value={searchUlok}
+                                onChange={e => setSearchUlok(e.target.value)}
+                                className="h-9 text-sm"
+                              />
+                              <select
+                                value={selectedBranchRabId}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setSelectedBranchRabId(val);
+                                  const selected = branchApprovedRabs.find(r => r.id === Number(val));
+                                  if (selected) {
+                                    const u = selected.nomor_ulok || (selected.toko && selected.toko.nomor_ulok) || "";
+                                    setNewUlok(u);
+                                    setNewNamaToko(selected.nama_toko || (selected.toko && selected.toko.nama_toko) || "");
+                                    setNewProyek(selected.proyek || (selected.toko && selected.toko.proyek) || "");
+                                    // Update manual inputs as well just in case they switch
+                                    const parts = u.split("-");
+                                    if (parts.length >= 3) {
+                                      setManualCabang(parts[0]);
+                                      setManualTanggal(parts[1]);
+                                      setManualUrutan(parts[2]);
+                                    }
+                                  }
+                                }}
+                                className="w-full h-10 rounded-md border border-slate-200 bg-white text-sm px-3 focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">-- Pilih RAB yang Disetujui --</option>
+                                {branchApprovedRabs
+                                  .filter(r => {
+                                    if (!searchUlok) return true;
+                                    const searchLower = searchUlok.toLowerCase();
+                                    const ulok = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").toLowerCase();
+                                    const tokoName = (r.nama_toko || (r.toko && r.toko.nama_toko) || "").toLowerCase();
+                                    return ulok.includes(searchLower) || tokoName.includes(searchLower);
+                                  })
+                                  .map(r => {
+                                    const scope = r.lingkup_gabungan || r.lingkup_pekerjaan || r.scope || "";
+                                    const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "-";
+                                    const tokoName = r.nama_toko || (r.toko && r.toko.nama_toko) || "-";
+                                    return (
+                                      <option key={r.id} value={r.id}>
+                                        [{scope}] {ulok} - {tokoName}
+                                      </option>
+                                    );
+                                  })}
+                              </select>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-slate-700">Nomor ULOK Terpilih</Label>
+                              <Input value={newUlok} readOnly className="h-9 text-sm bg-slate-50 text-slate-500 cursor-not-allowed" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-slate-700">Nama Toko Terpilih</Label>
+                              <Input value={newNamaToko} readOnly className="h-9 text-sm bg-slate-50 text-slate-500 cursor-not-allowed" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {revisiUlokMode === "manual" && (
+                        <div className="space-y-4 pt-2 border-t border-amber-100">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold text-slate-700">Nomor ULOK Baru *</Label>
+                              <div className="flex gap-2 items-center">
+                                <Input value={manualCabang} readOnly className="w-20 text-center h-9 bg-slate-50 text-slate-500 font-mono text-sm cursor-not-allowed" />
+                                <span className="text-slate-400 font-bold">-</span>
+                                <Input
+                                  value={manualTanggal}
+                                  onChange={e => setManualTanggal(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                  placeholder="MMYY"
+                                  className="w-20 text-center h-9 font-mono text-sm"
+                                  maxLength={4}
+                                />
+                                <span className="text-slate-400 font-bold">-</span>
+                                <Input
+                                  value={manualUrutan}
+                                  onChange={e => setManualUrutan(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                  placeholder="0001"
+                                  className="w-20 text-center h-9 font-mono text-sm"
+                                  maxLength={4}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold text-slate-700">Nama Toko Baru</Label>
+                              <Input value={newNamaToko} onChange={e => setNewNamaToko(e.target.value)} placeholder="Nama Toko" className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                              <Label className="text-xs font-semibold text-slate-700">Jenis Proyek Baru</Label>
+                              <select value={newProyek} onChange={e => setNewProyek(e.target.value)} className="w-full h-9 rounded-md border border-slate-200 bg-white text-sm px-3">
+                                <option value="">-- Tetap ({data.proyek}) --</option>
+                                <option value="Reguler">Toko Baru (Reguler)</option>
+                                <option value="Renovasi Perluasan">Renovasi Perluasan</option>
+                                <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
+                                <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* RAB Sparta Status — tampil per scope Sipil / ME */}
               {(() => {
                 const RAB_STATUS_LABEL: Record<string, { label: string; emoji: string; color: string }> = {
@@ -1419,7 +1805,16 @@ export default function DetailProjekPlanning() {
                   'DITOLAK': { label: 'Ditolak', emoji: '❌', color: 'text-red-700 font-semibold' },
                 };
                 const getRabStatusDisplay = (scope: string) => {
-                  const rab = allRabsForUlok.find(r => getRabScope(r).includes(scope.toUpperCase()));
+                  let rab;
+                  if (revisiUlok) {
+                    rab = rawBranchApprovedRabs.find(r => {
+                      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+                      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes(scope.toUpperCase());
+                    });
+                  } else {
+                    rab = allRabsForUlok.find(r => getRabScope(r).includes(scope.toUpperCase()));
+                  }
+
                   if (!rab) return { label: 'Belum disubmit', emoji: '⬜', color: 'text-slate-400' };
                   const key = (rab.status || '').toUpperCase().trim();
                   return RAB_STATUS_LABEL[key] || { label: rab.status || 'Tidak diketahui', emoji: '❓', color: 'text-slate-500' };
@@ -1430,17 +1825,22 @@ export default function DetailProjekPlanning() {
                 const meApproved = !!selectedApprovedRabMe;
 
                 return (
-                  <div className={`text-sm p-3 rounded-lg border ${hasCompleteApprovedRab ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                    <span className={`font-semibold block mb-2 ${hasCompleteApprovedRab ? 'text-green-800' : 'text-red-800'}`}>RAB Sparta Approved</span>
+                  <div className={`text-sm p-4 rounded-xl border-2 ${hasCompleteRab ? 'bg-white border-green-600 shadow-sm' : 'bg-white border-red-500 shadow-sm'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`font-bold text-sm ${hasCompleteRab ? 'text-green-800' : 'text-red-800'}`}>RAB Sparta Approved</span>
+                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${hasCompleteRab ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                        {hasCompleteRab ? "Lengkap" : "Perlu Tindakan"}
+                      </span>
+                    </div>
                     <div className="space-y-2">
                       {/* Penawaran Sipil */}
-                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${
-                        sipilApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
+                      <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${
+                        sipilApproved ? 'bg-green-50 border-green-300' : 'bg-white border-slate-300'
                       }`}>
-                        <span className="text-xs font-semibold text-slate-600">Penawaran Sipil</span>
+                        <span className="text-xs font-semibold text-slate-700">Penawaran Sipil</span>
                         <div className="flex items-center gap-2">
                           {sipilApproved && selectedApprovedRabSipil?.grand_total_final && (
-                            <span className="text-xs text-slate-500">{formatCurrency(selectedApprovedRabSipil.grand_total_final)}</span>
+                            <span className="text-xs font-bold text-slate-700">{formatCurrency(selectedApprovedRabSipil.grand_total_final)}</span>
                           )}
                           <span className={`text-xs ${sipilStatus.color}`}>
                             {sipilStatus.emoji} {sipilStatus.label}
@@ -1448,13 +1848,13 @@ export default function DetailProjekPlanning() {
                         </div>
                       </div>
                       {/* Penawaran ME */}
-                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${
-                        meApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
+                      <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${
+                        meApproved ? 'bg-green-50 border-green-300' : 'bg-white border-slate-300'
                       }`}>
-                        <span className="text-xs font-semibold text-slate-600">Penawaran ME</span>
+                        <span className="text-xs font-semibold text-slate-700">Penawaran ME</span>
                         <div className="flex items-center gap-2">
                           {meApproved && selectedApprovedRabMe?.grand_total_final && (
-                            <span className="text-xs text-slate-500">{formatCurrency(selectedApprovedRabMe.grand_total_final)}</span>
+                            <span className="text-xs font-bold text-slate-700">{formatCurrency(selectedApprovedRabMe.grand_total_final)}</span>
                           )}
                           <span className={`text-xs ${meStatus.color}`}>
                             {meStatus.emoji} {meStatus.label}
@@ -1462,10 +1862,76 @@ export default function DetailProjekPlanning() {
                         </div>
                       </div>
                     </div>
+
                     {!hasCompleteApprovedRab && (
-                      <p className="text-xs text-red-600 mt-2 pt-2 border-t border-red-100">
-                        Pastikan RAB Sipil DAN RAB ME sudah berstatus <b>Approved</b> sebelum dapat mengajukan FPD.
-                      </p>
+                      <div className="mt-4 space-y-4 pt-4 border-t border-slate-200">
+                        {(sipilRabExists || meRabExists) && (
+                          <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 font-medium">
+                            <strong>Perhatian:</strong> RAB yang sedang dalam proses approval tidak dapat diupload manual. Silakan tunggu hingga disetujui untuk melanjutkan.
+                          </div>
+                        )}
+                        {(!sipilRabExists && !meRabExists) && (
+                          <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-xs text-blue-900 font-medium">
+                            RAB Sipil atau RAB ME belum pernah dibuat di sistem. Silakan upload dokumen RAB final secara manual (link Google Drive atau berkas PDF) di bawah ini untuk melanjutkan pengajuan.
+                          </div>
+                        )}
+
+                        {/* RAB Sipil Final Manual */}
+                        {!sipilRabExists && (
+                          <div className="space-y-2 p-3 bg-slate-50 border border-slate-300 rounded-lg">
+                            <Label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                              <span>RAB Sipil Final (Manual) *</span>
+                              {hasManualRabSipil && <span className="text-xs font-bold text-green-700">✓ Sudah Terisi</span>}
+                            </Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <Input
+                                placeholder="Link RAB Sipil Final (GDrive)..."
+                                value={linkRabSipilManual}
+                                onChange={e => { setLinkRabSipilManual(e.target.value); setFileRabSipilManual([]); }}
+                                className="bg-white border-slate-300"
+                                disabled={fileRabSipilManual.length > 0}
+                              />
+                              <div>
+                                <Input
+                                  type="file"
+                                  accept="application/pdf"
+                                  onChange={handleFileChange(setLinkRabSipilManual, (file) => setFileRabSipilManual(file ? [file as any] : []))}
+                                  className="bg-white border-slate-300 file:bg-orange-600 file:text-white file:font-semibold file:border-0 file:rounded file:px-2.5 file:py-1 file:mr-2 cursor-pointer"
+                                />
+                                {fileRabSipilManual.length > 0 && <p className="text-[11px] font-semibold text-orange-700 mt-1">Berkas terpilih: {fileRabSipilManual[0].name}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* RAB ME Final Manual */}
+                        {!meRabExists && (
+                          <div className="space-y-2 p-3 bg-slate-50 border border-slate-300 rounded-lg">
+                            <Label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                              <span>RAB ME Final (Manual) *</span>
+                              {hasManualRabMe && <span className="text-xs font-bold text-green-700">✓ Sudah Terisi</span>}
+                            </Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <Input
+                                placeholder="Link RAB ME Final (GDrive)..."
+                                value={linkRabMeManual}
+                                onChange={e => { setLinkRabMeManual(e.target.value); setFileRabMeManual([]); }}
+                                className="bg-white border-slate-300"
+                                disabled={fileRabMeManual.length > 0}
+                              />
+                              <div>
+                                <Input
+                                  type="file"
+                                  accept="application/pdf"
+                                  onChange={handleFileChange(setLinkRabMeManual, (file) => setFileRabMeManual(file ? [file as any] : []))}
+                                  className="bg-white border-slate-300 file:bg-orange-600 file:text-white file:font-semibold file:border-0 file:rounded file:px-2.5 file:py-1 file:mr-2 cursor-pointer"
+                                />
+                                {fileRabMeManual.length > 0 && <p className="text-[11px] font-semibold text-orange-700 mt-1">Berkas terpilih: {fileRabMeManual[0].name}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -1648,18 +2114,102 @@ export default function DetailProjekPlanning() {
                 </div>
               </div>
 
+              {/* Checklist Validasi Kelengkapan Dokumen */}
+              <div className="rounded-xl border-2 border-slate-300 bg-white p-4 shadow-sm space-y-3">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-slate-700" />
+                    <h4 className="text-sm font-bold text-slate-800">Checklist Kelengkapan Dokumen</h4>
+                  </div>
+                  {isRabUploadAllPassed ? (
+                    <span className="bg-emerald-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded shadow-sm">
+                      Semua Lengkap
+                    </span>
+                  ) : (
+                    <span className="bg-red-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded shadow-sm">
+                      {missingRabUploadItems.length} Belum Lengkap
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {rabUploadChecklist.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-lg border-2 flex items-start gap-3 transition-colors ${
+                        item.isPassed
+                          ? "bg-white border-emerald-500 text-slate-800"
+                          : "bg-white border-red-500 text-slate-800"
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                          item.isPassed ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+                        }`}
+                      >
+                        {item.isPassed ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900">{item.title}</span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded text-white ${
+                              item.isPassed ? "bg-emerald-600" : "bg-red-600"
+                            }`}
+                          >
+                            {item.isPassed ? "Lengkap" : "Wajib Dilengkapi"}
+                          </span>
+                        </div>
+                        <p
+                          className={`text-xs mt-0.5 ${
+                            item.isPassed ? "text-slate-600" : "text-red-700 font-medium"
+                          }`}
+                        >
+                          {item.isPassed ? item.passedText : item.failedText}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {isRabUploadAllPassed ? (
+                  <div className="p-3 bg-white border-2 border-emerald-600 rounded-lg text-emerald-900 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Semua persyaratan terpenuhi, berkas siap dikirim ke B&M Manager.</span>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white border-2 border-red-500 rounded-lg text-red-900 text-xs font-semibold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>
+                      Terdapat {missingRabUploadItems.length} persyaratan yang belum lengkap. Tombol submit tetap bisa diklik untuk melihat rincian instruksi.
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={handleUploadRab}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-                disabled={actionLoading || (data.link_desain_3d ? !openedLinks.has("desain_3d") : false) || !hasRabUploadInput || (isRabReupload && !hasRabUploadChange)}
+                className={`w-full font-bold h-11 text-sm shadow-sm transition-colors ${
+                  isRabUploadAllPassed
+                    ? "bg-orange-600 hover:bg-orange-700 text-white"
+                    : "bg-slate-700 hover:bg-slate-800 text-white"
+                }`}
+                disabled={actionLoading}
               >
-                <Send className="w-4 h-4 mr-1.5" /> Submit RAB & Gambar Kerja Final
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Mengirim RAB & Gambar Kerja Final...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-1.5" /> Submit RAB & Gambar Kerja Final
+                  </>
+                )}
               </Button>
-              {isRabReupload && !hasRabUploadChange && (
-                <p className="text-xs text-orange-700 text-center font-medium">
-                  Belum ada perubahan dari upload sebelumnya.
-                </p>
-              )}
             </CardContent>
           </Card>
         )}
@@ -1837,7 +2387,12 @@ export default function DetailProjekPlanning() {
                   <div key={log.id} className="flex gap-3 text-xs border-b border-slate-50 pb-2 last:border-0">
                     <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 shrink-0" />
                     <div>
-                      <p className="font-semibold text-slate-700">{log.aksi} oleh {log.actor_email} <span className="text-slate-400">({log.role})</span></p>
+                      <p className="font-semibold text-slate-700">
+                        {log.aksi} oleh {log.actor_email}{" "}
+                        <span className="text-slate-400">
+                          ({log.role === "BM" ? "B&M" : log.role === "PP_SPECIALIST" ? "PP Specialist" : log.role === "PP_MANAGER" ? "PP Manager" : log.role === "BM_REGIONAL" ? "B&M Regional" : log.role === "SUPER_HUMAN" ? "Super Human" : log.role === "COORDINATOR" ? "Coordinator" : log.role})
+                        </span>
+                      </p>
                       {log.keterangan && <p className="text-slate-500 mt-0.5">{log.keterangan}</p>}
                       <p className="text-slate-400 mt-0.5">{fmt(log.created_at)}</p>
                     </div>

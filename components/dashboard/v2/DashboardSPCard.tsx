@@ -5,7 +5,7 @@ import { AlertTriangle, ChevronRight, FileText, Activity } from 'lucide-react';
 import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { isViewOnlyUser } from '@/lib/constants';
+import { isViewOnlyUser, getParentBranch } from '@/lib/constants';
 import { useSession } from '@/context/SessionContext';
 
 interface DashboardSPCardProps {
@@ -32,6 +32,7 @@ export const DashboardSPCard: React.FC<DashboardSPCardProps> = ({ selectedBranch
     }, []);
 
     const isContractor = user?.roles?.some(r => r.includes('KONTRAKTOR') || r.includes('DIREKTUR'));
+    const isSuperHuman = user?.roles?.some(r => r.toUpperCase().includes('BUILDING & MAINTENANCE SUPER HUMAN'));
 
     // Filter SPs based on selected branch and active status
     const filteredSp = spList.filter(sp => {
@@ -41,12 +42,20 @@ export const DashboardSPCard: React.FC<DashboardSPCardProps> = ({ selectedBranch
             return false;
         }
 
+        // Hide Z001 and HEAD OFFICE unless Super Human
+        if (!isSuperHuman) {
+            const cab = sp.cabang?.toUpperCase();
+            if (cab === 'Z001' || cab === 'HEAD OFFICE') {
+                return false;
+            }
+        }
+
         // Branch filtering
         if (selectedBranch && selectedBranch !== 'ALL') {
             // If the user selected a specific branch
             if (sp.cabang) {
                 // If it has a branch, must match
-                if (sp.cabang.toUpperCase() !== selectedBranch.toUpperCase()) return false;
+                if (getParentBranch(sp.cabang).toUpperCase() !== getParentBranch(selectedBranch).toUpperCase()) return false;
             } else {
                 // Global SP (no branch). 
                 // If contractor, they should always see their global SPs regardless of branch filter.

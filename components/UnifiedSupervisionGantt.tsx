@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Building2, Loader2 } from "lucide-react";
 import { fetchGanttDetailByToko } from "@/lib/api";
 import type { SupervisionWorkspace, UnifiedSupervisionCheckpoint } from "@/lib/api";
+import type { ExportableGanttScope, ExportableTimelineColumn } from "@/lib/gantt-pdf-export";
 
 const DAY_WIDTH = 44;
 const ROW_HEIGHT = 46;
@@ -1017,6 +1018,101 @@ export default function UnifiedSupervisionGantt({
         return hasMissingInput ? "needsInput" : "filled";
     };
 
+    useEffect(() => {
+        if (!onExportDataChange) return;
+        if (isLoading || !timeline || details.length === 0) {
+            onExportDataChange(null);
+            return;
+        }
+
+        const today = new Date();
+        const todayFormatted = formatFullDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+        const takeoverDate = workspace.tanggal_takeover ? parseDate(workspace.tanggal_takeover) : null;
+        const takeoverStartDayIdx = takeoverDate ? Math.max(0, diffDays(takeoverDate, timeline.start)) : -1;
+
+        const columns: ExportableTimelineColumn[] = timeline.dates.map((date, dayIndex) => {
+            const fullDate = formatFullDate(date);
+            const checkpoint = checkpointByDate.get(fullDate);
+            const isExtension = extensionDates.has(fullDate);
+            const spkEnd = spkEndByDate.get(fullDate);
+            const stBuffer = stBufferByDate.get(fullDate);
+            const checkpointState = resolveCheckpointVisualState(
+                fullDate,
+                checkpoint,
+                dayIndex + 1,
+                checkpointVisualStateByDate.get(fullDate)
+            );
+            const isToday = fullDate === todayFormatted;
+            const visualState = checkpointState || (isToday ? "today" : undefined);
+            const isTakeoverDay = takeoverStartDayIdx !== -1 && dayIndex >= takeoverStartDayIdx;
+
+            let colTone: ExportableTimelineColumn["colTone"] = "normal";
+            let badgeText: string | undefined;
+            let badgeTone: ExportableTimelineColumn["badgeTone"];
+
+            if (isTakeoverDay) {
+                colTone = "takeover";
+                if (dayIndex === takeoverStartDayIdx) {
+                    badgeText = "TKVR";
+                    badgeTone = "red";
+                }
+            } else if (spkEnd) {
+                colTone = "spkEnd";
+                badgeText = "Akhir";
+                badgeTone = "amber";
+            } else if (stBuffer?.isTarget) {
+                colTone = stBuffer.isPenalty ? "stPenalty" : "stTarget";
+                badgeText = stBuffer.targetLabel || "ST";
+                badgeTone = stBuffer.isPenalty ? "rose" : "teal";
+            } else if (stBuffer) {
+                colTone = stBuffer.isPenalty ? "stPenalty" : "stBuffer";
+                badgeText = stBuffer.label.replace(" hari", "");
+                badgeTone = stBuffer.isPenalty ? "rose" : "orange";
+            } else if (isExtension) {
+                colTone = "extension";
+                badgeText = "SPK+";
+                badgeTone = "amber";
+            } else if (visualState === "needsInput") {
+                colTone = "needsInput";
+            } else if (visualState === "filled") {
+                colTone = "filled";
+            } else if (visualState === "todayCheckpoint") {
+                colTone = "todayCheckpoint";
+            } else if (visualState === "today") {
+                colTone = "today";
+            } else if (checkpoint) {
+                colTone = "checkpoint";
+            }
+
+            return {
+                dayIndex,
+                dateLabel: isBelumSpk ? String(dayIndex + 1) : formatShortDate(date),
+                subLabel: isBelumSpk ? "Hari" : formatDayName(date),
+                fullDate,
+                badgeText,
+                badgeTone,
+                colTone,
+            };
+        });
+
+        onExportDataChange({
+            columns,
+            scopes: details,
+        });
+    }, [
+        checkpointByDate,
+        checkpointVisualStateByDate,
+        details,
+        extensionDates,
+        isBelumSpk,
+        isLoading,
+        onExportDataChange,
+        spkEndByDate,
+        stBufferByDate,
+        timeline,
+        workspace.tanggal_takeover,
+    ]);
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center border-y border-slate-200 bg-white py-16 text-slate-500">
@@ -1224,8 +1320,12 @@ export default function UnifiedSupervisionGantt({
                                 <button
                                     key={fullDate}
                                     type="button"
-                                    disabled={!checkpoint && !isTargetStDate}
+                                    disabled={!checkpoint && !isTargetStDate && !workspace.tanggal_takeover}
                                     onClick={() => {
+                                        if (workspace.tanggal_takeover) {
+                                            window.alert("ULOK ini sudah di-takeover. Tidak dapat mengisi pengawasan progress.");
+                                            return;
+                                        }
                                         if (isTargetStDate && onTargetStClick) {
                                             onTargetStClick(fullDate, dayIndex);
                                             return;
@@ -1492,6 +1592,36 @@ export default function UnifiedSupervisionGantt({
                                         <div className="absolute inset-0 bg-gradient-to-l from-slate-300/60 to-slate-200/30" />
                                     </div>
                                 );
+                            }
+
+                            // Add Takeover overlay if the workspace has been taken over
+                            if (workspace.tanggal_takeover) {
+                                const takeoverDate = parseDate(workspace.tanggal_takeover);
+                                if (takeoverDate) {
+                                    const takeoverOffset = diffDays(takeoverDate, timeline.start);
+                                    const blackoutStart = Math.max(0, takeoverOffset);
+                                    if (blackoutStart < timeline.days) {
+                                        acc.nodes.push(
+                                            <div
+                                                key={`${scope.id_toko}-takeover-blackout`}
+                                                className="absolute z-40 pointer-events-none"
+                                                style={{
+                                                    top: scopeTop,
+                                                    left: blackoutStart * DAY_WIDTH,
+                                                    width: (timeline.days - blackoutStart) * DAY_WIDTH,
+                                                    height: scopeHeight,
+                                                    background: "repeating-linear-gradient(45deg, rgba(0,0,0,0.8), rgba(0,0,0,0.8) 10px, rgba(15,23,42,0.9) 10px, rgba(15,23,42,0.9) 20px)",
+                                                    opacity: 0.85
+                                                }}
+                                                title={`Takeover: Proyek diambil alih`}
+                                            >
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className="rounded bg-black/60 px-3 py-1 text-xs font-bold text-white shadow-sm ring-1 ring-white/20">TAKEOVER</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                }
                             }
                             
                             // Add rows and bars

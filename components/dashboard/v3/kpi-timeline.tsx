@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { fetchDashboardAll, viewGeneratedPdfOnline } from '@/lib/api';
-import { API_URL } from '@/lib/constants';
+import { API_URL, formatProjectPlanningStatus } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
-import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
+import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown, ClipboardList, Building2 } from 'lucide-react';
 
-export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: string; lingkup_pekerjaan?: string | null }) {
+export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan, hideHeader }: { nomor_ulok: string; lingkup_pekerjaan?: string | null; hideHeader?: boolean }) {
     const [project, setProject] = useState<any>(null);
     const [projects, setProjects] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +54,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         const key = normalizeDateKey(value);
         if (!key) return '-';
         const parsed = new Date(`${key}T00:00:00`);
-        return Number.isNaN(parsed.getTime()) ? key : parsed.toLocaleDateString('id-ID');
+        return Number.isNaN(parsed.getTime()) ? key : parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     };
 
     const timestampValue = (value: unknown) => {
@@ -114,6 +114,57 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     const scope = proj.toko?.lingkup_pekerjaan || '';
     const suffix = scope ? ` (${scope})` : '';
 
+    // 0. Project Planning (FPD)
+    const ppList = (proj.project_planning && Array.isArray(proj.project_planning)) ? proj.project_planning : [];
+    let ppData = ppList.length > 0 ? ppList[0] : null;
+    if (!ppData && projects && projects.length > 0) {
+        const counterpart = projects.find((p: any) => p.toko?.nomor_ulok === proj.toko?.nomor_ulok && p.project_planning?.length > 0);
+        if (counterpart) {
+            ppData = counterpart.project_planning[0];
+        }
+    }
+    if (ppData) {
+        const ppMeta = formatProjectPlanningStatus(ppData.status);
+        const ppDates = [];
+        if (ppData.tanggal_dokumen || ppData.created_at) {
+            ppDates.push({ label: 'Dibuat', val: ppData.tanggal_dokumen || ppData.created_at });
+        }
+        const latestApprove = ppData.pp_manager_waktu_persetujuan || ppData.pp2_waktu_persetujuan || ppData.bm_regional_waktu_persetujuan || ppData.bm2_waktu_persetujuan || ppData.pp1_waktu_persetujuan || ppData.bm_waktu_persetujuan || ppData.approved_at_rm || ppData.approved_at_manager || ppData.approved_at_specialist || ppData.approved_at_bm;
+        if (latestApprove) {
+            ppDates.push({ label: 'Approve', val: latestApprove });
+        }
+
+        const ppSubItems = Number(ppData.total_foto_dokumentasi) > 0 ? [
+            {
+                title: 'PDF Dokumen FPD',
+                desc: 'Laporan FPD Project Planning',
+                url: ppData.link_pdf || null,
+                id: ppData.id,
+                type: 'PROJECT_PLANNING'
+            },
+            {
+                title: 'PDF Lampiran Foto Dokumentasi',
+                desc: `${ppData.total_foto_dokumentasi} Foto Survei`,
+                id: ppData.id,
+                type: 'PROJECT_PLANNING_PHOTOS'
+            }
+        ] : undefined;
+
+        nodes.push({
+            type: 'PROJECT_PLANNING',
+            title: `Project Planning${suffix}`,
+            desc: ppData.estimasi_biaya ? formatRupiah(ppData.estimasi_biaya) : ppMeta.label,
+            icon: <ClipboardList className="w-5 h-5"/>,
+            color: ppMeta.timelineColor,
+            data: ppData,
+            isActive: true,
+            isCompleted: ['COMPLETED', 'SELESAI', 'APPROVED'].includes(String(ppData.status || '').toUpperCase()),
+            url: ppData.link_pdf || null,
+            subItems: ppSubItems,
+            dateList: ppDates
+        });
+    }
+
     // 1. RAB
     const hasRab = proj.rab && proj.rab.length > 0;
     nodes.push({
@@ -125,7 +176,11 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasRab ? proj.rab[0] : null,
         isActive: hasRab,
         isCompleted: hasRab,
-        url: hasRab ? proj.rab[0].link_pdf_gabungan : null
+        url: hasRab ? proj.rab[0].link_pdf_gabungan : null,
+        dateList: hasRab ? [
+            { label: 'Dibuat', val: proj.rab[0].created_at },
+            { label: 'Approve', val: proj.rab[0].waktu_persetujuan_direktur }
+        ] : []
     });
 
     // 2. SPK
@@ -139,7 +194,11 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasSpk ? proj.spk[0] : null,
         isActive: hasSpk,
         isCompleted: hasSpk,
-        url: hasSpk ? proj.spk[0].link_pdf : null
+        url: hasSpk ? proj.spk[0].link_pdf : null,
+        dateList: hasSpk ? [
+            { label: 'Mulai', val: proj.spk[0].waktu_mulai },
+            { label: 'Selesai', val: proj.spk[0].waktu_selesai }
+        ] : []
     });
 
     // 3. Tambah SPK (ULOK gabungan: pakai tanggal akhir SPK paling jauh lintas lingkup)
@@ -153,7 +212,11 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
             data: latestTambahSpk,
             isActive: true,
             isCompleted: true,
-            url: latestTambahSpk.link_pdf || latestTambahSpk.link_lampiran_pendukung || null
+            url: latestTambahSpk.link_pdf || latestTambahSpk.link_lampiran_pendukung || null,
+            dateList: [
+                { label: 'Mulai Ext', val: latestTambahSpk.created_at },
+                { label: 'Selesai Ext', val: latestTambahSpk.tanggal_spk_akhir_setelah_perpanjangan || latestTambahSpk.tanggal_spk_akhir }
+            ]
         });
     }
 
@@ -165,7 +228,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     if (hasIL) {
         ilSubItems = proj.instruksi_lapangan.filter((il: any) => il.link_pdf_gabungan || il.link_pdf_non_sbo).map((il: any, idx: number) => ({
             title: `Instruksi Lapangan ${idx + 1}`,
-            desc: new Date(il.created_at).toLocaleDateString('id-ID'),
+            desc: new Date(il.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
             url: il.link_pdf_gabungan || il.link_pdf_non_sbo
         }));
         
@@ -282,7 +345,10 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasST ? proj.berkas_serah_terima[0] : null,
         isActive: hasST,
         isCompleted: hasST,
-        url: hasST ? proj.berkas_serah_terima[0].link_pdf : null
+        url: hasST ? proj.berkas_serah_terima[0].link_pdf : null,
+        dateList: hasST ? [
+            { label: 'Tanggal ST', val: proj.berkas_serah_terima[0].tanggal_serah_terima || proj.berkas_serah_terima[0].created_at }
+        ] : []
     });
 
     // 8. Opname Final / KTK
@@ -304,8 +370,43 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasFinal ? opnameFinal[0] : null,
         isActive: hasFinal,
         isCompleted: hasFinal,
-        url: hasFinal ? opnameFinal[0].link_pdf_opname : null
+        url: hasFinal ? opnameFinal[0].link_pdf_opname : null,
+        dateList: hasFinal ? [
+            { label: 'KTK Final', val: opnameFinal[0].created_at },
+            { label: 'Approve Dir', val: opnameFinal[0].waktu_persetujuan_direktur }
+        ] : []
     });
+
+    // 8.5 Dokumentasi Bangunan Toko Baru (Kondisional Opsi A, berlaku SIPIL + ME)
+    const dokList = (proj.dokumentasi_bangunan && Array.isArray(proj.dokumentasi_bangunan)) ? proj.dokumentasi_bangunan : [];
+    let dokData = dokList.length > 0 ? dokList[0] : null;
+    if (!dokData && projects && projects.length > 0) {
+        const counterpart = projects.find((p: any) => 
+            p.toko?.nomor_ulok === proj.toko?.nomor_ulok && p.dokumentasi_bangunan?.length > 0
+        );
+        if (counterpart) {
+            dokData = counterpart.dokumentasi_bangunan[0];
+        }
+    }
+
+    if (dokData) {
+        const statusUpper = String(dokData.status_validasi || 'SUBMITTED').toUpperCase();
+        nodes.push({
+            type: 'DOKUMENTASI_BANGUNAN',
+            title: 'Dokumentasi Bangunan Toko Baru',
+            desc: `Status: ${statusUpper}`,
+            icon: <Building2 className="w-5 h-5"/>,
+            color: 'amber',
+            data: dokData,
+            isActive: true,
+            isCompleted: true,
+            url: dokData.link_pdf || null,
+            dateList: [
+                { label: 'Ambil Foto', val: dokData.tanggal_ambil_foto },
+                { label: 'Grand Opening', val: dokData.tanggal_go }
+            ].filter((d: any) => Boolean(d.val))
+        });
+    }
 
     // 9. DONE
     const isFinalApproved = hasFinal && ['SELESAI', 'APPROVED', 'DONE', 'DISETUJUI'].includes(String(opnameFinal[0].status_opname_final || '').toUpperCase());
@@ -323,29 +424,32 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     });
 
     const getColorClasses = (color: string, isActive: boolean, isCompleted: boolean) => {
-        if (!isActive) return { bg: 'bg-slate-100', text: 'text-slate-400', border: 'border-slate-200', dot: 'bg-slate-300' };
+        if (!isActive) return { bg: 'bg-slate-100', text: 'text-slate-400', border: 'border-slate-200 border-l-[6px] border-l-slate-300', dot: 'bg-slate-300' };
         const maps: any = {
-            indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200', dot: 'bg-indigo-500' },
-            blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', dot: 'bg-blue-500' },
-            cyan: { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-200', dot: 'bg-cyan-500' },
-            orange: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200', dot: 'bg-orange-500' },
-            purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200', dot: 'bg-purple-500' },
-            sky: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200', dot: 'bg-sky-500' },
-            emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-            teal: { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200', dot: 'bg-teal-500' },
-            slate: { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-500' }
+            indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200 border-l-[6px] border-l-indigo-500', dot: 'bg-indigo-500' },
+            blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200 border-l-[6px] border-l-blue-500', dot: 'bg-blue-500' },
+            cyan: { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-200 border-l-[6px] border-l-cyan-500', dot: 'bg-cyan-500' },
+            orange: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200 border-l-[6px] border-l-orange-500', dot: 'bg-orange-500' },
+            purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200 border-l-[6px] border-l-purple-500', dot: 'bg-purple-500' },
+            sky: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200 border-l-[6px] border-l-sky-500', dot: 'bg-sky-500' },
+            emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200 border-l-[6px] border-l-emerald-500', dot: 'bg-emerald-500' },
+            teal: { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200 border-l-[6px] border-l-teal-500', dot: 'bg-teal-500' },
+            amber: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200 border-l-[6px] border-l-amber-500', dot: 'bg-amber-500' },
+            slate: { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200 border-l-[6px] border-l-slate-400', dot: 'bg-slate-500' }
         };
         return maps[color] || maps.slate;
     };
 
     return (
         <div className="w-full flex flex-col items-center">
-            <div className="mb-4 flex items-center justify-between gap-3 w-full">
-                <div className="flex items-center gap-3">
-                    <div className="h-6 w-1.5 shrink-0 rounded-full bg-red-500" />
-                    <h4 className="text-xl font-bold tracking-tight text-slate-900">Timeline Projek</h4>
+            {!hideHeader && (
+                <div className="mb-4 flex items-center justify-between gap-3 w-full">
+                    <div className="flex items-center gap-3">
+                        <div className="h-6 w-1.5 shrink-0 rounded-full bg-red-500" />
+                        <h4 className="text-xl font-bold tracking-tight text-slate-900">Timeline Projek</h4>
+                    </div>
                 </div>
-            </div>
+            )}
             
             <div className="w-full max-w-4xl relative pb-10 mt-6">
                 <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-slate-100 -translate-x-1/2 rounded-full hidden md:block"></div>
@@ -358,9 +462,10 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
                         const colors = getColorClasses(node.color, node.isActive, node.isCompleted);
                         const hasSubItems = node.subItems && node.subItems.length > 0;
                         const isExpanded = expandedNode === idx;
+                        const isClickable = Boolean(node.url || hasSubItems || (node.type === 'PROJECT_PLANNING' && node.data?.id));
                         
                         const CardContent = (
-                            <div className={`p-3.5 rounded-xl border bg-white shadow-sm transition-all duration-300 ${node.isActive ? (node.url || hasSubItems ? 'hover:shadow-md hover:-translate-y-1 hover:border-blue-300 cursor-pointer' : 'hover:shadow-md hover:-translate-y-1') : 'opacity-60'} ${colors.border}`}>
+                            <div className={`p-3.5 rounded-xl border bg-white shadow-sm transition-all duration-300 ${node.isActive ? (isClickable ? 'hover:shadow-md hover:-translate-y-1 hover:border-blue-300 cursor-pointer' : 'hover:shadow-md hover:-translate-y-1') : 'opacity-60'} ${colors.border}`}>
                                 <div className={`flex items-center justify-between gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
                                     <div className={`flex items-center gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
                                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
@@ -371,9 +476,18 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
                                             <p className={`font-semibold text-xs mt-0.5 ${node.isActive ? colors.text : 'text-slate-400'}`}>
                                                 {node.desc}
                                             </p>
+                                            {node.dateList && node.dateList.length > 0 && (
+                                                <div className={`flex flex-col gap-0.5 mt-2 ${isEven ? 'md:items-end' : 'items-start'}`}>
+                                                    {node.dateList.map((d: any, idxD: number) => d.val && (
+                                                        <span key={idxD} className="text-[10px] font-medium text-slate-500">
+                                                            <span className="text-slate-400">{d.label}:</span> {formatDateLabel(d.val)}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                    {node.url && !hasSubItems && (
+                                    {(node.url || (node.type === 'PROJECT_PLANNING' && node.data?.id)) && !hasSubItems && (
                                         <ExternalLink className={`w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors shrink-0 ${isEven ? 'md:rotate-180' : ''}`} />
                                     )}
                                     {hasSubItems && (
@@ -384,7 +498,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
                                 {hasSubItems && isExpanded && (
                                     <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
                                         {node.subItems.map((sub: any, sIdx: number) => {
-                                            const canOpenDocument = Boolean(sub.url || sub.hasGeneratedFallback);
+                                            const canOpenDocument = Boolean(sub.url || sub.hasGeneratedFallback || sub.type === 'PROJECT_PLANNING_PHOTOS' || sub.type === 'PROJECT_PLANNING');
                                             const SubContent = (
                                                <div className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-100 ${canOpenDocument ? 'hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer' : 'bg-slate-50 opacity-80'} transition-colors ${isEven ? 'md:flex-row-reverse text-right' : 'text-left'}`}>
                                                    <div className="flex flex-col">
@@ -401,7 +515,17 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
                                                     className="w-full text-left"
                                                     onClick={async (e) => {
                                                         e.stopPropagation();
-                                                        await openPengawasanDocument(sub);
+                                                        if (sub.type === 'PROJECT_PLANNING_PHOTOS') {
+                                                            await viewGeneratedPdfOnline(sub.id, 'PROJECT_PLANNING_PHOTOS');
+                                                        } else if (sub.type === 'PROJECT_PLANNING') {
+                                                            if (sub.url) {
+                                                                window.open(getProxyUrl(sub.url), '_blank', 'noopener,noreferrer');
+                                                            } else {
+                                                                await viewGeneratedPdfOnline(sub.id, 'PROJECT_PLANNING');
+                                                            }
+                                                        } else {
+                                                            await openPengawasanDocument(sub);
+                                                        }
                                                     }}
                                                 >
                                                     {SubContent}
@@ -434,6 +558,21 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
                                         <div onClick={() => setExpandedNode(isExpanded ? null : idx)} className="block outline-none">
                                             {CardContent}
                                         </div>
+                                    ) : node.type === 'PROJECT_PLANNING' && node.data?.id ? (
+                                        <button
+                                            type="button"
+                                            className="w-full text-left outline-none block"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                try {
+                                                    await viewGeneratedPdfOnline(node.data.id, 'PROJECT_PLANNING');
+                                                } catch (err) {
+                                                    console.error('Failed to view project planning pdf', err);
+                                                }
+                                            }}
+                                        >
+                                            {CardContent}
+                                        </button>
                                     ) : (
                                         CardContent
                                     )}

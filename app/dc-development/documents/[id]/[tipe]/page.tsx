@@ -16,7 +16,10 @@ import {
   FileText,
   FileSpreadsheet,
   File,
-  Plus
+  Plus,
+  History,
+  Clock,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -26,8 +29,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, getDcDocumentProxyUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, logDcCategoryEdit, getDcCategoryEditLogs, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType, type DcCategoryActivityLog } from "@/lib/api";
 import { DC_DOCUMENT_LEGENDS, getDcDocumentConfigForStage, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
+import { compressDocumentFile, isCompressibleFile, formatBytes } from "@/lib/document-compressor";
 
 const CUSTOM_SLOT_OPTIONS: DcDocumentUploadSlotType[] = ["PDF/JPEG", "AUTOCAD", "WORD", "EXCEL", "PPT"];
 
@@ -59,7 +63,15 @@ export default function DcDocumentDetailPage() {
   const [draftFiles, setDraftFiles] = useState<Record<string, File[]>>({});
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [savingCategory, setSavingCategory] = useState<string | null>(null);
+  const [compressingKeys, setCompressingKeys] = useState<Record<string, boolean>>({});
+  const [compressProgress, setCompressProgress] = useState<Record<string, { percent: number; current?: number; total?: number; message?: string }>>({});
+  const [compressedMeta, setCompressedMeta] = useState<Record<string, { originalSize: number; compressedSize: number; ratioPercent: number }>>({});
   
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedCategoryForHistory, setSelectedCategoryForHistory] = useState<{ id: string; name: string } | null>(null);
+  const [categoryHistoryLogs, setCategoryHistoryLogs] = useState<DcCategoryActivityLog[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const actor = useMemo(() => ({
     actor_email: user?.email || "",
     actor_role: user?.role || "",
@@ -182,9 +194,17 @@ export default function DcDocumentDetailPage() {
        }
        
        if (!hasDoc) {
-         const localNote = draftNotes[jenis.key]?.trim();
-         const serverNote = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes?.trim();
-         if (!localNote && !serverNote) {
+         const localNoteRaw = draftNotes[jenis.key];
+         const localNote = localNoteRaw !== undefined ? localNoteRaw.trim() : undefined;
+         let serverNote = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes?.trim();
+         
+         if (!serverNote) {
+           const oldDocWithNote = documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes?.trim());
+           if (oldDocWithNote) serverNote = oldDocWithNote.notes?.trim();
+         }
+         
+         const effectiveNote = localNote !== undefined ? localNote : serverNote;
+         if (!effectiveNote) {
             alert(`Item "${jenis.title}" belum memiliki dokumen. Anda WAJIB mengisi catatan!`);
             return;
          }
@@ -192,6 +212,12 @@ export default function DcDocumentDetailPage() {
     }
     
     setSavingCategory(utamaId);
+    let uploadedDocsCount = 0;
+    let updatedNotesCount = 0;
+    const uploadedDocNames: string[] = [];
+    const updatedNoteNames: string[] = [];
+    const deletedNoteNames: string[] = [];
+
     try {
       for (const jenis of allJenis) {
         for (const slot of jenis.slots) {
@@ -206,20 +232,59 @@ export default function DcDocumentDetailPage() {
                document_type: compKey,
                stage: tipe
              }, files);
+             uploadedDocsCount += files.length;
+             uploadedDocNames.push(jenis.title);
           }
         }
         
-        const localNote = draftNotes[jenis.key];
-        if (localNote !== undefined) {
-           await uploadDcDocuments({
-               actor_email: actor.actor_email,
-               actor_role: actor.actor_role,
-               project_id: archive.project_id,
-               entity_type: "DC_ARCHIVE_PROJECT",
-               document_type: `ITEM_NOTE_${jenis.key}`,
-               stage: tipe,
-               notes: localNote
-           }, []);
+        const localNoteRaw = draftNotes[jenis.key];
+        if (localNoteRaw !== undefined) {
+           const localNote = localNoteRaw.trim();
+           const serverNoteDoc = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`);
+           const oldDocsWithNote = documents.filter(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes);
+           
+           if (localNote === "") {
+               if (serverNoteDoc) {
+                   await deleteDcDocument(serverNoteDoc.id, actor);
+                   updatedNotesCount++;
+                   deletedNoteNames.push(jenis.title);
+               }
+               for (const oldDoc of oldDocsWithNote) {
+                   await updateDcDocument(oldDoc.id, { ...actor, notes: "" });
+                   if (!serverNoteDoc) {
+                       updatedNotesCount++; // Count if we didn't already count serverNoteDoc
+                       deletedNoteNames.push(jenis.title);
+                   }
+               }
+           } else {
+               let noteUpdated = false;
+               for (const oldDoc of oldDocsWithNote) {
+                   await updateDcDocument(oldDoc.id, { ...actor, notes: "" });
+                   noteUpdated = true;
+               }
+               
+               if (serverNoteDoc) {
+                   if (serverNoteDoc.notes?.trim() !== localNote) {
+                       await updateDcDocument(serverNoteDoc.id, { ...actor, notes: localNote });
+                       noteUpdated = true;
+                   }
+               } else {
+                   await uploadDcDocuments({
+                       actor_email: actor.actor_email,
+                       actor_role: actor.actor_role,
+                       project_id: archive.project_id,
+                       entity_type: "DC_ARCHIVE_PROJECT",
+                       document_type: `ITEM_NOTE_${jenis.key}`,
+                       stage: tipe,
+                       notes: localNote
+                   }, []);
+                   noteUpdated = true;
+               }
+               if (noteUpdated) {
+                   updatedNotesCount++;
+                   updatedNoteNames.push(jenis.title);
+               }
+           }
         }
       }
       
@@ -233,6 +298,40 @@ export default function DcDocumentDetailPage() {
         allJenis.forEach(j => delete next[j.key]);
         return next;
       });
+      setCompressedMeta(prev => {
+        const next = { ...prev };
+        allJenis.forEach(j => {
+          j.slots.forEach(s => {
+            const prefix = `${formatKey(j.key, s.type)}_`;
+            Object.keys(next).forEach(k => {
+              if (k.startsWith(prefix)) delete next[k];
+            });
+          });
+        });
+        return next;
+      });
+      
+      const action_details: string[] = [];
+      if (uploadedDocsCount > 0) action_details.push(`${uploadedDocsCount} Dokumen Diunggah`);
+      if (updatedNotesCount > 0) action_details.push(`${updatedNotesCount} Catatan Diubah`);
+
+      const itemized_details: Record<string, string[]> = {};
+      if (uploadedDocNames.length > 0) itemized_details.uploaded_docs = Array.from(new Set(uploadedDocNames));
+      if (updatedNoteNames.length > 0) itemized_details.updated_notes = Array.from(new Set(updatedNoteNames));
+      if (deletedNoteNames.length > 0) itemized_details.deleted_notes = Array.from(new Set(deletedNoteNames));
+
+      try {
+        await logDcCategoryEdit(archive.id, {
+            category_id: utamaId,
+            category_name: utama.title,
+            actor_email: actor.actor_email,
+            actor_role: actor.actor_role,
+            action_details: action_details.length > 0 ? action_details : undefined,
+            itemized_details: Object.keys(itemized_details).length > 0 ? itemized_details : undefined
+        });
+      } catch (logErr) {
+        console.error("Failed to log category edit:", logErr);
+      }
       
       toggleEditMode(utamaId);
       await loadData();
@@ -244,12 +343,39 @@ export default function DcDocumentDetailPage() {
     }
   };
 
+  const handleOpenHistory = async (categoryId: string, categoryName: string) => {
+    if (!archive) return;
+    setSelectedCategoryForHistory({ id: categoryId, name: categoryName });
+    setHistoryModalOpen(true);
+    setLoadingHistory(true);
+    try {
+      const res = await getDcCategoryEditLogs(archive.id, categoryId);
+      setCategoryHistoryLogs(res.data || []);
+    } catch (err) {
+      console.error(err);
+      alert(getErrorMessage(err, "Gagal mengambil riwayat edit kategori."));
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeUploadContext, setActiveUploadContext] = useState<{key: string, type: string} | null>(null);
+
+  const getAcceptString = (type: string) => {
+    const t = type.toUpperCase();
+    if (t.includes('PDF/JPEG')) return 'application/pdf,image/jpeg,image/png,image/jpg,.pdf,.jpg,.jpeg,.png';
+    if (t.includes('AUTOCAD')) return '.dwg,.dxf,application/acad,image/vnd.dwg';
+    if (t.includes('WORD')) return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (t.includes('EXCEL')) return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (t.includes('PPT')) return '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    return '*/*';
+  };
 
   const triggerUpload = (jenisKey: string, type: string) => {
     setActiveUploadContext({ key: jenisKey, type });
     if (fileInputRef.current) {
+      fileInputRef.current.accept = getAcceptString(type);
       fileInputRef.current.value = "";
       fileInputRef.current.click();
     }
@@ -258,11 +384,31 @@ export default function DcDocumentDetailPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files ?? []);
     if (selectedFiles.length === 0 || !activeUploadContext) return;
-    const compKey = formatKey(activeUploadContext.key, activeUploadContext.type);
-    setDraftFiles(prev => ({
-      ...prev,
-      [compKey]: [...(prev[compKey] || []), ...selectedFiles]
-    }));
+    
+    const acceptStr = getAcceptString(activeUploadContext.type);
+    let validFiles = selectedFiles;
+    
+    if (acceptStr !== '*/*') {
+        const acceptList = acceptStr.split(',').map(s => s.trim().toLowerCase());
+        const invalidFiles = selectedFiles.filter(f => {
+            const ext = "." + (f.name.split('.').pop()?.toLowerCase() || "");
+            return !acceptList.includes(f.type.toLowerCase()) && !acceptList.includes(ext);
+        });
+
+        if (invalidFiles.length > 0) {
+            alert(`Beberapa file memiliki format yang tidak didukung untuk tipe ${activeUploadContext.type}.\nFile yang diabaikan: ${invalidFiles.map(f => f.name).join(', ')}`);
+            validFiles = selectedFiles.filter(f => !invalidFiles.includes(f));
+        }
+    }
+
+    if (validFiles.length > 0) {
+        const compKey = formatKey(activeUploadContext.key, activeUploadContext.type);
+        setDraftFiles(prev => ({
+          ...prev,
+          [compKey]: [...(prev[compKey] || []), ...validFiles]
+        }));
+    }
+    
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -273,6 +419,76 @@ export default function DcDocumentDetailPage() {
       newFiles.splice(index, 1);
       return { ...prev, [compKey]: newFiles };
     });
+
+    setCompressedMeta(prev => {
+      const next = { ...prev };
+      delete next[`${compKey}_${index}`];
+      Object.keys(prev).forEach(k => {
+        if (k.startsWith(`${compKey}_`)) {
+          const idx = parseInt(k.replace(`${compKey}_`, ""), 10);
+          if (idx > index) {
+            next[`${compKey}_${idx - 1}`] = prev[k];
+            delete next[k];
+          }
+        }
+      });
+      return next;
+    });
+
+    setCompressProgress(prev => {
+      const next = { ...prev };
+      delete next[`${compKey}_${index}`];
+      Object.keys(prev).forEach(k => {
+        if (k.startsWith(`${compKey}_`)) {
+          const idx = parseInt(k.replace(`${compKey}_`, ""), 10);
+          if (idx > index) {
+            next[`${compKey}_${idx - 1}`] = prev[k];
+            delete next[k];
+          }
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleCompressDraft = async (compKey: string, index: number) => {
+    const file = draftFiles[compKey]?.[index];
+    if (!file || !isCompressibleFile(file)) return;
+
+    const taskKey = `${compKey}_${index}`;
+    setCompressingKeys(prev => ({ ...prev, [taskKey]: true }));
+    setCompressProgress(prev => ({
+      ...prev,
+      [taskKey]: { percent: 0, message: "Mempersiapkan..." }
+    }));
+
+    try {
+      const result = await compressDocumentFile(file, {
+        onProgress: (p) => {
+          setCompressProgress(prev => ({ ...prev, [taskKey]: p }));
+        }
+      });
+
+      setDraftFiles(prev => {
+        const files = [...(prev[compKey] || [])];
+        files[index] = result.file;
+        return { ...prev, [compKey]: files };
+      });
+
+      setCompressedMeta(prev => ({
+        ...prev,
+        [taskKey]: {
+          originalSize: result.originalSize,
+          compressedSize: result.compressedSize,
+          ratioPercent: result.ratioPercent,
+        }
+      }));
+    } catch (err) {
+      console.error("Gagal kompresi dokumen:", err);
+      alert(getErrorMessage(err, "Gagal mengompresi dokumen. Silakan coba kembali."));
+    } finally {
+      setCompressingKeys(prev => ({ ...prev, [taskKey]: false }));
+    }
   };
 
   const handleDelete = async (docId: number) => {
@@ -288,7 +504,7 @@ export default function DcDocumentDetailPage() {
 
   const renderDocumentSlot = (jenisKey: string, type: string, isEditMode: boolean) => {
     const compKey = formatKey(jenisKey, type);
-    const slotDocuments = documents.filter(d => d.document_type === compKey);
+    const slotDocuments = documents.filter(d => d.document_type === compKey && d.drive_file_id);
     const localFiles = draftFiles[compKey] || [];
     const isUploading = uploadingKey === compKey;
 
@@ -300,7 +516,7 @@ export default function DcDocumentDetailPage() {
               {slotDocuments.map((doc, index) => (
                 <div key={doc.id} className="flex flex-col gap-1 w-full sm:w-[260px] shrink-0">
                   <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm hover:border-emerald-300 hover:shadow-md transition-all group/doc">
-                    <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
+                    <a href={doc.link_dokumen ? getDcDocumentProxyUrl(doc.link_dokumen, "view") : buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
                       <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
                         <FileText className="w-3.5 h-3.5" />
                       </div>
@@ -328,7 +544,7 @@ export default function DcDocumentDetailPage() {
         <div className="flex flex-col gap-2 w-full sm:items-end">
           {slotDocuments.map((doc, index) => (
             <div key={doc.id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm w-full sm:w-[260px] shrink-0">
-              <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1">
+              <a href={doc.link_dokumen ? getDcDocumentProxyUrl(doc.link_dokumen, "view") : buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1">
                 <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
                   <FileText className="w-3.5 h-3.5" />
                 </div>
@@ -342,22 +558,100 @@ export default function DcDocumentDetailPage() {
               </button>
             </div>
           ))}
-          {localFiles.map((file, index) => (
-            <div key={`local-${index}`} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-blue-200 bg-blue-50/50 shadow-sm w-full sm:w-[260px] shrink-0">
-              <div className="flex items-center gap-2 overflow-hidden flex-1 px-1">
-                <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-blue-100 text-blue-600">
-                  <FileText className="w-3.5 h-3.5" />
+          {localFiles.map((file, index) => {
+            const taskKey = `${compKey}_${index}`;
+            const isCompressing = !!compressingKeys[taskKey];
+            const progress = compressProgress[taskKey];
+            const meta = compressedMeta[taskKey];
+            const compressible = isCompressibleFile(file);
+            const currentSizeStr = formatBytes(file.size);
+
+            return (
+              <div key={`local-${index}`} className="flex flex-col gap-1.5 p-2 rounded-xl border border-blue-200 bg-blue-50/50 shadow-sm w-full sm:w-[260px] shrink-0 transition-all">
+                {/* Info Dokumen Draft */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+                    <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded-lg bg-blue-100 text-blue-600">
+                      <FileText className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-xs font-semibold text-slate-800 truncate" title={file.name}>{file.name}</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[9px] text-blue-600 font-bold uppercase tracking-wider bg-blue-100/80 px-1 py-0.2 rounded">DRAFT {type}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">{currentSizeStr}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDraftFile(compKey, index)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                    title="Hapus Draft"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-slate-700 truncate">{file.name}</span>
-                  <span className="text-[9px] text-blue-500 font-bold uppercase tracking-wider">DRAFT {type}</span>
-                </div>
+
+                {/* Di Bawah Dokumen: Fitur Kompres Dokumen */}
+                {compressible && (
+                  <div className="pt-1.5 mt-0.5 border-t border-blue-100/90 flex items-center justify-between gap-2">
+                    {meta ? (
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-md px-1.5 py-0.5 flex-1 min-w-0" title={`Ukuran asli: ${formatBytes(meta.originalSize)} → ${formatBytes(meta.compressedSize)}`}>
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">
+                          {meta.ratioPercent > 0
+                            ? `${formatBytes(meta.originalSize)} → ${formatBytes(meta.compressedSize)} (-${meta.ratioPercent}%)`
+                            : `Sudah Optimal (${formatBytes(meta.compressedSize)})`}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-medium italic">Hemat bandwidth upload</span>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isCompressing}
+                      onClick={() => handleCompressDraft(compKey, index)}
+                      className={`h-6 px-2 text-[10px] font-bold shrink-0 transition-all ${
+                        meta
+                          ? "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+                          : "bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-xs"
+                      }`}
+                      title={meta ? "Kompres ulang dokumen" : "Kompres dokumen untuk memperkecil ukuran file"}
+                    >
+                      {isCompressing ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin shrink-0" />
+                          <span className="truncate max-w-[85px]">
+                            {progress?.message || (progress?.percent !== undefined ? `${progress.percent}%` : "Mengompres...")}
+                          </span>
+                        </>
+                      ) : meta ? (
+                        meta.ratioPercent > 0 ? (
+                          <>
+                            <Sparkles className="w-2.5 h-2.5 mr-1 text-amber-500" />
+                            Kompres Ulang
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-2.5 h-2.5 mr-1 text-emerald-600" />
+                            Sudah Optimal
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <Sparkles className="w-2.5 h-2.5 mr-1" />
+                          Kompres Dokumen
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
-              <button type="button" onClick={() => handleRemoveDraftFile(compKey, index)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Draft">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           <div className="flex justify-end w-full mt-1">
             <button type="button" onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-1.5 text-[10px] font-semibold text-red-600 hover:text-red-700 transition-colors bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-md">
               <UploadCloud className="w-3 h-3" />
@@ -563,12 +857,25 @@ export default function DcDocumentDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 mr-4 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2 mr-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200" onClick={(e) => e.stopPropagation()}>
                         <Switch checked={editModeCategories.has(utama.id)} onCheckedChange={() => toggleEditMode(utama.id)} id={`switch-${utama.id}`} />
                         <label htmlFor={`switch-${utama.id}`} className="text-xs font-semibold text-slate-700 cursor-pointer">
                           Edit Mode
                         </label>
                       </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mr-4 rounded-full h-8 px-3 border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-colors bg-white/50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenHistory(utama.id, utama.title);
+                        }}
+                      >
+                        <History className="h-4 w-4 mr-1.5" />
+                        <span className="text-xs font-semibold">Riwayat Edit</span>
+                      </Button>
                       {/* 
                       (() => {
                         const catNoteKey = `CAT_NOTE_${utama.id}`;
@@ -600,7 +907,7 @@ export default function DcDocumentDetailPage() {
                         );
                       })()
                       */}
-                      {utama.title === "DATA PENTING LAINNYA" && (
+                      {utama.title === "DATA PENTING LAINNYA" && !actor.actor_role.toUpperCase().includes("DC DOCUMENT ADMIN") && (
                         <Button
                           type="button"
                           size="sm"
@@ -642,14 +949,14 @@ export default function DcDocumentDetailPage() {
                                     <Textarea
                                       placeholder="Catatan item (wajib jika tanpa dokumen)..."
                                       className="min-h-[80px] text-xs resize-none"
-                                      value={draftNotes[jenis.key] !== undefined ? draftNotes[jenis.key] : (documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || "")}
+                                      value={draftNotes[jenis.key] !== undefined ? draftNotes[jenis.key] : (documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes)?.notes || "")}
                                       onChange={(e) => setDraftNotes(prev => ({...prev, [jenis.key]: e.target.value}))}
                                     />
                                   </div>
                                 )}
-                                {!editModeCategories.has(utama.id) && documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes && (
+                                {!editModeCategories.has(utama.id) && (documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes)?.notes) && (
                                   <div className="w-full sm:w-[260px] mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
-                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes}
+                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes)?.notes}
                                   </div>
                                 )}
                               </div>
@@ -672,14 +979,14 @@ export default function DcDocumentDetailPage() {
                                     <Textarea
                                       placeholder="Catatan item..."
                                       className="min-h-[80px] text-xs resize-none"
-                                      value={draftNotes[getCustomItemKey(customItem)] !== undefined ? draftNotes[getCustomItemKey(customItem)] : (documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || "")}
+                                      value={draftNotes[getCustomItemKey(customItem)] !== undefined ? draftNotes[getCustomItemKey(customItem)] : (documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || documents.find(d => d.document_type.startsWith(`${getCustomItemKey(customItem)}__`) && d.notes)?.notes || "")}
                                       onChange={(e) => setDraftNotes(prev => ({...prev, [getCustomItemKey(customItem)]: e.target.value}))}
                                     />
                                   </div>
                                 )}
-                                {!editModeCategories.has(utama.id) && documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes && (
+                                {!editModeCategories.has(utama.id) && (documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || documents.find(d => d.document_type.startsWith(`${getCustomItemKey(customItem)}__`) && d.notes)?.notes) && (
                                   <div className="w-full sm:w-[260px] mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
-                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes}
+                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || documents.find(d => d.document_type.startsWith(`${getCustomItemKey(customItem)}__`) && d.notes)?.notes}
                                   </div>
                                 )}
                                 {editModeCategories.has(utama.id) && (
@@ -797,6 +1104,102 @@ export default function DcDocumentDetailPage() {
             <Button onClick={handleSaveNote} disabled={savingNote} className="bg-red-600 hover:bg-red-700 text-white">
               {savingNote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* DIALOG RIWAYAT EDIT */}
+      <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-white/90 backdrop-blur-xl border border-white/20 shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold text-slate-800">
+              <History className="h-5 w-5 text-red-600" />
+              Riwayat Edit Kategori
+            </DialogTitle>
+            <p className="text-sm font-medium text-slate-500 mt-1">
+              Kategori: <span className="font-semibold text-slate-700">{selectedCategoryForHistory?.name}</span>
+            </p>
+          </DialogHeader>
+          <div className="p-6 bg-slate-50/50 max-h-[60vh] overflow-y-auto">
+            {loadingHistory ? (
+              <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                <Loader2 className="h-8 w-8 animate-spin text-red-500 mb-4" />
+                <p className="text-sm font-medium">Memuat riwayat...</p>
+              </div>
+            ) : categoryHistoryLogs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                  <Clock className="h-8 w-8 text-slate-300" />
+                </div>
+                <p className="text-slate-500 font-medium">Belum ada riwayat edit untuk kategori ini.</p>
+              </div>
+            ) : (
+              <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                {categoryHistoryLogs.map((log) => (
+                  <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-slate-100 text-slate-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 transition-transform hover:scale-110">
+                      <Clock className="h-4 w-4" />
+                    </div>
+                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-100 bg-white shadow-sm transition-all hover:shadow-md">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-red-600">
+                          {new Date(log.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                        </span>
+                        <span className="text-sm font-bold text-slate-800">{log.actor_email}</span>
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{log.actor_role}</span>
+                        {log.metadata?.action_details && log.metadata.action_details.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                            {log.metadata.action_details.map((detail: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-semibold bg-red-50 text-red-600 border border-red-100">
+                                {detail}
+                              </span>
+                            ))}
+                            {log.metadata.itemized_details && Object.keys(log.metadata.itemized_details).length > 0 && (
+                              <div className="relative group cursor-pointer ml-1">
+                                <Info className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-colors" />
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-max max-w-[250px] p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 border border-slate-700 backdrop-blur-md bg-opacity-95">
+                                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-slate-800/95"></div>
+                                  <div className="flex flex-col gap-2">
+                                    {log.metadata.itemized_details.uploaded_docs && (
+                                      <div>
+                                        <span className="font-semibold text-emerald-400">Tambah Dokumen:</span>
+                                        <ul className="list-disc list-inside mt-0.5 text-slate-300 leading-tight">
+                                          {log.metadata.itemized_details.uploaded_docs.map((doc: string, i: number) => <li key={i}>{doc}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    {log.metadata.itemized_details.updated_notes && (
+                                      <div>
+                                        <span className="font-semibold text-blue-400">Edit Catatan:</span>
+                                        <ul className="list-disc list-inside mt-0.5 text-slate-300 leading-tight">
+                                          {log.metadata.itemized_details.updated_notes.map((note: string, i: number) => <li key={i}>{note}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    {log.metadata.itemized_details.deleted_notes && (
+                                      <div>
+                                        <span className="font-semibold text-rose-400">Hapus Dokumen/Catatan:</span>
+                                        <ul className="list-disc list-inside mt-0.5 text-slate-300 leading-tight">
+                                          {log.metadata.itemized_details.deleted_notes.map((del: string, i: number) => <li key={i}>{del}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="p-4 border-t border-slate-100 bg-white">
+            <Button variant="outline" className="w-full sm:w-auto hover:bg-slate-50" onClick={() => setHistoryModalOpen(false)}>
+              Tutup
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,13 +1,13 @@
 "use client"
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, ChevronLeft, Info } from 'lucide-react';
+import { Eye, EyeOff, ChevronLeft, Info, Briefcase, MapPin, Building2, User } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,14 @@ import { storeApiAuthSession } from '@/lib/api';
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Memuat...</div>}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +69,59 @@ export default function LoginPage() {
       sessionStorage.removeItem("sessionExpiredMessage");
     }
   }, []);
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const ssoPayload = searchParams.get("sso_payload");
+    const ssoError = searchParams.get("error");
+    
+    if (ssoError) {
+      setMessage({ text: "Gagal masuk via SSO. Silakan coba lagi.", type: "error" });
+    } else if (ssoPayload) {
+      handleSsoResolve(ssoPayload);
+    }
+  }, [searchParams]);
+
+  const handleSsoResolve = async (payload: string) => {
+    setIsLoading(true);
+    setMessage({ text: "Memproses SSO...", type: "info" });
+    try {
+      const cleanBaseUrl = API_URL.replace(/\/$/, "");
+      const resolveEndpoint = `${cleanBaseUrl}/api/auth/sso/resolve`;
+
+      const response = await fetch(resolveEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        if (result?.data?.requires_account_selection) {
+          // fallbackEmail dan fallbackCabang tidak diperlukan karena user akan memilih dari array yang dikembalikan
+          setAvailableRoles(result.data.available_roles || result.data.accounts || []);
+          setPendingLoginData({ email: "", cabang: "", is_sso: true, sso_payload: payload });
+          setIsLoading(false);
+          setRoleSelectOpen(true);
+          return;
+        }
+
+        const fallbackEmail = result?.data?.email_sat || "";
+        const fallbackCabang = result?.data?.cabang || "";
+        await processLoginSuccess(result, fallbackEmail, fallbackCabang);
+      } else {
+        setMessage({ text: result.message || "Gagal masuk via SSO", type: "error" });
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error("SSO resolve error", error);
+      setMessage({ text: "Gagal terhubung ke server", type: "error" });
+      setIsLoading(false);
+    }
+  };
+
 
   // Fungsi untuk logging ke Google Apps Script
   const logLoginAttempt = async (username: string, cabang: string, status: string) => {
@@ -114,7 +175,7 @@ export default function LoginPage() {
 
   const processLoginSuccess = async (result: any, fallbackEmail: string, fallbackCabang: string) => {
     if (result?.data?.requires_account_selection) {
-      setAvailableRoles(result.data.accounts || []);
+      setAvailableRoles(result.data.available_roles || result.data.accounts || []);
       setPendingLoginData({ email: fallbackEmail, cabang: fallbackCabang });
       setIsLoading(false);
       setRoleSelectOpen(true);
@@ -264,7 +325,10 @@ export default function LoginPage() {
   };
 
   const handleSelectAccount = async (role: any) => {
-    if (!pendingLoginData?.email || !pendingLoginData?.cabang || !role?.id) {
+    const loginEmail = pendingLoginData?.email || role?.email_sat;
+    const loginCabang = pendingLoginData?.cabang || role?.cabang;
+
+    if (!loginEmail || !loginCabang || !role?.id) {
       setMessage({ text: "Data akun tidak lengkap. Silakan login ulang.", type: "error" });
       setRoleSelectOpen(false);
       setPendingLoginData(null);
@@ -274,24 +338,27 @@ export default function LoginPage() {
     setIsLoading(true);
     setRoleSelectOpen(false);
     setMessage({ text: "Logging in...", type: "info" });
-
     try {
-      const cleanBaseUrl = API_URL.replace(/\/$/, "");
-      const loginEndpoint = `${cleanBaseUrl}/api/auth/login`;
+    const cleanBaseUrl = API_URL.replace(/\/$/, "");
+    
+    // Cek apakah dia dari SSO atau login form biasa
+    const isSso = pendingLoginData?.is_sso;
+    const endpoint = isSso 
+        ? `${cleanBaseUrl}/api/auth/sso/resolve` 
+        : `${cleanBaseUrl}/api/auth/login`;
+        
+    const bodyData = isSso 
+        ? { payload: pendingLoginData?.sso_payload, cabang: loginCabang, user_cabang_id: role.id }
+        : { email_sat: loginEmail, cabang: loginCabang, user_cabang_id: role.id };
 
-      const response = await fetch(loginEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email_sat: pendingLoginData.email,
-          cabang: pendingLoginData.cabang,
-          user_cabang_id: role.id
-        })
-      });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+    const result = await response.json();
 
-      const result = await response.json();
-
-      if (response.ok) {
+    if (response.ok) {
         setPendingLoginData(null);
 
         if (result?.data?.requires_otp) {
@@ -349,55 +416,83 @@ export default function LoginPage() {
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-5 mt-4">
-            {/* Input Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-600 font-medium">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="Masukkan email Anda" 
-                required 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11"
-              />
-            </div>
+          <div className="space-y-5 mt-4">
+            {/* Form manual HANYA tampil di environment development / localhost */}
+            {(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) && (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2 text-left">
+                  <Label htmlFor="email" className="text-sm font-semibold text-slate-700">Email SAT (Khusus Dev)</Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="email@sat.co.id"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 h-11 border-slate-300 focus:border-[#005a9e] focus:ring-[#005a9e]"
+                      required
+                    />
+                  </div>
+                </div>
 
-            {/* Input Password */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-600 font-medium">Password (Cabang)</Label>
-              <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  placeholder="Masukkan kata sandi Anda" 
-                  required 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value.toUpperCase())}
-                  className="h-11 pr-10 tracking-widest"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                <div className="space-y-2 text-left">
+                  <Label htmlFor="password" className="text-sm font-semibold text-slate-700">Password Cabang (Khusus Dev)</Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="NAMA CABANG"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 pr-10 h-11 border-slate-300 focus:border-[#005a9e] focus:ring-[#005a9e]"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button 
+                  type="submit" 
+                  disabled={isLoading || !email || !password}
+                  className="w-full h-12 text-base font-bold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98] shadow-md"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
+                  {isLoading ? "Memproses..." : "Masuk (Dev Mode)"}
+                </Button>
+                
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-slate-500 font-medium">Atau</span>
+                  </div>
+                </div>
+              </form>
+            )}
 
-            {/* Tombol Submit */}
             <Button 
-              type="submit" 
+              type="button" 
               disabled={isLoading}
-              className="w-full h-11 text-base font-semibold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98]"
+              onClick={() => {
+                 const fallbackUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://sparta-alfamart.web.id';
+                 window.location.href = process.env.NEXT_PUBLIC_SSO_PORTAL_URL || fallbackUrl;
+              }}
+              variant={(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) ? "outline" : "default"}
+              className={`w-full h-12 text-base font-bold transition-transform active:scale-[0.98] ${(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) ? "border-slate-300 text-slate-700 hover:bg-slate-50" : "bg-[#005a9e] hover:bg-[#004a80] shadow-md"}`}
             >
-              {isLoading ? "Memproses..." : "Login"}
+              Masuk via SPARTA SSO
             </Button>
 
             {/* Pesan Alert */}
@@ -410,7 +505,7 @@ export default function LoginPage() {
                 {message.text}
               </p>
             )}
-          </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -479,46 +574,85 @@ export default function LoginPage() {
 
       {/* MODAL PILIH ROLE JIKA EMAIL SAMA */}
       <AlertDialog open={roleSelectOpen} onOpenChange={setRoleSelectOpen}>
-        <AlertDialogContent className="rounded-2xl max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-slate-800">Pilih Akun Pengguna</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-slate-600">
-              Ditemukan beberapa akun dengan email ini. Silakan pilih Anda ingin login sebagai siapa:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-3 mt-4">
-            {availableRoles.map((role, idx) => (
-              <Button 
-                key={role.id ?? `${role.email_sat}-${role.cabang}-${idx}`}
-                variant="outline"
-                className="w-full justify-start h-auto py-3 px-4 border-slate-200 hover:bg-blue-50 hover:border-blue-300"
-                onClick={() => handleSelectAccount(role)}
-              >
-                <div className="text-left flex-col items-start gap-1">
-                  <div className="font-bold text-slate-800">{role.nama_lengkap}</div>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    <span className="text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                      {role.cabang || "Cabang belum terisi"}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">
-                      {role.jabatan}
-                    </span>
-                  </div>
-                  {role.nama_pt && (
-                    <div className="mt-1 text-xs font-medium text-slate-500">{role.nama_pt}</div>
-                  )}
+        <AlertDialogContent className="rounded-2xl max-w-lg md:max-w-xl p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="bg-gradient-to-br from-blue-50/50 to-slate-50 p-6 md:p-8">
+            <AlertDialogHeader className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-blue-100 text-[#005a9e] w-10 h-10 flex items-center justify-center rounded-full shadow-sm">
+                  <User className="w-5 h-5" />
                 </div>
+                <AlertDialogTitle className="text-xl md:text-2xl font-bold text-slate-800 text-left">Pilih Akses Anda</AlertDialogTitle>
+              </div>
+              <AlertDialogDescription className="text-sm md:text-base text-slate-600 text-left">
+                Kami menemukan beberapa hak akses yang terkait dengan email ini. Silakan pilih role untuk melanjutkan:
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="space-y-4 mt-4 max-h-[50vh] overflow-y-auto pr-2 pb-2 custom-scrollbar">
+              <style dangerouslySetInnerHTML={{__html: `
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+              `}} />
+              
+              {availableRoles.map((role, idx) => (
+                <div 
+                  key={role.id ?? `${role.email_sat}-${role.cabang}-${idx}`}
+                  onClick={() => handleSelectAccount(role)}
+                  className="group relative w-full flex flex-col justify-start h-auto p-4 md:p-5 bg-white border border-slate-200 rounded-xl cursor-pointer transition-all duration-300 hover:border-blue-300 hover:shadow-lg hover:-translate-y-1 overflow-hidden"
+                >
+                  {/* Subtle hover gradient background */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 to-blue-50/0 group-hover:from-blue-50/50 group-hover:to-transparent transition-colors duration-300 pointer-events-none" />
+                  
+                  <div className="relative z-10 w-full text-left flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="font-bold text-slate-800 text-lg group-hover:text-[#005a9e] transition-colors">{role.nama_lengkap}</div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#005a9e]">
+                        <ChevronLeft className="w-5 h-5 rotate-180" />
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2.5 mt-1">
+                      {role.jabatan && (
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <Briefcase className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
+                          <span className="font-medium leading-tight">{role.jabatan}</span>
+                        </div>
+                      )}
+                      
+                      {role.nama_pt && (
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <Building2 className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
+                          <span className="leading-tight">{role.nama_pt}</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-start gap-2 text-sm text-slate-600 mt-1">
+                        <MapPin className="w-4 h-4 mt-0.5 text-blue-500 shrink-0" />
+                        <span className="text-blue-700 font-semibold bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100 inline-block leading-tight shadow-sm">
+                          {role.cabang || "Cabang belum terisi"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="mt-8 flex justify-end">
+              <Button 
+                variant="outline" 
+                className="px-6 rounded-lg font-semibold hover:bg-slate-100"
+                onClick={() => {
+                  setRoleSelectOpen(false);
+                  setPendingLoginData(null);
+                }}
+              >
+                Batal
               </Button>
-            ))}
+            </div>
           </div>
-          <AlertDialogFooter className="mt-6">
-            <Button variant="ghost" onClick={() => {
-              setRoleSelectOpen(false);
-              setPendingLoginData(null);
-            }}>
-              Batal
-            </Button>
-          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 

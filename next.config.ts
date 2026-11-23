@@ -1,10 +1,18 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
 
 const nextConfig: NextConfig = {
     output: "standalone",
-
+    turbopack: {
+        root: path.resolve(__dirname),
+        resolveAlias: {
+            canvg: "./lib/empty-module.ts",
+            html2canvas: "./lib/empty-module.ts",
+            dompurify: "./lib/empty-module.ts",
+        },
+    },
     async rewrites() {
         return [
             {

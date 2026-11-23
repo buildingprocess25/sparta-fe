@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox, ComboboxInput, ComboboxContent, ComboboxEmpty, ComboboxList, ComboboxItem } from '@/components/ui/combobox';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -20,7 +21,6 @@ import {
 
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download, ClipboardList, ArrowRight } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
 
 import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser, SUPPORTED_PRICE_BRANCHES, getParentBranch } from '@/lib/constants';
 import {
@@ -37,6 +37,7 @@ import {
   type RabProjectPlanningRequest,
 } from '@/lib/api';
 import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
+import { fetchMaintenanceStores, type MaintenanceStore } from '@/lib/maintenance-api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -518,6 +519,34 @@ function RABPageContent() {
   
   const [activeWarnings, setActiveWarnings] = useState<DendaAction[]>([]);
 
+  // Pembersih Sisa Radix UI Lock Global (Universal Anti-Freeze)
+  useEffect(() => {
+    const nukeScrollLocks = () => {
+      document.documentElement.style.pointerEvents = '';
+      document.documentElement.style.overflow = '';
+      document.documentElement.removeAttribute('data-scroll-locked');
+      
+      document.body.style.pointerEvents = '';
+      document.body.style.overflow = '';
+      document.body.removeAttribute('data-scroll-locked');
+      
+      document.querySelectorAll('[data-radix-scroll-lock-style]').forEach(el => el.remove());
+    };
+
+    // Jalankan sekali saat mount
+    nukeScrollLocks();
+    
+    // Interval permanen: jika Radix gagal cleanup (misal setelah Alert ditutup), paksa bersihkan!
+    const interval = setInterval(() => {
+      // Cek apakah memang ada Modal/Dialog yang sedang terbuka
+      const isModalOpen = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+      if (!isModalOpen) {
+        nukeScrollLocks();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
@@ -638,6 +667,23 @@ function RABPageContent() {
   }, [formData, tableRows, isLoading, isReadOnly, user, currentRabId, hasProjectPlanningRequest]);
 
   useEffect(() => {
+    if (!user?.cabang) return;
+    const loadMaintenanceStores = async () => {
+      setIsLoadingMaintenanceStores(true);
+      try {
+        const parentBranch = getParentBranch(user.cabang || '');
+        const data = await fetchMaintenanceStores(parentBranch);
+        setMaintenanceStores(data);
+      } catch (err) {
+        console.error("Gagal load maintenance stores:", err);
+      } finally {
+        setIsLoadingMaintenanceStores(false);
+      }
+    };
+    loadMaintenanceStores();
+  }, [user?.cabang]);
+
+  useEffect(() => {
     if (user?.email && !currentRabId && !hasProjectPlanningRequest) {
       const draftKey = `rab_draft_${user.email}_${user.role}_${user.cabang}`;
       const savedDraft = localStorage.getItem(draftKey);
@@ -645,6 +691,22 @@ function RABPageContent() {
         try {
           const parsed = JSON.parse(savedDraft);
           if (parsed && parsed.formData && (parsed.tableRows?.length > 0 || parsed.formData.namaToko !== '')) {
+            
+            // --- LOGIKA BARU: BLOKIR DRAFT REGULER ---
+            if (parsed.formData.isRenovasi === false || parsed.formData.proyek === 'Reguler') {
+              // 1. Hapus draft dari storage
+              localStorage.removeItem(draftKey);
+              // 2. Munculkan error / warning kepada pengguna
+              showAlert(
+                "Draft Tidak Didukung", 
+                "Draft yang tersimpan sebelumnya adalah draft Reguler. Saat ini sistem hanya mendukung pengajuan Renovasi. Draft lama Anda telah dihapus otomatis, silakan buat pengajuan dari awal.", 
+                "warning"
+              );
+              // 3. Hentikan eksekusi, biarkan form tetap default (Renovasi)
+              return;
+            }
+            // ----------------------------------------
+
             setDraftData(parsed);
             setDraftDialogOpen(true);
           }
@@ -703,16 +765,37 @@ function RABPageContent() {
 
     setFormData(prev => ({ ...prev, cabang: userCabang, lokasiCabang: defaultLokasiCabang, alamatCabang: userAlamatCabang }));
 
-    if (userEmail && userCabang) {
-        checkRevisionStatus(userEmail, userCabang).then(result => {
-            const revisions = result.rejected_submissions || [];
-            setRejectedList(revisions);
-            revisionHadItemsRef.current = revisions.length > 0;
-            // FIX #2: Only auto-open modal if user NOT coming from direct revision link
-            if (revisions.length > 0 && !requestedRevisionId) {
-                setRevisionListDialogOpen(true); // Membuka modal notification lonceng secara otomatis ketika data ditolak terdeteksi
-            }
-        }).catch(err => {
+        if (userEmail && userCabang) {
+            // Fetch Toko List for Takeover
+            const loadToko = async () => {
+                setIsLoadingToko(true);
+                try {
+                    const { fetchTokoList } = await import('@/lib/api');
+                    const isHO = canViewAllBranches(user.roles, isSuperHuman);
+                    const params = isHO ? undefined : { cabang: userCabang };
+                    const res = await fetchTokoList(params);
+                    if (res?.data) {
+                        // Hilangkan duplikat nomor_ulok
+                        const uniqueToko = Array.from(new Map(res.data.map((item: any) => [item.nomor_ulok, item])).values());
+                        setTokoListOptions(uniqueToko);
+                    }
+                } catch (e) {
+                    console.error("Failed to load toko list", e);
+                } finally {
+                    setIsLoadingToko(false);
+                }
+            };
+            loadToko();
+
+            checkRevisionStatus(userEmail, userCabang).then(result => {
+                const revisions = result.rejected_submissions || [];
+                setRejectedList(revisions);
+                revisionHadItemsRef.current = revisions.length > 0;
+                // FIX #2: Only auto-open modal if user NOT coming from direct revision link
+                if (revisions.length > 0 && !requestedRevisionId) {
+                    setRevisionListDialogOpen(true); // Membuka modal notification lonceng secara otomatis ketika data ditolak terdeteksi
+                }
+            }).catch(err => {
           revisionHadItemsRef.current = false;
           console.log("Gagal periksa revisi", err);
         }).finally(() => setRevisionCheckDone(true));
@@ -786,12 +869,14 @@ function RABPageContent() {
         const rawProject = String(prefill.proyek || '').trim();
         const normalizedProject = rawProject.toUpperCase();
         const projectValue = isRenovasi
-          ? 'Renovasi'
+          ? (normalizedProject.includes('PERLUASAN') ? 'Renovasi Perluasan'
+            : normalizedProject.includes('PERPANJANGAN') ? 'Renovasi Perpanjangan'
+            : normalizedProject.includes('TUTUP') ? 'Renovasi Toko Tutup'
+            : normalizedProject.includes('PEREMAJAAN') || normalizedProject.includes('PERBAIKAN') ? 'Renovasi Peremajaan'
+            : '')
           : normalizedProject === 'REGULER'
           ? 'Reguler'
-          : normalizedProject === 'RENOVASI'
-            ? 'Renovasi'
-            : rawProject;
+          : rawProject;
         const nextForm = {
           ...formData,
           namaToko: prefill.nama_toko || '',
@@ -799,7 +884,7 @@ function RABPageContent() {
           lokasiTanggal: parts[1] || '',
           lokasiManual: parts[2] || '',
           isRenovasi,
-          proyek: projectValue || (isRenovasi ? 'Renovasi' : 'Reguler'),
+          proyek: projectValue || (isRenovasi ? '' : 'Reguler'),
           alamat: prefill.alamat || '',
           cabang: normalizeBranchName(prefill.cabang),
           lingkupPekerjaan: normalizeRabScope(prefill.lingkup_pekerjaan),
@@ -920,6 +1005,8 @@ function RABPageContent() {
             const sourceAsuransi = rabRef.file_asuransi || '';
             const sourceLogo = rabRef.logo || '';
 
+        const shouldPrefillAll = !formData.isTakeover || isTakeoverSecondScope;
+
         setFormData(prev => ({
           ...prev,
           lokasiCabang: sourceParts[0] || prev.lokasiCabang,
@@ -929,21 +1016,26 @@ function RABPageContent() {
           proyek: sourceProject.proyek,
           cabang: sourceCabang || prev.cabang,
           lingkupPekerjaan: targetScope,
-          namaToko: tokoRef.nama_toko || source.nama_toko || prev.namaToko,
+          namaToko: tokoRef.nama_toko || prev.namaToko,
           alamat: tokoRef.alamat || prev.alamat,
           kategoriLokasi: normalizeKategoriLokasi(rabRef.kategori_lokasi) || prev.kategoriLokasi,
-          durasiPekerjaan: String(rabRef.durasi_pekerjaan || '').replace(/[^0-9]/g, '') || prev.durasiPekerjaan,
-          luasAreaParkir: String(rabRef.luas_area_parkir || '') || prev.luasAreaParkir,
-          luasAreaSales: String(rabRef.luas_area_sales || '') || prev.luasAreaSales,
-          luasGudang: String(rabRef.luas_gudang || '') || prev.luasGudang,
-          luasBangunan: String(rabRef.luas_bangunan || '') || prev.luasBangunan,
-          luasAreaTerbuka: String(rabRef.luas_area_terbuka || '') || prev.luasAreaTerbuka,
-          noPolis: String(rabRef.no_polis || '') || prev.noPolis,
-          berlakuPolis: String(rabRef.berlaku_polis || '') || prev.berlakuPolis,
-          fileAsuransi: sourceAsuransi || prev.fileAsuransi,
-          logo: sourceLogo || prev.logo,
+          durasiPekerjaan: shouldPrefillAll ? (String(rabRef.durasi_pekerjaan || '').replace(/[^0-9]/g, '') || prev.durasiPekerjaan) : prev.durasiPekerjaan,
+          luasAreaParkir: shouldPrefillAll ? (String(rabRef.luas_area_parkir || '') || prev.luasAreaParkir) : prev.luasAreaParkir,
+          luasAreaSales: shouldPrefillAll ? (String(rabRef.luas_area_sales || '') || prev.luasAreaSales) : prev.luasAreaSales,
+          luasGudang: shouldPrefillAll ? (String(rabRef.luas_gudang || '') || prev.luasGudang) : prev.luasGudang,
+          luasBangunan: shouldPrefillAll ? (String(rabRef.luas_bangunan || '') || prev.luasBangunan) : prev.luasBangunan,
+          luasAreaTerbuka: shouldPrefillAll ? (String(rabRef.luas_area_terbuka || '') || prev.luasAreaTerbuka) : prev.luasAreaTerbuka,
+          noPolis: shouldPrefillAll ? (String(rabRef.no_polis || '') || prev.noPolis) : prev.noPolis,
+          berlakuPolis: shouldPrefillAll ? (String(rabRef.berlaku_polis || '') || prev.berlakuPolis) : prev.berlakuPolis,
+          fileAsuransi: shouldPrefillAll ? (sourceAsuransi || prev.fileAsuransi) : prev.fileAsuransi,
+          logo: shouldPrefillAll ? (sourceLogo || prev.logo) : prev.logo,
         }));
-        setCrossScopeProjectLocked(true);
+        
+        if (shouldPrefillAll) {
+          setCrossScopeProjectLocked(true);
+          if (sourceLogo && !logoPreview) setLogoPreview(sourceLogo);
+          if (sourceAsuransi && !asuransiFileName && !asuransiFile) setAsuransiFileName(`File Asuransi (prefill ${sourceScope})`);
+        }
 
         if (sourceLogo && !logoPreview) setLogoPreview(sourceLogo);
         if (sourceAsuransi && !asuransiFileName && !asuransiFile) setAsuransiFileName(`File Asuransi (prefill ${sourceScope})`);
@@ -1275,6 +1367,30 @@ function RABPageContent() {
     }
   };
 
+  const handleUploadClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleTakeoverUlokSelect = (selectedUlok: string) => {
+    if (!selectedUlok) return;
+    const toko = tokoListOptions.find(t => t.nomor_ulok === selectedUlok);
+    
+    const isRenov = selectedUlok.toUpperCase().endsWith('-R');
+    const parts = selectedUlok.split('-');
+    
+    setFormData(prev => ({
+      ...prev,
+      lokasiCabang: parts[0] || prev.lokasiCabang,
+      lokasiTanggal: parts[1] || '',
+      lokasiManual: parts[2] || '',
+      isRenovasi: isRenov,
+      proyek: toko?.proyek || (isRenov ? 'Renovasi Perluasan' : 'Reguler'),
+      namaToko: toko?.nama_toko || prev.namaToko,
+      alamat: toko?.alamat || prev.alamat,
+      cabang: toko?.cabang || prev.cabang
+    }));
+  };
+
   const handleAsuransiFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1504,7 +1620,8 @@ function RABPageContent() {
       luas_gudang: decimalPayloadValue(formData.luasGudang),
       no_polis: formData.noPolis,
       berlaku_polis: formData.berlakuPolis,
-      is_revisi: String(isRevisionSubmit),
+      is_revisi: String(!!isRevisionSubmit),
+      is_takeover: String(!!formData.isTakeover),
     };
 
     if (hasProjectPlanningRequest) {
@@ -1623,6 +1740,7 @@ function RABPageContent() {
     formData.lokasiTanggal.trim() !== '' &&
     formData.lokasiManual.trim() !== '' &&
     formData.proyek !== '' &&
+    formData.proyek !== 'Renovasi' &&
     formData.alamat.trim() !== '' &&
     formData.lingkupPekerjaan !== '' &&
     formData.kategoriLokasi !== '' &&
@@ -1644,7 +1762,7 @@ function RABPageContent() {
     : !isFormModified
       ? "Silakan buat perubahan pada form terlebih dahulu."
       : !isFormComplete
-        ? "Lengkapi data wajib proyek, dimensi, asuransi, dan minimal 1 item pekerjaan bervolume."
+        ? (formData.proyek === 'Renovasi' ? "Silakan pilih spesifikasi jenis proyek renovasi Anda." : "Lengkapi data wajib proyek, dimensi, asuransi, dan minimal 1 item pekerjaan bervolume.")
         : "";
   const isProjectFieldLocked = isReadOnly || crossScopeProjectLocked;
   const projectInputClass = crossScopeProjectLocked
@@ -1788,19 +1906,108 @@ function RABPageContent() {
 
               {/* --- GRID FORM IDENTITAS --- */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" readOnly={isProjectFieldLocked} value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className={projectInputClass} required /></div>
+                <div className="space-y-2">
+                  <Label>Nama Toko <span className="text-red-500">*</span></Label>
+                  <Combobox
+                    disabled={isProjectFieldLocked || isLoadingMaintenanceStores}
+                    value={formData.lokasiManual || null}
+                    inputValue={tokoSearchQuery}
+                    onInputValueChange={(val: any) => {
+                      if (!val) {
+                        setTokoSearchQuery('');
+                        return;
+                      }
+                      // Jika BaseUI mencoba memasukkan value (kode) atau text lainnya ke input saat item dipilih:
+                      // Kita cegat dan paksa kembalikan ke nama tokonya saja.
+                      const matchedStoreByCode = maintenanceStores.find(s => s.code === val);
+                      if (matchedStoreByCode) {
+                        setTokoSearchQuery(matchedStoreByCode.name);
+                      } else {
+                        setTokoSearchQuery(val);
+                      }
+                    }}
+                    onValueChange={(val: any) => {
+                      if (!val) return;
+                      const selectedStore = maintenanceStores.find(s => s.code === val);
+                      if (selectedStore) {
+                        setTokoSearchQuery(selectedStore.name);
+                        setFormData(prev => ({
+                          ...prev,
+                          namaToko: selectedStore.name,
+                          lokasiManual: selectedStore.code,
+                        }));
+                      } else {
+                        setFormData(prev => ({ ...prev, namaToko: val }));
+                      }
+                    }}
+                  >
+                    <ComboboxInput 
+                      placeholder={isLoadingMaintenanceStores ? "Memuat toko..." : "Cari nama / kode toko..."}
+                    />
+                    <ComboboxContent>
+                      {(() => {
+                        const filteredStores = maintenanceStores.filter(store => 
+                          store.name.toLowerCase().includes(tokoSearchQuery.toLowerCase()) || 
+                          store.code.toLowerCase().includes(tokoSearchQuery.toLowerCase())
+                        );
+
+                        if (filteredStores.length === 0) {
+                          return <div className="p-3 text-sm text-center text-muted-foreground">Toko tidak ditemukan</div>;
+                        }
+
+                        return (
+                          <ComboboxList>
+                            {filteredStores.map((store, i) => (
+                              <ComboboxItem key={`${store.code}-${i}`} value={store.code}>
+                                {store.name} - {store.code}
+                              </ComboboxItem>
+                            ))}
+                          </ComboboxList>
+                        );
+                      })()}
+                    </ComboboxContent>
+                  </Combobox>
+                </div>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox id="isRenovasi" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
-                    <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
+                    <Checkbox id="isRenovasi" disabled={true} checked={true} />
+                    <Label htmlFor="isRenovasi" className="font-normal cursor-pointer mr-4">Proyek Renovasi (Format Baru)</Label>
+                    
+                    {(formData.cabang === 'HEAD OFFICE' || formData.cabang === 'GORONTALO') && (
+                      <>
+                        <Checkbox id="isTakeover" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isTakeover} onCheckedChange={(c) => setFormData(prev => ({...prev, isTakeover: !!c}))}/>
+                        <Label htmlFor="isTakeover" className="font-normal cursor-pointer font-medium text-orange-600">Takeover (Pergantian Kontraktor)</Label>
+                      </>
+                    )}
                   </div>
                   <div className="flex gap-2 items-center">
-                    <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
-                    <span className="font-bold text-slate-400">-</span>
-                    <Input name="lokasiTanggal" readOnly={isProjectFieldLocked || hasProjectPlanningRequest} placeholder="YYMM" className={`w-[30%] ${projectInputClass}`} maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
-                    <span className="font-bold text-slate-400">-</span>
-                    <Input name="lokasiManual" readOnly={isProjectFieldLocked || hasProjectPlanningRequest} placeholder={formData.isRenovasi ? "C0B4" : "0001"} className={`w-[40%] uppercase ${projectInputClass}`} maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
-                    {formData.isRenovasi && (<><span className="font-bold text-slate-400">-</span><Input readOnly value="R" className="w-12 bg-slate-100 text-center font-bold text-slate-500 cursor-not-allowed border-slate-200" tabIndex={-1} /></>)}
+                    {formData.isTakeover ? (
+                      <Select
+                        disabled={isProjectFieldLocked || hasProjectPlanningRequest || isLoadingToko}
+                        value={formData.lokasiCabang && formData.lokasiTanggal && formData.lokasiManual ? getUlokString() : undefined}
+                        onValueChange={handleTakeoverUlokSelect}
+                      >
+                        <SelectTrigger className={`w-full ${projectInputClass}`}>
+                          <SelectValue placeholder={isLoadingToko ? "Memuat data ulok..." : "Pilih Ulok dari daftar"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tokoListOptions.filter(t => t.has_takeover_inspection).map((toko, i) => (
+                            <SelectItem key={i} value={toko.nomor_ulok}>
+                              {toko.nomor_ulok} - {toko.nama_toko}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <>
+                        <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
+                        <span className="font-bold text-slate-400">-</span>
+                        <Input name="lokasiTanggal" readOnly={isProjectFieldLocked || hasProjectPlanningRequest} placeholder="YYMM" className={`w-[30%] ${projectInputClass}`} maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
+                        <span className="font-bold text-slate-400">-</span>
+                        <Input name="lokasiManual" readOnly={isProjectFieldLocked || hasProjectPlanningRequest} placeholder={formData.isRenovasi ? "C0B4" : "0001"} className={`w-[40%] uppercase ${projectInputClass}`} maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
+                        {formData.isRenovasi && (<><span className="font-bold text-slate-400">-</span><Input readOnly value="R" className="w-12 bg-slate-100 text-center font-bold text-slate-500 cursor-not-allowed border-slate-200" tabIndex={-1} /></>)}
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1842,7 +2049,8 @@ function RABPageContent() {
                           setFormData(prev => ({ 
                             ...prev, 
                             cabang: val, 
-                            lokasiCabang: newLokasiCabang 
+                            lokasiCabang: newLokasiCabang,
+                            isTakeover: (val === 'HEAD OFFICE' || val === 'GORONTALO') ? prev.isTakeover : false
                           }));
 
                           const userEmail = sessionStorage.getItem('loggedInUserEmail');
@@ -2291,7 +2499,7 @@ function RABPageContent() {
                                       className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"
                                       onClick={() => {
                                           setRevisionListDialogOpen(false);
-                                          handleLoadRevision(item);
+                                          window.location.href = `/rab?revision_id=${item.id}`;
                                       }}
                                   >
                                       Revisi Sekarang
@@ -2370,4 +2578,3 @@ export default function RABPage() {
     </Suspense>
   );
 }
-

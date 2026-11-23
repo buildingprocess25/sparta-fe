@@ -12,15 +12,17 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle } from "lucide-react";
+import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle, FileCheck, PenTool } from "lucide-react";
 import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList, fetchRABDetail } from "@/lib/api";
 import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches, getAccessibleBranchesForUser, getSessionBranchCoverage, getParentBranch } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
+import { PhotoOversizeDialog } from "@/components/projek-planning/PhotoOversizeDialog";
+import { compressImageToJpeg, formatFileSize } from "@/lib/client-image-compressor";
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
 
-const JENIS_OPTIONS = ["DRIVE THRU", "BEAN SPOT", "FASADE", "DARK STORE", "LAINNYA"];
-const DARK_STORE_OPTION = "DARK STORE";
+const JENIS_OPTIONS = ["DRIVE THRU", "BEAN SPOT", "FASADE", "LAINNYA"];
+
 const BEANSPOT_TIPE_OPTIONS = ["RTD ONLY", "Medium", "Advance"];
 
 type ProjectFileState = File[];
@@ -108,6 +110,17 @@ function FormProjekPlanningInner() {
   const [manualAlamat, setManualAlamat] = useState("");
   const [manualKodeToko, setManualKodeToko] = useState("");
 
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [selectedCabang, setSelectedCabang] = useState("");
+
+  const handleCabangChange = (val: string) => {
+    setSelectedCabang(val);
+    const resolvedBranchName = getParentBranch(val);
+    const ulokCode = BRANCH_TO_ULOK[resolvedBranchName] || resolvedBranchName;
+    setManualCabang(ulokCode);
+    setManualCabangNama(val);
+  };
+
   // Form state
   const [ketentuan, setKetentuan] = useState<string[]>([""]);
   const [catatanDesign, setCatatanDesign] = useState<string[]>([""]);
@@ -119,11 +132,73 @@ function FormProjekPlanningInner() {
   const [isSeatingArea, setIsSeatingArea] = useState(false);
   const [isDarkStore, setIsDarkStore] = useState(false);
   const [beanspotTipe, setBeanspotTipe] = useState("");
-  const isDarkStoreDesign = jenisSelected.includes(DARK_STORE_OPTION);
+
+  // New RAB Option Feature States
+  const [rabSelectionOption, setRabSelectionOption] = useState<"approved" | "manual" | null>(null);
+  const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
+  const [isFetchingRabs, setIsFetchingRabs] = useState(false);
+  const [selectedApprovedRab, setSelectedApprovedRab] = useState("");
+  const [searchApprovedRab, setSearchApprovedRab] = useState("");
 
   const [isRabApproved, setIsRabApproved] = useState<boolean | null>(null);
   const [rabPrefillStatus, setRabPrefillStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
   const [rabPrefillMessage, setRabPrefillMessage] = useState("");
+
+  useEffect(() => {
+    if (rabSelectionOption === "approved" && approvedRabs.length === 0 && !isFetchingRabs) {
+      setIsFetchingRabs(true);
+      fetchRABList({}, { suppressGlobalError: true })
+        .then(res => {
+          const rawData = res.data || [];
+          const email = sessionStorage.getItem("loggedInUserEmail") || "";
+          const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
+          const role = sessionStorage.getItem("userRole") || "";
+          const { isPP, isPPMgr } = getPpRoles(role, email);
+
+          let filteredData = rawData;
+          if (!isPP && !isPPMgr && cabang) {
+            const branchCoverage = getSessionBranchCoverage();
+            const accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
+            const allowedCabang = new Set<string>(accessibleBranches.map(b => b.toUpperCase()));
+            for (const branchName of accessibleBranches) {
+              const ulokCode = BRANCH_TO_ULOK[branchName];
+              if (ulokCode) allowedCabang.add(ulokCode.toUpperCase());
+            }
+            filteredData = rawData.filter((r: any) => {
+              const tokoCabang = (r.toko?.cabang || r.cabang || "").toUpperCase();
+              const tokoUlok = (r.toko?.nomor_ulok || r.nomor_ulok || "").toUpperCase();
+              return Array.from(allowedCabang).some(ac => tokoCabang === ac || tokoUlok.startsWith(ac));
+            });
+          }
+
+          // Merge by nomor_ulok
+          const mergedMap = new Map<string, any>();
+          filteredData.forEach((r: any) => {
+            const ulok = (r.toko?.nomor_ulok || r.nomor_ulok || "").toUpperCase();
+            if (!ulok) return;
+            const scope = (r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase();
+            
+            if (!mergedMap.has(ulok)) {
+              mergedMap.set(ulok, {
+                ...r,
+                nomor_ulok: ulok,
+                nama_toko: r.toko?.nama_toko || r.nama_toko || "",
+                scopes: new Set([scope])
+              });
+            } else {
+              mergedMap.get(ulok).scopes.add(scope);
+            }
+          });
+
+          setApprovedRabs(Array.from(mergedMap.values()).map(item => ({
+            ...item,
+            lingkup_gabungan: Array.from(item.scopes).filter(Boolean).join(", ") || "SIPIL, ME"
+          })).sort((a, b) => a.nomor_ulok.localeCompare(b.nomor_ulok)));
+        })
+        .catch(console.error)
+        .finally(() => setIsFetchingRabs(false));
+    }
+  }, [rabSelectionOption]);
 
   useEffect(() => {
     if (resubmitId) return;
@@ -135,8 +210,8 @@ function FormProjekPlanningInner() {
        let cancelled = false;
        const timer = setTimeout(() => {
          setRabPrefillStatus("loading");
-         setRabPrefillMessage(`Mengecek RAB approved untuk ${finalUlok}...`);
-         fetchRABList({ nomor_ulok: finalUlok, status: "Disetujui" }, { suppressGlobalError: true })
+         setRabPrefillMessage(`Mengecek data RAB untuk ${finalUlok}...`);
+         fetchRABList({ nomor_ulok: finalUlok }, { suppressGlobalError: true })
            .then(async res => {
              if (cancelled) return;
              const rows = (res.data || []).filter((r: any) =>
@@ -149,7 +224,7 @@ function FormProjekPlanningInner() {
 
              if (!sourceRab?.id) {
                setRabPrefillStatus("not_found");
-               setRabPrefillMessage(`Belum ada RAB approved untuk ULOK ${finalUlok}. Form tetap bisa diisi manual.`);
+               setRabPrefillMessage(`Belum ada RAB untuk ULOK ${finalUlok}. Form tetap bisa diisi manual.`);
                return;
              }
              try {
@@ -191,18 +266,18 @@ function FormProjekPlanningInner() {
                  is_ruko: rab?.kategori_lokasi ? (String(rab.kategori_lokasi).toUpperCase() === "RUKO") : prev.is_ruko,
                }));
                setRabPrefillStatus("found");
-               setRabPrefillMessage(`RAB approved ditemukan untuk ${finalUlok}. Data dasar FPD otomatis terisi dari RAB.`);
+               setRabPrefillMessage(`Data RAB ditemukan untuk ${finalUlok}. Data dasar FPD otomatis terisi dari RAB.`);
              } catch {
                if (cancelled) return;
                setRabPrefillStatus("error");
-               setRabPrefillMessage("RAB approved ditemukan, tetapi detail RAB belum bisa dimuat. Form tetap bisa diisi manual.");
+               setRabPrefillMessage("Data RAB ditemukan, tetapi detail RAB belum bisa dimuat. Form tetap bisa diisi manual.");
              }
            })
            .catch(() => {
              if (cancelled) return;
              setIsRabApproved(false);
              setRabPrefillStatus("error");
-             setRabPrefillMessage("Gagal mengecek RAB approved. Form tetap bisa diisi manual.");
+             setRabPrefillMessage("Gagal mengecek data RAB. Form tetap bisa diisi manual.");
            });
        }, 500);
        return () => {
@@ -216,17 +291,75 @@ function FormProjekPlanningInner() {
     }
   }, [isManualUlok, manualCabang, manualTanggal, manualUrutan, resubmitId]);
 
-  useEffect(() => {
-    if (!isDarkStoreDesign) return;
-    setIsHeadToHead(false);
-    setIsSeatingArea(false);
-    setIsDarkStore(false);
-  }, [isDarkStoreDesign]);
 
   // Foto State
   const [fotoFiles, setFotoFiles] = useState<{ [key: number]: File | null }>({});
   const [fotoExistingUrls, setFotoExistingUrls] = useState<{ [key: number]: string }>({});
   const [activeFotoTab, setActiveFotoTab] = useState<number>(1);
+
+  // Oversize Photo Dialog & Compressing State
+  const [oversizeModal, setOversizeModal] = useState<{
+    open: boolean;
+    pointId: number | null;
+    pointLabel: string;
+    file: File | null;
+    isCompressing: boolean;
+  }>({
+    open: false,
+    pointId: null,
+    pointLabel: "",
+    file: null,
+    isCompressing: false,
+  });
+  const [compressingPoints, setCompressingPoints] = useState<{ [key: number]: boolean }>({});
+  const [submitStage, setSubmitStage] = useState<"IDLE" | "PREPARING" | "UPLOADING">("IDLE");
+
+  const handlePhotoFileSelect = (pointId: number, pointLabel: string, file: File | null) => {
+    if (!file) return;
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    if (file.size > MAX_SIZE) {
+      setOversizeModal({
+        open: true,
+        pointId,
+        pointLabel,
+        file,
+        isCompressing: false,
+      });
+      return;
+    }
+    setFotoFiles(prev => ({ ...prev, [pointId]: file }));
+  };
+
+  const handleCompressOversizePhoto = async () => {
+    const { file, pointId } = oversizeModal;
+    if (!file || pointId === null) return;
+
+    setOversizeModal(prev => ({ ...prev, isCompressing: true }));
+    setCompressingPoints(prev => ({ ...prev, [pointId]: true }));
+
+    try {
+      const compressed = await compressImageToJpeg(file, { maxDimension: 1920, quality: 0.8 });
+      setFotoFiles(prev => ({ ...prev, [pointId]: compressed }));
+      setOversizeModal({
+        open: false,
+        pointId: null,
+        pointLabel: "",
+        file: null,
+        isCompressing: false,
+      });
+    } catch (err) {
+      console.error("Gagal kompresi canvas:", err);
+      setAlertMsg({
+        title: "Gagal Kompresi",
+        desc: "Gagal mengompres foto secara otomatis di browser. Silakan kompres manual atau pilih file lain.",
+        type: "error",
+      });
+      setAlertOpen(true);
+      setOversizeModal(prev => ({ ...prev, isCompressing: false }));
+    } finally {
+      setCompressingPoints(prev => ({ ...prev, [pointId]: false }));
+    }
+  };
 
   // Camera modal state
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -351,6 +484,18 @@ function FormProjekPlanningInner() {
       setAlertMsg({ title: "Maksimal 2 File", desc: "Setiap kolom upload hanya bisa berisi maksimal 2 file. File selebihnya tidak ikut dipilih.", type: "error" });
       setAlertOpen(true);
     }
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    const oversized = files.find(f => f.size > MAX_SIZE);
+    if (oversized) {
+      setAlertMsg({
+        title: "Ukuran File Melebihi 10 MB",
+        desc: `File "${oversized.name}" (${formatFileSize(oversized.size)}) melebihi batas maksimal 10 MB. Silakan kompres atau pilih file lain.`,
+        type: "error"
+      });
+      setAlertOpen(true);
+      e.target.value = "";
+      return;
+    }
     setter(files);
     if (files.length > 0) clearLink();
   };
@@ -392,11 +537,20 @@ function FormProjekPlanningInner() {
       if (!resubmitId) {
         // Tentukan default cabang untuk ULOK Manual
         let primaryBranch = "HEAD OFFICE";
+        let accessibleBranches: string[] = [];
         
         if (!isPP && !isPPMgr && cabang && cabang.toUpperCase() !== "HEAD OFFICE") {
           const branchCoverage = getSessionBranchCoverage();
-          const accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
+          accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
           primaryBranch = accessibleBranches[0] || cabang.toUpperCase();
+        }
+
+        if (accessibleBranches.length > 1) {
+          setAvailableBranches(accessibleBranches);
+          setSelectedCabang(primaryBranch);
+        } else {
+          setAvailableBranches([]);
+          setSelectedCabang(primaryBranch);
         }
 
         // Resolusi cabang anak ke induknya untuk kode ULOK
@@ -404,7 +558,7 @@ function FormProjekPlanningInner() {
         const ulokCode = BRANCH_TO_ULOK[resolvedBranchName] || resolvedBranchName;
 
         setManualCabang(ulokCode);
-        setManualCabangNama(resolvedBranchName);
+        setManualCabangNama(primaryBranch);
       }
 
       setTokoList(data);
@@ -429,6 +583,7 @@ function FormProjekPlanningInner() {
                 setIsManualUlok(false); // Renovasi
               } else {
                 setIsManualUlok(true); // Reguler
+                setRabSelectionOption("manual");
               }
             }
           }
@@ -529,6 +684,7 @@ function FormProjekPlanningInner() {
       }
     }
     setSubmitting(true);
+    setSubmitStage("PREPARING");
     try {
       let finalIdToko = 0;
       let finalCabang = manualCabangNama || manualCabang;
@@ -575,10 +731,10 @@ function FormProjekPlanningInner() {
         spd: !isManualUlok ? parseRupiahInput(String((f as any).spd || "")) : undefined,
         link_ba_tidak_sesuai_standar: !isManualUlok ? (f as any).link_ba_tidak_sesuai_standar : undefined,
         // New fields
-        is_head_to_head: isDarkStoreDesign ? false : isHeadToHead,
-        is_seating_area: isDarkStoreDesign ? false : isSeatingArea,
-        is_dark_store: isDarkStoreDesign ? false : isDarkStore,
-        jarak_head_to_head: isDarkStoreDesign || !isHeadToHead || !(f as any).jarak_head_to_head ? undefined : Number((f as any).jarak_head_to_head),
+        is_head_to_head: isHeadToHead,
+        is_seating_area: isSeatingArea,
+        is_dark_store: isDarkStore,
+        jarak_head_to_head: !isHeadToHead || !(f as any).jarak_head_to_head ? undefined : Number((f as any).jarak_head_to_head),
         beanspot_tipe: jenisSelected.includes("BEAN SPOT") ? beanspotTipe : "",
         ketentuan: JSON.stringify(ketentuan.filter(k => k.trim() !== "")),
         catatan_design: JSON.stringify(catatanDesign.filter(c => c.trim() !== "")),
@@ -590,13 +746,14 @@ function FormProjekPlanningInner() {
         if (file) validFotoFiles[Number(key)] = file;
       });
 
+      setSubmitStage("UPLOADING");
       let res;
       if (resubmitId) {
         res = await resubmitProjekPlanning(Number(resubmitId), payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
       } else {
         res = await submitProjekPlanning(payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
       }
-      const skipBmApproval = ["BOGOR"].includes(finalCabang.toUpperCase());
+      const skipBmApproval = ["BATAM"].includes(finalCabang.toUpperCase());
       setAlertMsg({
         title: "Berhasil!",
         desc: skipBmApproval
@@ -608,8 +765,10 @@ function FormProjekPlanningInner() {
     } catch (err: any) {
       setAlertMsg({ title: "Gagal", desc: err.message || "Terjadi kesalahan", type: "error" });
       setAlertOpen(true);
+    } finally {
+      setSubmitting(false);
+      setSubmitStage("IDLE");
     }
-    setSubmitting(false);
   };
 
   const SectionTitle = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
@@ -654,12 +813,12 @@ function FormProjekPlanningInner() {
                 {/* Opsi 1: Renovasi */}
                 <div
                   className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex items-start gap-4 ${!isManualUlok ? "border-red-500 bg-red-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-red-200 hover:shadow-sm"
-                    } ${!!resubmitId && isManualUlok ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    } cursor-pointer`}
                   onClick={() => {
-                    if (!!resubmitId) return;
                     setIsManualUlok(false);
                     setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "", nama_lokasi: "" }));
                     setTokoSearch(""); setShowToko(false);
+                    setRabSelectionOption(null); setSelectedApprovedRab("");
                     // Keep manual variables intact so user doesn't lose them if switching
                     setFotoFiles({}); setFotoExistingUrls({}); setActiveFotoTab(1);
                   }}
@@ -677,12 +836,12 @@ function FormProjekPlanningInner() {
                 {/* Opsi 2: Reguler / Baru */}
                 <div
                   className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex items-start gap-4 ${isManualUlok ? "border-blue-500 bg-blue-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm"
-                    } ${!!resubmitId && !isManualUlok ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    } cursor-pointer`}
                   onClick={() => {
-                    if (!!resubmitId) return;
                     setIsManualUlok(true);
                     setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "Reguler", nama_lokasi: "", akhir_masa_sewa: "", spd: "", link_ba_tidak_sesuai_standar: "" }));
                     setTokoSearch(""); setShowToko(false);
+                    setRabSelectionOption(null); setSelectedApprovedRab("");
                     setFotoFiles({}); setFotoExistingUrls({}); setActiveFotoTab(1); setFileBaTidakSesuaiStandar([]);
                   }}
                 >
@@ -699,8 +858,101 @@ function FormProjekPlanningInner() {
 
               {/* Dynamic Content based on Selection */}
               <div className="mt-6">
-                {!isManualUlok ? (
-                  <div className="space-y-5 p-5 border border-red-100 rounded-xl bg-red-50/30">
+                <div className="space-y-4 mb-6">
+                  <Label className="text-sm font-bold text-slate-700">Status RAB *</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
+                        rabSelectionOption === "approved" ? "border-emerald-500 bg-emerald-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-emerald-200 hover:shadow-sm"
+                      }`}
+                      onClick={() => { setRabSelectionOption("approved"); }}
+                    >
+                      <div className={`p-2.5 w-max rounded-full transition-colors ${rabSelectionOption === "approved" ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                        <FileCheck className="w-5 h-5" />
+                      </div>
+                      <div className="mt-3">
+                        <h3 className={`font-bold ${rabSelectionOption === "approved" ? "text-emerald-900" : "text-slate-700"}`}>Pernah di input</h3>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Pilih dari daftar ULOK yang RAB-nya sudah pernah diinput (termasuk masih proses).</p>
+                      </div>
+                      {rabSelectionOption === "approved" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-emerald-500" />}
+                    </div>
+                    
+                    <div
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
+                        rabSelectionOption === "manual" ? "border-amber-500 bg-amber-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-amber-200 hover:shadow-sm"
+                      }`}
+                      onClick={() => { setRabSelectionOption("manual"); }}
+                    >
+                      <div className={`p-2.5 w-max rounded-full transition-colors ${rabSelectionOption === "manual" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+                        <PenTool className="w-5 h-5" />
+                      </div>
+                      <div className="mt-3">
+                        <h3 className={`font-bold ${rabSelectionOption === "manual" ? "text-amber-900" : "text-slate-700"}`}>Belum pernah di input</h3>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">RAB belum pernah diinput sama sekali, input data ULOK secara manual.</p>
+                      </div>
+                      {rabSelectionOption === "manual" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-amber-500" />}
+                    </div>
+                  </div>
+                </div>
+
+                {rabSelectionOption === "approved" && (
+                  <div className="space-y-4 mb-6 p-5 border border-emerald-100 rounded-xl bg-emerald-50/30">
+                    <Label className="text-sm font-bold text-slate-700">Pilih ULOK dari RAB yang Pernah Diinput *</Label>
+                    {isFetchingRabs ? (
+                      <div className="flex items-center gap-2 text-sm text-emerald-700">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar RAB...
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Input
+                          placeholder="Cari ULOK / Nama Toko..."
+                          value={searchApprovedRab}
+                          onChange={e => setSearchApprovedRab(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                        <select
+                          value={selectedApprovedRab}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setSelectedApprovedRab(val);
+                            if (val) {
+                              const parts = val.split("-");
+                              if (parts.length >= 3) {
+                                setManualCabang(parts[0]);
+                                setManualTanggal(parts[1]);
+                                setManualUrutan(parts[2]);
+                              }
+                            } else {
+                              setManualCabang(""); setManualTanggal(""); setManualUrutan("");
+                            }
+                          }}
+                          className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                        >
+                          <option value="">-- Pilih ULOK --</option>
+                          {approvedRabs
+                            .filter(r => !isManualUlok ? r.nomor_ulok.endsWith("-R") : !r.nomor_ulok.endsWith("-R"))
+                            .filter(r => {
+                              if (!searchApprovedRab) return true;
+                              const searchLower = searchApprovedRab.toLowerCase();
+                              const ulok = (r.nomor_ulok || "").toLowerCase();
+                              const tokoName = (r.nama_toko || "").toLowerCase();
+                              return ulok.includes(searchLower) || tokoName.includes(searchLower);
+                            })
+                            .map(r => (
+                              <option key={r.nomor_ulok} value={r.nomor_ulok}>
+                                {r.nomor_ulok} — {r.nama_toko} ({r.lingkup_gabungan})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {rabSelectionOption && (rabSelectionOption === "manual" || (rabSelectionOption === "approved" && selectedApprovedRab)) && (
+                  <>
+                  {!isManualUlok ? (
+                    <div className="space-y-5 p-5 border border-red-100 rounded-xl bg-red-50/30">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <Label className="text-sm font-bold text-slate-700">Nama Toko *</Label>
@@ -714,7 +966,6 @@ function FormProjekPlanningInner() {
                         <Label className="text-sm font-bold text-slate-700">Proyek *</Label>
                         <select value={f.jenis_proyek} onChange={e => set("jenis_proyek", e.target.value)} required className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
                           <option value="">Pilih proyek...</option>
-                          <option value="Renovasi">Renovasi (Umum)</option>
                           <option value="Renovasi Perluasan">Renovasi Perluasan</option>
                           <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
                           <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
@@ -722,6 +973,17 @@ function FormProjekPlanningInner() {
                         </select>
                       </div>
                     </div>
+                    {availableBranches.length > 1 && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold text-slate-700">Pilih Wilayah (Cabang) *</Label>
+                        <select 
+                          value={selectedCabang} 
+                          onChange={e => handleCabangChange(e.target.value)} 
+                          className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
+                          {availableBranches.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
                         <MapPin className="w-4 h-4 text-red-500" /> Nomor ULOK (Format Renovasi) *
@@ -729,9 +991,9 @@ function FormProjekPlanningInner() {
                       <div className="flex items-center gap-3">
                         <Input placeholder="Cabang" className="h-11 w-[25%] bg-slate-100 uppercase text-slate-600 font-bold cursor-not-allowed border-slate-200" value={manualCabang} readOnly tabIndex={-1} maxLength={4} required />
                         <span className="font-bold text-slate-300">-</span>
-                        <Input placeholder="YYMM" className="h-11 w-[25%] bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400" value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required />
+                        <Input placeholder="YYMM" className={`h-11 w-[25%] bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                         <span className="font-bold text-slate-300">-</span>
-                        <Input placeholder="0001" className="h-11 w-[35%] bg-white uppercase border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400" value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required />
+                        <Input placeholder="0001" className={`h-11 w-[35%] bg-white uppercase border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                         <span className="font-bold text-slate-300">-</span>
                         <Input className="h-11 w-[15%] bg-slate-100 uppercase text-slate-600 font-bold cursor-not-allowed border-slate-200 text-center" value="R" readOnly tabIndex={-1} />
                       </div>
@@ -802,6 +1064,17 @@ function FormProjekPlanningInner() {
                         <Label className="text-sm font-bold text-slate-700">Kode Toko (Opsional)</Label>
                         <Input value={manualKodeToko} onChange={e => setManualKodeToko(e.target.value)} placeholder="Misal: A123" className="h-11 bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                       </div>
+                      {availableBranches.length > 1 && (
+                        <div className="space-y-2 md:col-span-2">
+                          <Label className="text-sm font-bold text-slate-700">Pilih Wilayah (Cabang) *</Label>
+                          <select 
+                            value={selectedCabang} 
+                            onChange={e => handleCabangChange(e.target.value)} 
+                            className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400">
+                            {availableBranches.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div className="space-y-2 md:col-span-2">
                         <Label className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
                           <MapPin className="w-4 h-4 text-blue-500" /> Nomor ULOK Baru *
@@ -809,9 +1082,9 @@ function FormProjekPlanningInner() {
                         <div className="flex items-center gap-3">
                           <Input placeholder="Cabang" className="h-11 w-[30%] bg-slate-100 uppercase text-slate-600 font-bold cursor-not-allowed border-slate-200" value={manualCabang} readOnly tabIndex={-1} maxLength={4} required />
                           <span className="font-bold text-slate-300">-</span>
-                          <Input placeholder="YYMM" className="h-11 w-[30%] bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required />
+                          <Input placeholder="YYMM" className={`h-11 w-[30%] bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                           <span className="font-bold text-slate-300">-</span>
-                          <Input placeholder="0001" className="h-11 w-[40%] bg-white uppercase border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required />
+                          <Input placeholder="0001" className={`h-11 w-[40%] bg-white uppercase border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                         </div>
                       </div>
                     </div>
@@ -824,6 +1097,8 @@ function FormProjekPlanningInner() {
                       <Input value={(f as any).link_google_maps} onChange={e => set("link_google_maps", e.target.value)} placeholder="https://maps.google.com/..." className="h-11 bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                     </div>
                   </div>
+                )}
+                </>
                 )}
               </div>
               {rabPrefillStatus !== "idle" && (
@@ -846,11 +1121,11 @@ function FormProjekPlanningInner() {
                   <div>
                     <p className="font-semibold">
                       {rabPrefillStatus === "found"
-                        ? "RAB approved ditemukan"
+                        ? "Data RAB ditemukan"
                         : rabPrefillStatus === "loading"
-                          ? "Mengecek RAB approved"
+                          ? "Mengecek data RAB"
                           : rabPrefillStatus === "not_found"
-                            ? "RAB approved belum ditemukan"
+                            ? "Data RAB belum ditemukan"
                             : "Cek RAB belum berhasil"}
                     </p>
                     <p className="text-xs opacity-90">{rabPrefillMessage}</p>
@@ -1013,31 +1288,17 @@ function FormProjekPlanningInner() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {JENIS_OPTIONS.map(j => {
                   const isActive = jenisSelected.includes(j);
-                  const isDisabled = isDarkStoreDesign && j !== DARK_STORE_OPTION;
                   return (
                     <button key={j} type="button"
-                      disabled={isDisabled}
                       onClick={() => {
                         setJenisSelected(prev => {
-                          if (j === DARK_STORE_OPTION) {
-                            const next = isActive ? [] : [DARK_STORE_OPTION];
-                            if (!isActive) {
-                              setIsHeadToHead(false);
-                              setIsSeatingArea(false);
-                              setFileGambarKompetitor([]);
-                              set("link_gambar_kompetitor", "");
-                            }
-                            return next;
-                          }
-                          return isActive ? prev.filter(x => x !== j) : [...prev.filter(x => x !== DARK_STORE_OPTION), j];
+                          return isActive ? prev.filter(x => x !== j) : [...prev, j];
                         });
                       }}
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
                         isActive
                           ? "bg-red-600 text-white border-red-600 shadow-sm"
-                          : isDisabled
-                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-red-300"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-red-300"
                       }`}>
                       {isActive && <span className="text-xs">✓</span>} {j}
                     </button>
@@ -1094,7 +1355,6 @@ function FormProjekPlanningInner() {
                   </div>
                 </div>
 
-                {!isDarkStoreDesign && (
                   <div className="pt-2 border-t border-slate-100">
                     <Label className="text-sm font-bold text-slate-700 mb-2 block">Kategori Toko</Label>
                     <div className="flex gap-4">
@@ -1108,26 +1368,24 @@ function FormProjekPlanningInner() {
                       </label>
                     </div>
                   </div>
-                )}
               </div>
 
               {/* === SECTION: Head to Head & Seating Area === */}
-              {!isDarkStoreDesign && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                 {/* Head to Head */}
                 <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-3">
                   <Label className="text-sm font-bold text-slate-700">🏪 Apakah Toko Head to Head?</Label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="is_head_to_head" checked={!isHeadToHead || isDarkStoreDesign} onChange={() => setIsHeadToHead(false)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                      <input type="radio" name="is_head_to_head" checked={!isHeadToHead} onChange={() => setIsHeadToHead(false)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm">Tidak</span>
                     </label>
-                    <label className={`flex items-center gap-2 ${isDarkStoreDesign ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-                      <input type="radio" name="is_head_to_head" checked={isHeadToHead && !isDarkStoreDesign} onChange={() => setIsHeadToHead(true)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="is_head_to_head" checked={isHeadToHead} onChange={() => setIsHeadToHead(true)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm font-semibold text-red-700">Ya</span>
                     </label>
                   </div>
-                  {isHeadToHead && !isDarkStoreDesign && (
+                  {isHeadToHead && (
                     <div className="space-y-2 pt-2 border-t border-slate-100">
                       <Label className="text-xs font-semibold text-slate-600">Jarak Head to Head *</Label>
                       <div className="flex items-center gap-2">
@@ -1156,17 +1414,16 @@ function FormProjekPlanningInner() {
                   <Label className="text-sm font-bold text-slate-700">🪑 Apakah Ada Seating Area?</Label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="is_seating_area" checked={!isSeatingArea || isDarkStoreDesign} onChange={() => setIsSeatingArea(false)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                      <input type="radio" name="is_seating_area" checked={!isSeatingArea} onChange={() => setIsSeatingArea(false)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm">Tidak</span>
                     </label>
-                    <label className={`flex items-center gap-2 ${isDarkStoreDesign ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-                      <input type="radio" name="is_seating_area" checked={isSeatingArea && !isDarkStoreDesign} onChange={() => setIsSeatingArea(true)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="is_seating_area" checked={isSeatingArea} onChange={() => setIsSeatingArea(true)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm font-semibold text-green-700">Ya</span>
                     </label>
                   </div>
                 </div>
               </div>
-              )}
 
               {/* === SECTION: Fasilitas dipindahkan ke inputan kedua === */}
               {false && (
@@ -1463,12 +1720,13 @@ function FormProjekPlanningInner() {
                       {PHOTO_POINTS[activeFotoTab]?.map((point) => {
                         const isSelected = !!fotoFiles[point.id];
                         const isExisting = !!fotoExistingUrls[point.id] && !isSelected;
+                        const isCompressing = !!compressingPoints[point.id];
 
                         return (
                           <div
                             key={point.id}
                             className={`relative flex flex-col p-4 rounded-xl border-2 transition-all duration-200 ${isSelected
-                              ? "border-green-400 bg-green-50/30"
+                              ? "border-emerald-400 bg-emerald-50/40 shadow-xs"
                               : isExisting
                                 ? "border-blue-300 bg-blue-50/30"
                                 : "border-dashed border-slate-300 bg-slate-50 hover:border-red-300 hover:bg-red-50/20"
@@ -1479,7 +1737,7 @@ function FormProjekPlanningInner() {
                                 <span className="text-red-500 mr-1.5">{point.id}.</span>
                                 {point.label}
                               </Label>
-                              {isSelected && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-green-500 bg-white rounded-full" />}
+                              {isSelected && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-emerald-600 bg-white rounded-full shadow-xs" />}
                               {isExisting && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-blue-500 bg-white rounded-full" />}
                             </div>
 
@@ -1498,21 +1756,29 @@ function FormProjekPlanningInner() {
                               <div className="flex gap-2">
                                 {/* File Gallery */}
                                 <label
-                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 select-none
-                                    ${isSelected
-                                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 select-none ${
+                                    isCompressing
+                                      ? "opacity-50 pointer-events-none border-slate-200 bg-slate-100"
+                                      : isSelected
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                       : "border-slate-200 bg-white text-slate-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50"
-                                    }`}
+                                  }`}
                                 >
-                                  <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
-                                  Galeri
+                                  {isCompressing ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                                  ) : (
+                                    <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
+                                  )}
+                                  {isCompressing ? "Proses..." : "Galeri"}
                                   <input
                                     type="file"
                                     accept="image/*"
                                     className="hidden"
+                                    disabled={isCompressing}
                                     onChange={(e) => {
                                       const file = e.target.files?.[0] || null;
-                                      setFotoFiles(prev => ({ ...prev, [point.id]: file }));
+                                      handlePhotoFileSelect(point.id, point.label, file);
+                                      e.target.value = "";
                                     }}
                                   />
                                 </label>
@@ -1520,22 +1786,38 @@ function FormProjekPlanningInner() {
                                 {/* Camera Button — opens getUserMedia modal */}
                                 <button
                                   type="button"
+                                  disabled={isCompressing}
                                   onClick={() => openCamera(point.id)}
-                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200
-                                    ${isSelected
-                                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border-2 text-xs font-bold cursor-pointer transition-all duration-200 ${
+                                    isCompressing
+                                      ? "opacity-50 pointer-events-none border-slate-200 bg-slate-100"
+                                      : isSelected
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                       : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"
-                                    }`}
+                                  }`}
                                 >
                                   <Camera className="w-3.5 h-3.5 flex-shrink-0" />
                                   Kamera
                                 </button>
                               </div>
-                              {isSelected && fotoFiles[point.id] && (
-                                <p className="text-[10px] text-green-700 font-semibold truncate px-1 flex items-center gap-1.5 bg-green-100/50 py-1 rounded">
-                                  <FileImage className="w-3.5 h-3.5 flex-shrink-0" />
-                                  {fotoFiles[point.id]!.name}
+
+                              {isCompressing && (
+                                <p className="text-[10px] text-amber-700 font-semibold truncate px-2 flex items-center gap-1.5 bg-amber-50 border border-amber-200 py-1 rounded">
+                                  <Loader2 className="w-3 h-3 animate-spin flex-shrink-0 text-amber-600" />
+                                  Mengompres foto di browser...
                                 </p>
+                              )}
+
+                              {!isCompressing && isSelected && fotoFiles[point.id] && (
+                                <div className="flex items-center justify-between gap-1 text-[10px] text-emerald-800 font-semibold bg-emerald-100/70 border border-emerald-200/80 py-1 px-2 rounded-lg">
+                                  <span className="truncate flex items-center gap-1.5 min-w-0">
+                                    <FileImage className="w-3.5 h-3.5 flex-shrink-0 text-emerald-600" />
+                                    <span className="truncate">{fotoFiles[point.id]!.name}</span>
+                                  </span>
+                                  <span className="flex-shrink-0 bg-white/90 px-1.5 py-0.5 rounded text-[9px] text-emerald-900 font-bold border border-emerald-200 shadow-2xs">
+                                    {formatFileSize(fotoFiles[point.id]!.size)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1547,9 +1829,26 @@ function FormProjekPlanningInner() {
               )}
 
               {/* Submit */}
-              <Button type="submit" disabled={submitting} className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm gap-2 mt-4">
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {submitting ? "Mengirim..." : "Kirim Pengajuan FPD"}
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm gap-2 mt-4 shadow-md transition-all"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>
+                      {submitStage === "PREPARING"
+                        ? "Menyiapkan & memvalidasi berkas..."
+                        : "Mengunggah data & foto ke server..."}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Kirim Pengajuan FPD</span>
+                  </>
+                )}
               </Button>
             </form>
           </CardContent>
@@ -1638,6 +1937,25 @@ function FormProjekPlanningInner() {
           </div>
         </div>
       )}
+
+      <PhotoOversizeDialog
+        open={oversizeModal.open}
+        onOpenChange={(open) => setOversizeModal(prev => ({ ...prev, open }))}
+        pointId={oversizeModal.pointId}
+        pointLabel={oversizeModal.pointLabel}
+        file={oversizeModal.file}
+        onCompressNow={handleCompressOversizePhoto}
+        onPickAnother={() => {
+          setOversizeModal({
+            open: false,
+            pointId: null,
+            pointLabel: "",
+            file: null,
+            isCompressing: false,
+          });
+        }}
+        isCompressing={oversizeModal.isCompressing}
+      />
 
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
         <AlertDialogContent className="rounded-2xl max-w-sm">

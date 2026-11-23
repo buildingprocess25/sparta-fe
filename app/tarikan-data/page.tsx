@@ -45,6 +45,7 @@ import {
 
 type PeriodMode = "months" | "ytd" | "all";
 type SpkStatus = "all" | "with_spk" | "without_spk";
+type JenisProyekStatus = "all" | "reguler" | "renovasi";
 
 type DataTypeOption = {
     id: string;
@@ -149,6 +150,8 @@ export default function TarikanDataPage() {
     const [selectedBranches, setSelectedBranches] = useState<Set<string>>(new Set());
     const [selectedJobTypes, setSelectedJobTypes] = useState<Set<string>>(new Set());
     const [spkStatus, setSpkStatus] = useState<SpkStatus>("all");
+    const [jenisProyek, setJenisProyek] = useState<JenisProyekStatus>("all");
+    const [filterBeanspot, setFilterBeanspot] = useState<"all" | "yes" | "no">("all");
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [exporting, setExporting] = useState<DashboardExportFormat | null>(null);
     const [notice, setNotice] = useState("");
@@ -243,8 +246,6 @@ export default function TarikanDataPage() {
                 if (!matches) return false;
             }
 
-            const workItems = collectProjectWorkItems(project);
-            if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
 
@@ -255,15 +256,31 @@ export default function TarikanDataPage() {
                 if (periodMode === "months" && selectedMonths.size > 0 && !dates.some((date) => date.getFullYear() === selectedYear && selectedMonths.has(date.getMonth() + 1))) return false;
             }
 
+            // Filter Pekerjaan Beanspot
+            if (filterBeanspot !== "all") {
+                const hasBeanspot = collectProjectWorkItems(project).includes("PEKERJAAN BEANSPOT");
+                if (filterBeanspot === "yes" && !hasBeanspot) return false;
+                if (filterBeanspot === "no" && hasBeanspot) return false;
+            }
+
+            // Filter Jenis Proyek
+            if (jenisProyek !== "all") {
+                const jp = String(project?.toko?.proyek || project?.project_planning?.[0]?.jenis_proyek || "").toLowerCase();
+                if (jenisProyek === "reguler" && jp !== "reguler") return false;
+                if (jenisProyek === "renovasi" && jp !== "renovasi") return false;
+            }
+
             if (!query) return true;
             return [project?.toko?.nama_toko, project?.toko?.nomor_ulok, project?.toko?.kode_toko, project?.toko?.cabang, project?.toko?.lingkup_pekerjaan]
                 .map(normalizeText)
                 .some((value) => value.includes(query));
         }).sort((a, b) => String(a?.toko?.nama_toko || "").localeCompare(String(b?.toko?.nama_toko || ""), "id"));
-    }, [periodMode, projects, search, selectedBranches, selectedJobTypes, selectedMonths, selectedYear, spkStatus]);
+    }, [periodMode, projects, search, selectedBranches, selectedJobTypes, selectedMonths, selectedYear, spkStatus, jenisProyek, filterBeanspot]);
 
     const visibleIds = useMemo(() => filteredProjects.map(projectId).filter(Boolean), [filteredProjects]);
     const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
+    const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+    const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleIds.length;
     const selectedProjects = useMemo(() => projects.filter((project) => selectedIds.has(projectId(project))), [projects, selectedIds]);
     const hasOtherDataSelected = selectedDataTypes.size > 0 || selectedJobTypes.size > 0;
     const isUserOnlyExport = downloadUser && !hasOtherDataSelected;
@@ -283,7 +300,18 @@ export default function TarikanDataPage() {
         });
     };
 
-    const selectVisible = () => setSelectedIds(new Set(visibleIds));
+    // UNION: tambah visible IDs ke selectedIds yang sudah ada, bukan replace
+    const selectVisible = () => setSelectedIds((current) => {
+        const next = new Set(current);
+        visibleIds.forEach((id) => next.add(id));
+        return next;
+    });
+    // Hanya hapus visible IDs dari selectedIds, bukan clear semua
+    const deselectVisible = () => setSelectedIds((current) => {
+        const next = new Set(current);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+    });
     const clearSelection = () => setSelectedIds(new Set());
 
     const handleExport = useCallback(async (format: DashboardExportFormat) => {
@@ -328,6 +356,8 @@ export default function TarikanDataPage() {
                 jobTypes: Array.from(selectedJobTypes),
                 cabangs: cabangsPayload,
                 spkStatus,
+                jenisProyek,
+                beanspot: filterBeanspot,
             });
             setNotice("Export berhasil dibuat sesuai pilihan data.");
         } catch (err) {
@@ -443,14 +473,14 @@ export default function TarikanDataPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-2">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
                             <div>
                                 <label className="text-xs font-medium uppercase text-slate-600">Cabang</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === displayBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
-                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === displayBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
@@ -485,9 +515,9 @@ export default function TarikanDataPage() {
                                 <label className="text-xs font-medium uppercase text-slate-600">Status SPK</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {spkStatus === "all" ? "Kedua Status" : spkStatus === "with_spk" ? "Sudah SPK" : "Belum SPK"}
-                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{spkStatus === "all" ? "Kedua Status" : spkStatus === "with_spk" ? "Sudah SPK" : "Belum SPK"}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-full min-w-[200px]">
@@ -499,6 +529,54 @@ export default function TarikanDataPage() {
                                             ["without_spk", "Belum SPK"],
                                         ] as Array<[SpkStatus, string]>).map(([value, label]) => (
                                             <DropdownMenuCheckboxItem key={value} checked={spkStatus === value} onCheckedChange={() => setSpkStatus(value)}>
+                                                {label}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium uppercase text-slate-600">Jenis Proyek</label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{jenisProyek === "all" ? "Semua Jenis" : jenisProyek === "reguler" ? "Reguler" : "Renovasi"}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-full min-w-[200px]">
+                                        <DropdownMenuLabel>Jenis Proyek</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {([
+                                            ["all", "Semua Jenis"],
+                                            ["reguler", "Reguler"],
+                                            ["renovasi", "Renovasi"],
+                                        ] as Array<[JenisProyekStatus, string]>).map(([value, label]) => (
+                                            <DropdownMenuCheckboxItem key={value} checked={jenisProyek === value} onCheckedChange={() => setJenisProyek(value)}>
+                                                {label}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium uppercase text-slate-600">Pekerjaan Beanspot</label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{filterBeanspot === "all" ? "Semua (Ada/Tidak)" : filterBeanspot === "yes" ? "Hanya Beanspot" : "Tanpa Beanspot"}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-full min-w-[200px]">
+                                        <DropdownMenuLabel>Pekerjaan Beanspot</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {([
+                                            ["all", "Semua (Ada/Tidak)"],
+                                            ["yes", "Hanya Beanspot"],
+                                            ["no", "Tanpa Beanspot"],
+                                        ] as Array<[string, string]>).map(([value, label]) => (
+                                            <DropdownMenuCheckboxItem key={value} checked={filterBeanspot === value} onCheckedChange={() => setFilterBeanspot(value as any)}>
                                                 {label}
                                             </DropdownMenuCheckboxItem>
                                         ))}
@@ -611,13 +689,14 @@ export default function TarikanDataPage() {
                                         <label className="flex cursor-pointer items-center gap-2 text-xs font-medium uppercase text-slate-600 hover:text-slate-900">
                                             <Checkbox 
                                                 disabled={isUserOnlyExport}
-                                                checked={selectedVisibleCount === filteredProjects.length && filteredProjects.length > 0} 
+                                                checked={allVisibleSelected}
+                                                data-indeterminate={someVisibleSelected}
                                                 onCheckedChange={(checked) => {
                                                     if (checked) selectVisible();
-                                                    else clearSelection();
+                                                    else deselectVisible();
                                                 }}
                                             />
-                                            <span>Pilih Semua ({selectedVisibleCount}/{filteredProjects.length})</span>
+                                            <span>Pilih Semua ({selectedVisibleCount}/{filteredProjects.length}){selectedIds.size > visibleIds.length ? <span className="ml-1 text-red-600 font-bold">+{selectedIds.size - selectedVisibleCount} tersembunyi</span> : null}</span>
                                         </label>
                                         <span className="text-xs text-slate-500">{periodMode === "ytd" ? "YTD" : periodMode === "all" ? "Semua Periode" : monthLabel}</span>
                                     </div>

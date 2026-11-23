@@ -69,6 +69,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
         let spkDone = 0;
         let spkOngoing = 0;
+        let spkAktifBaru = 0;
+        let spkLewat = 0;
         let totalNilaiSPK = 0;
 
         let totalNilaiIL = 0;
@@ -105,6 +107,34 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
                     if (['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(status)) {
                         spkDone++;
+
+                        const endDateStr = s.waktu_selesai;
+                        let isLewat = false;
+                        if (endDateStr) {
+                            const tHari = (s.pertambahan_spk || [])
+                                .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt.status_persetujuan || '').toUpperCase()))
+                                .reduce((acc: number, curr: any) => acc + (Number(curr.pertambahan_hari) || 0), 0);
+                            
+                            const finalDate = new Date(endDateStr);
+                            if (!isNaN(finalDate.getTime())) {
+                                if (tHari > 0) {
+                                    finalDate.setDate(finalDate.getDate() + tHari);
+                                }
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                finalDate.setHours(0, 0, 0, 0);
+                                
+                                if (finalDate.getTime() < today.getTime()) {
+                                    isLewat = true;
+                                }
+                            }
+                        }
+
+                        if (isLewat) {
+                            spkLewat++;
+                        } else {
+                            spkAktifBaru++;
+                        }
                     } else if (!['REJECTED', 'REJECT', 'DITOLAK', 'CANCELLED', 'CANCEL'].includes(status)) {
                         spkOngoing++;
                     }
@@ -194,7 +224,7 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
         return {
             penawaranDone, penawaranOngoing,
-            spkDone, spkOngoing, totalNilaiSPK,
+            spkDone, spkOngoing, spkAktifBaru, spkLewat, totalNilaiSPK,
             totalNilaiIL, ilDone, ilOngoing,
             pengawasanSelesai, pengawasanProgress, pengawasanTerlambat,
             tambahHariDone, tambahHariOngoing,
@@ -211,9 +241,9 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
             {/* Soft decorative background glow */}
             <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none" />
 
-            <div className="w-full flex-1 overflow-y-auto px-4 md:px-8 py-6 z-10 custom-scrollbar">
-                <div className="max-w-[1600px] mx-auto flex flex-col gap-8">
-
+            {/* Static Filter Bar at the top */}
+            <div className="w-full z-20 px-4 md:px-8 pt-5 pb-2 bg-slate-50/90 backdrop-blur-sm border-b border-slate-200/60 shadow-sm relative">
+                <div className="max-w-[1600px] mx-auto">
                     <DashboardFilterBar
                         searchQuery={searchQuery}
                         onSearchChange={handleSearchChange}
@@ -228,6 +258,11 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         tipeBangunan={tipeBangunan}
                         onTipeBangunanChange={onTipeBangunanChange}
                     />
+                </div>
+            </div>
+
+            <div className="w-full flex-1 overflow-y-auto px-4 md:px-8 py-6 z-10 custom-scrollbar relative">
+                <div className="max-w-[1600px] mx-auto flex flex-col gap-8">
 
                     <DashboardSPCard 
                         selectedBranch={selectedBranch}

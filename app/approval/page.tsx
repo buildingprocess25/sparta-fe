@@ -212,6 +212,8 @@ interface NormalizedDetail {
     tanggal_spk_akhir_setelah_perpanjangan?: string;
     alasan_perpanjangan?: string;
     nomor_spk?: string;
+    nomor_spk_sipil?: string | null;
+    nomor_spk_me?: string | null;
     link_pdf?: string | null;
     hari_denda?: number;
     nilai_denda?: string;
@@ -334,6 +336,7 @@ const normalizeCompanyName = (value?: string | null) => {
     
     // Remove PT/CV prefix/suffix to handle both "CV NAME" and "NAME, CV" formats
     normalized = normalized.replace(/^(PT|CV)/g, '').replace(/(PT|CV)$/g, '');
+    normalized = normalized.replace(/Z/g, 'J');
     
     return normalized;
 };
@@ -366,9 +369,15 @@ const isContractorDirectorApprovalStatus = (status?: string | null) => {
 const isDirectorJabatan = (value?: ApprovalJabatan | null) =>
     value === 'DIREKTUR' || value === 'DIREKTUR_KONTRAKTOR';
 
-const matchesApprovalStage = (jabatan: ApprovalJabatan | null, status?: string | null) => {
+const matchesApprovalStage = (jabatan: ApprovalJabatan | null, status?: string | null, tipe?: string | null, cabang?: string | null) => {
     if (!isPendingApprovalStatus(status)) return false;
-    if (jabatan === 'KOORDINATOR') return isCoordinatorApprovalStatus(status);
+    if (jabatan === 'KOORDINATOR') {
+        const upperCabang = String(cabang ?? '').trim().toUpperCase();
+        if (upperCabang === 'BATAM' && tipe === 'INSTRUKSI_LAPANGAN' && isManagerApprovalStatus(status)) {
+            return true;
+        }
+        return isCoordinatorApprovalStatus(status);
+    }
     if (jabatan === 'MANAGER') return isManagerApprovalStatus(status);
     if (jabatan === 'DIREKTUR_KONTRAKTOR') return isContractorDirectorApprovalStatus(status);
     if (jabatan === 'DIREKTUR') return isDirectorApprovalStatus(status);
@@ -816,7 +825,7 @@ const normalizeProjekPlanningList = (items: ProjekPlanningItem[]): NormalizedLis
         id: p.id,
         tipe: 'PROJECT_PLANNING' as ApprovalType,
         nomor_ulok:    p.nomor_ulok ?? '-',
-        nama_toko:     p.nama_lokasi || p.nama_toko || '-',
+        nama_toko:     (p as any).toko?.nama_toko || p.nama_toko || p.nama_lokasi || '-',
         cabang:        p.cabang || '-',
         status:        p.status,
         total_nilai:   parseCurrency(p.estimasi_biaya ?? '0'),
@@ -1283,7 +1292,6 @@ function ApprovalPageContent() {
 
                 if (type === 'PROJECT_PLANNING') {
                     if (isSuperHumanUser) return true;
-                    if (!isHOUser) return false;
 
                     const isBmManager = userRoles.some(r =>
                         r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
@@ -1370,7 +1378,7 @@ function ApprovalPageContent() {
                 // OPNAME: Stage check first, then company scope untuk role kontraktor
                 if (type === 'OPNAME') {
                     // Stage check dulu
-                    const stageMatches = matchesApprovalStage(jabatan, upper);
+                    const stageMatches = matchesApprovalStage(jabatan, upper, type, upperUserCabang);
                     console.log('[OPNAME Filter] Item:', {
                         id: item.id,
                         status: item.status,
@@ -1408,7 +1416,7 @@ function ApprovalPageContent() {
                 }
 
                 // Untuk IL dan tipe lainnya (Multi-level)
-                return matchesApprovalStage(jabatan, upper);
+                return matchesApprovalStage(jabatan, upper, type, upperUserCabang);
             });
 
             setListData(normalized);
@@ -1593,6 +1601,9 @@ function ApprovalPageContent() {
                     tanggal_spk_akhir_setelah_perpanjangan: d.tanggal_spk_akhir_setelah_perpanjangan,
                     alasan_perpanjangan: d.alasan_perpanjangan,
                     nomor_spk:         d.nomor_spk || d.spk?.nomor_spk,
+                    nomor_spk_sipil:   d.nomor_spk_sipil,
+                    nomor_spk_me:      d.nomor_spk_me,
+                    link_pdf_gabungan: d.link_pdf,
                     items: [],
                 };
             } else if (item.tipe === 'OPNAME') {
@@ -2315,11 +2326,11 @@ function ApprovalPageContent() {
 
         if (tipe === 'OPNAME') {
             if (!isPendingApprovalStatus(upper) && !upper.includes('MENUNGGU')) return false;
-            return matchesApprovalStage(jabatan, upper);
+            return matchesApprovalStage(jabatan, upper, tipe, userInfo.cabang);
         }
 
         // RAB & IL — multi-level
-        return matchesApprovalStage(jabatan, upper);
+        return matchesApprovalStage(jabatan, upper, tipe, userInfo.cabang);
     };
 
     const isApproved = (status: string) => {
@@ -3058,65 +3069,115 @@ function ApprovalPageContent() {
                                                 {selectedDetail.alamat && (
                                                     <p className="text-sm text-slate-500 mb-2">{selectedDetail.alamat}</p>
                                                 )}
-                                                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600">
-                                                    <span className="flex items-center gap-1.5">
-                                                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                                                        ULOK: <b>{selectedDetail.nomor_ulok}</b>
-                                                    </span>
-                                                    {selectedDetail.kode_toko && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                                                            Kode Toko: <b>{selectedDetail.kode_toko}</b>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
+                                                    <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            <Building2 className="w-3.5 h-3.5" /> ULOK
                                                         </span>
+                                                        <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.nomor_ulok}>
+                                                            {selectedDetail.nomor_ulok}
+                                                        </span>
+                                                    </div>
+                                                    {selectedDetail.kode_toko && (
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <Building2 className="w-3.5 h-3.5" /> Kode Toko
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.kode_toko}>
+                                                                {selectedDetail.kode_toko}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.lingkup_pekerjaan && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <FileText className="w-3.5 h-3.5 text-slate-400" />
-                                                            Lingkup: <b>{selectedDetail.lingkup_pekerjaan}</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <FileText className="w-3.5 h-3.5" /> Lingkup
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.lingkup_pekerjaan}>
+                                                                {selectedDetail.lingkup_pekerjaan}
+                                                            </span>
+                                                        </div>
                                                     )}
-                                                    <span className="flex items-center gap-1.5">
-                                                        <User className="w-3.5 h-3.5 text-slate-400" />
-                                                        Pengaju: <b>{selectedDetail.email_pembuat}</b>
-                                                    </span>
-                                                    <span className="flex items-center gap-1.5">
-                                                        <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                        Tgl Pengajuan: <b>{formatDate(selectedDetail.created_at)}</b>
-                                                    </span>
+                                                    <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            <User className="w-3.5 h-3.5" /> Pengaju
+                                                        </span>
+                                                        <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.email_pembuat}>
+                                                            {selectedDetail.email_pembuat}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            <CalendarDays className="w-3.5 h-3.5" /> Tgl Pengajuan
+                                                        </span>
+                                                        <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                            {formatDate(selectedDetail.created_at)}
+                                                        </span>
+                                                    </div>
                                                     {selectedDetail.nama_kontraktor && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <ClipboardList className="w-3.5 h-3.5 text-slate-400" />
-                                                            Kontraktor: <b>{selectedDetail.nama_kontraktor}</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <ClipboardList className="w-3.5 h-3.5" /> Kontraktor
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.nama_kontraktor}>
+                                                                {selectedDetail.nama_kontraktor}
+                                                            </span>
+                                                        </div>
                                                     )}
-                                                    {selectedDetail.durasi && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            Durasi: <b>{selectedDetail.durasi} Hari</b>
-                                                        </span>
+                                                    {selectedDetail.durasi && selectedDetail.tipe !== 'RAB' && (
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Durasi
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {selectedDetail.durasi} Hari
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {selectedDetail.durasi && selectedDetail.tipe === 'RAB' && (
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Durasi Pekerjaan
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {selectedDetail.durasi} Hari
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.waktu_mulai && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            Tanggal Mulai: <b>{formatDate(selectedDetail.waktu_mulai)}</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Tanggal Mulai
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {formatDate(selectedDetail.waktu_mulai)}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.waktu_selesai && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            Tanggal Selesai: <b>{formatDate(selectedDetail.waktu_selesai)}</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Tanggal Selesai
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {formatDate(selectedDetail.waktu_selesai)}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.st_target_date && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-teal-600" />
-                                                            Target ST: <b>{formatDate(selectedDetail.st_target_date)}</b>
-                                                            {selectedDetail.st_offset_label && (
-                                                                <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
-                                                                    {selectedDetail.st_offset_label}
-                                                                </span>
-                                                            )}
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-teal-600 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5 text-teal-600" /> Target ST
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 flex items-center gap-2 line-clamp-1">
+                                                                {formatDate(selectedDetail.st_target_date)}
+                                                                {selectedDetail.st_offset_label && (
+                                                                    <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
+                                                                        {selectedDetail.st_offset_label}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                 </div>
 
@@ -3319,10 +3380,24 @@ function ApprovalPageContent() {
                                                 Detail Perpanjangan SPK
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK</p>
-                                                    <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk || '-'}</p>
-                                                </div>
+                                                {!(selectedDetail.nomor_spk_sipil || selectedDetail.nomor_spk_me) && (
+                                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK</p>
+                                                        <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk || '-'}</p>
+                                                    </div>
+                                                )}
+                                                {selectedDetail.nomor_spk_sipil && (
+                                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK (Sipil)</p>
+                                                        <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk_sipil}</p>
+                                                    </div>
+                                                )}
+                                                {selectedDetail.nomor_spk_me && (
+                                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK (ME)</p>
+                                                        <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk_me}</p>
+                                                    </div>
+                                                )}
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pertambahan Hari</p>
                                                     <p className="text-sm font-bold text-emerald-700">+{selectedDetail.pertambahan_hari} Hari</p>

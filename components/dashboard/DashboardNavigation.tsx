@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   BarChart3,
   CalendarClock,
@@ -10,6 +12,7 @@ import {
   ClipboardCheck,
   FileText,
   FolderArchive,
+  HardHat,
   LayoutDashboard,
   LogOut,
   Settings2,
@@ -17,6 +20,8 @@ import {
   SlidersHorizontal,
   Upload,
   Download,
+  ArrowRightLeft,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -102,6 +107,7 @@ type Props = {
   roleLabel: string;
   cabang: string;
   canAccessPerformanceDashboard: boolean;
+  canAccessContractorPerformance: boolean;
   onCloseMobile: () => void;
   onFeatureAlert: (title: string, description: string) => void;
   onChangeWorkspace: () => void;
@@ -113,11 +119,13 @@ function NavigationItem({
   onCloseMobile,
   onFeatureAlert,
   cabang,
+  onBnmClick,
 }: {
   menu: DashboardMenu;
   count: number;
   onCloseMobile: () => void;
   onFeatureAlert: Props["onFeatureAlert"];
+  onBnmClick?: () => void;
   cabang: string;
 }) {
   const Icon = SPECIAL_ICONS[menu.id] ?? FileText;
@@ -147,6 +155,21 @@ function NavigationItem({
             "Akses Diberhentikan Sementara",
             "Penyimpanan dokumen saat ini terpusat di GDrive regional.",
           );
+          onCloseMobile();
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  if (menu.id === "menu-rab") {
+    return (
+      <button
+        type="button"
+        className="w-full text-left"
+        onClick={() => {
+          if (onBnmClick) onBnmClick();
           onCloseMobile();
         }}
       >
@@ -192,10 +215,13 @@ export default function DashboardNavigation({
   roleLabel,
   cabang,
   canAccessPerformanceDashboard,
+  canAccessContractorPerformance,
   onCloseMobile,
   onFeatureAlert,
   onChangeWorkspace,
 }: Props) {
+  const [showBnmMigration, setShowBnmMigration] = useState(false);
+
   const menuById = new Map(menus.map((menu) => [menu.id, menu]));
   const assignedIds = new Set(GROUPS.flatMap((group) => group.menuIds));
   const ungroupedMenus = menus.filter((menu) => !assignedIds.has(menu.id));
@@ -205,32 +231,71 @@ export default function DashboardNavigation({
       <div className="border-b border-slate-100 px-4 py-4">
         <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">Ruang kerja</p>
 
-        <details className="group/nav-dash mt-2 overflow-hidden rounded-xl border border-red-100 bg-white open:shadow-sm" open>
-            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-red-50 px-3 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-100 [&::-webkit-details-marker]:hidden">
-                <LayoutDashboard className="h-4 w-4" />
-                <span className="flex-1">Dashboard</span>
-                <ChevronDown className="h-3.5 w-3.5 text-red-700 transition-transform group-open/nav-dash:rotate-180" />
-            </summary>
-            <div className="border-t border-red-100 bg-slate-50/50 px-1.5 py-1.5 flex flex-col gap-1">
-                <Link
-                    href="/dashboard?view=monitoring"
-                    className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
-                    onClick={onCloseMobile}
-                >
-                    <BarChart3 className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
-                    <span className="min-w-0 flex-1 leading-snug">Monitoring Tracking</span>
-                </Link>
-                {canAccessPerformanceDashboard && (
-                    <Link
-                        href="/dashboard?view=performance"
-                        className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
-                        onClick={onCloseMobile}
-                    >
-                        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" aria-hidden="true" />
-                        <span className="min-w-0 flex-1 leading-snug">Performance Internal SAT</span>
-                    </Link>
-                )}
-            </div>
+        <details className="group/nav-dash mt-2.5 overflow-hidden rounded-xl border border-red-100 bg-white shadow-sm" open>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-gradient-to-r from-red-600 to-red-700 px-3 text-[12px] font-semibold text-white transition-colors hover:from-red-700 hover:to-red-800 [&::-webkit-details-marker]:hidden">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white backdrop-blur-sm">
+              <LayoutDashboard className="h-3.5 w-3.5" />
+            </span>
+            <span className="flex-1">Pusat Dashboard</span>
+            <ChevronDown className="h-3.5 w-3.5 text-white transition-transform group-open/nav-dash:rotate-180" />
+          </summary>
+
+          <div className="flex flex-col gap-1.5 p-2 bg-slate-50/50 border-t border-red-100">
+            <Link
+              href="/dashboard?view=monitoring"
+              onClick={onCloseMobile}
+              className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white p-2.5 shadow-sm transition-all hover:border-red-300 hover:shadow-md hover:ring-1 hover:ring-red-100"
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 opacity-0 transition-opacity group-hover:opacity-100" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors group-hover:bg-red-100">
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-800 leading-none">Monitoring Tracking</span>
+                  <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Lacak progress proyek</span>
+                </div>
+              </div>
+            </Link>
+
+            {canAccessPerformanceDashboard && (
+              <Link
+                href="/dashboard?view=performance"
+                onClick={onCloseMobile}
+                className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white p-2.5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md hover:ring-1 hover:ring-blue-100"
+              >
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-slate-800 leading-none">Performance SAT</span>
+                    <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Metrik & KPI tim internal</span>
+                  </div>
+                </div>
+              </Link>
+            )}
+
+            {canAccessContractorPerformance && (
+              <Link
+                href="/dashboard?view=kontraktor"
+                onClick={onCloseMobile}
+                className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white p-2.5 shadow-sm transition-all hover:border-amber-300 hover:shadow-md hover:ring-1 hover:ring-amber-100"
+              >
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 transition-colors group-hover:bg-amber-100">
+                    <HardHat className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-slate-800 leading-none">Performance Kontraktor</span>
+                    <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Evaluasi & kinerja kontraktor</span>
+                  </div>
+                </div>
+              </Link>
+            )}
+          </div>
         </details>
       </div>
 
@@ -263,6 +328,7 @@ export default function DashboardNavigation({
                     cabang={cabang}
                     onCloseMobile={onCloseMobile}
                     onFeatureAlert={onFeatureAlert}
+                    onBnmClick={() => setShowBnmMigration(true)}
                   />
                 ))}
               </div>
@@ -278,6 +344,7 @@ export default function DashboardNavigation({
             cabang={cabang}
             onCloseMobile={onCloseMobile}
             onFeatureAlert={onFeatureAlert}
+            onBnmClick={() => setShowBnmMigration(true)}
           />
         ))}
       </nav>
@@ -301,6 +368,57 @@ export default function DashboardNavigation({
           Ganti Workspace
         </Button>
       </div>
+
+      <Dialog open={showBnmMigration} onOpenChange={setShowBnmMigration}>
+        <DialogContent className="sm:max-w-[460px] p-0 overflow-hidden border-0 shadow-2xl rounded-2xl bg-white">
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-red-600 to-red-800 opacity-[0.03]" />
+            <div className="pointer-events-none absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700" />
+
+            <div className="relative z-10 p-8 pb-6">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-50 shadow-inner">
+                  <ArrowRightLeft className="h-7 w-7 text-red-600" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold text-slate-900 tracking-tight">Pindah ke Aplikasi BNM</DialogTitle>
+                  <p className="text-sm font-medium text-slate-500 mt-0.5">Penawaran Final Kontraktor</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-slate-600 text-sm leading-relaxed">
+                  Seluruh transaksi pembuatan dan pengajuan Penawaran Final Kontraktor kini telah dialihkan ke aplikasi <strong>BNM</strong>.
+                </p>
+
+                <div className="rounded-xl border border-red-100 bg-red-50/60 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 mt-0.5">
+                      <Bell className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-red-900 uppercase tracking-wider">Akses Revisi Penawaran</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        Untuk proses revisi Penawaran/RAB yang sudah berjalan, silakan akses langsung melalui <strong>Lonceng Notifikasi</strong> di bagian atas.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative z-10 px-8 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <Button
+                type="button"
+                className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-semibold shadow-md shadow-red-600/20 rounded-xl px-8 h-11"
+                onClick={() => setShowBnmMigration(false)}
+              >
+                Saya Mengerti
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
