@@ -1,6 +1,5 @@
 "use client";
 
-import { shiftDependencyRows } from "@/lib/gantt-dependency-delay";
 import React, { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Building2, Loader2 } from "lucide-react";
 import { fetchGanttDetailByToko } from "@/lib/api";
@@ -141,7 +140,7 @@ type ScopeDetail = {
         id: string;
         label: string;
         dependencies: number[];
-        bars: Array<{ start: number; end: number; duration: number; delay: number; waitingStart?: number; waitingDays?: number }>;
+        bars: Array<{ start: number; end: number; duration: number; delay: number }>;
     }>;
 };
 
@@ -185,7 +184,7 @@ type CheckpointScopeSummary = {
     blockedByEarlierCheckpoint: boolean;
 };
 
-function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontraktor' = 'pic'): Timeline | null {
+function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     const starts: Date[] = [];
     const ends: Date[] = [];
 
@@ -208,9 +207,7 @@ function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontrakto
         (scope.checkpoints || []).forEach((checkpoint) => {
             const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
             if (checkpointDate) {
-                const effectiveDate = mode === 'kontraktor' ? addDays(checkpointDate, -1) : checkpointDate;
-                starts.push(effectiveDate);
-                ends.push(effectiveDate);
+                ends.push(checkpointDate);
             }
         });
     });
@@ -218,9 +215,8 @@ function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontrakto
     (workspace.unified_dates || []).forEach((dateStr) => {
         const d = parseDate(dateStr);
         if (d) {
-            const effectiveDate = mode === 'kontraktor' ? addDays(d, -1) : d;
-            starts.push(effectiveDate);
-            ends.push(effectiveDate);
+            starts.push(d);
+            ends.push(d);
         }
     });
 
@@ -230,9 +226,8 @@ function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontrakto
             (scope.checkpoints || []).forEach((checkpoint) => {
                 const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
                 if (checkpointDate) {
-                    const effectiveDate = mode === 'kontraktor' ? addDays(checkpointDate, -1) : checkpointDate;
-                    starts.push(effectiveDate);
-                    ends.push(effectiveDate);
+                    starts.push(checkpointDate);
+                    ends.push(checkpointDate);
                 }
             });
         });
@@ -287,20 +282,20 @@ export default function UnifiedSupervisionGantt({
     onTargetStClick,
     showLegend = true,
     isBelumSpk = false,
-    mode = 'pic',
+    onExportDataChange,
 }: {
     workspace: SupervisionWorkspace;
     onCheckpointClick?: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
     onTargetStClick?: (dateString: string, dayIndex: number) => void;
     showLegend?: boolean;
     isBelumSpk?: boolean;
-    mode?: 'pic' | 'kontraktor';
+    onExportDataChange?: (data: { columns: ExportableTimelineColumn[]; scopes: ExportableGanttScope[] } | null) => void;
 }) {
     const [details, setDetails] = useState<ScopeDetail[]>([]);
     const [ganttFallbackTimeline, setGanttFallbackTimeline] = useState<Timeline | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
-    const workspaceTimeline = useMemo(() => buildTimeline(workspace, mode), [mode, workspace]);
+    const workspaceTimeline = useMemo(() => buildTimeline(workspace), [workspace]);
     const baseTimeline = workspaceTimeline ?? ganttFallbackTimeline;
     const timeline = useMemo(() => {
         if (!baseTimeline) return null;
@@ -345,14 +340,10 @@ export default function UnifiedSupervisionGantt({
     const checkpointByDate = useMemo(() => {
         const map = new Map<string, UnifiedSupervisionCheckpoint>();
         (workspace.unified_checkpoints || []).forEach((checkpoint) => {
-            const sourceDate = parseDate(checkpoint.tanggal_pengawasan);
-            const slotDate = mode === 'kontraktor' && sourceDate
-                ? formatFullDate(addDays(sourceDate, -1))
-                : checkpoint.tanggal_pengawasan;
-            map.set(slotDate, checkpoint);
+            map.set(checkpoint.tanggal_pengawasan, checkpoint);
         });
         return map;
-    }, [mode, workspace.unified_checkpoints]);
+    }, [workspace.unified_checkpoints]);
 
     const activeUnfinishedCheckpointDates = useMemo(() => {
         const dates = new Set<string>();
@@ -617,7 +608,7 @@ export default function UnifiedSupervisionGantt({
                             scopeName: String(scope.lingkup_pekerjaan || "LINGKUP").toUpperCase(),
                             ganttId: scope.gantt_id,
                             status: scope.status_opname_final || "Opname belum dibuat",
-                            rows: shiftDependencyRows(rows),
+                            rows,
                         };
                     });
 
@@ -857,39 +848,6 @@ export default function UnifiedSupervisionGantt({
             const unifiedOpname = Number(checkpoint.opname_items || 0);
             const unifiedTotal = Number(checkpoint.total_items || 0);
 
-            if (mode === 'kontraktor') {
-                const supportFullDate = String(checkpoint.tanggal_pengawasan || fullDate);
-                const supportDayIndex = Math.max(1, timeline.dates.findIndex(d => formatFullDate(d) === supportFullDate) + 1) || dayIndex;
-                const contractorSummaries = summarizeCheckpointScopes(checkpoint, supportDayIndex, supportFullDate);
-                const submittedScopeIds = new Set(
-                    activeScopes
-                        .filter(entry => Number(entry.checkpoint?.contractor_submitted_opname_items ?? entry.checkpoint?.opname_items ?? 0) > 0)
-                        .map(entry => Number(entry.id_toko))
-                );
-                const relevantScopes = contractorSummaries.filter(summary => summary.expectedItems > 0 || summary.hasCheckpointData);
-                const submittedScopes = relevantScopes.filter(summary => submittedScopeIds.has(summary.scopeId));
-
-                if (relevantScopes.length > 0 && submittedScopes.length === relevantScopes.length) {
-                    map.set(fullDate, "filled");
-                } else if (submittedScopes.length > 0 || Number(checkpoint.contractor_submitted_opname_items ?? unifiedOpname) > 0) {
-                    map.set(fullDate, "needsInput");
-                } else {
-                    map.set(fullDate, "normal");
-                }
-                return;
-            }
-
-            const checkpointSummaries = summarizeCheckpointScopes(checkpoint, dayIndex, fullDate);
-            const allRelevantScopesComplete = checkpointSummaries.length > 0 && checkpointSummaries.every(summary =>
-                summary.hasCheckpointData &&
-                summary.filledItems >= summary.expectedItems &&
-                summary.readyOpnameItems === 0 &&
-                summary.missingDocumentationItems === 0
-            );
-            if (allRelevantScopesComplete) {
-                map.set(fullDate, "filled");
-                return;
-            }
             if (isToday) {
                 map.set(fullDate, "todayCheckpoint");
                 return;
@@ -937,11 +895,6 @@ export default function UnifiedSupervisionGantt({
                     }
 
 
-                    const allScopesFilledPengawasan = scopesWithExpectedWork.every(entry =>
-                        Number(entry.checkpoint?.total_items || 0) > 0 &&
-                        Number(entry.checkpoint?.filled_items || 0) >= Number(entry.checkpoint?.total_items || 0)
-                    );
-
                     const allScopesOpnameDone = scopesWithExpectedWork.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
                     );
@@ -952,14 +905,13 @@ export default function UnifiedSupervisionGantt({
                     );
 
                     if (anyScopeMissingOpname) {
-                        // Pengawasan selesai tapi opname untuk checkpoint ini belum ada -> merah.
+                        // Pengawasan ada (status selesai) tapi ada scope yang belum opname → merah
                         map.set(fullDate, "needsInput");
-                    } else if (allScopesOpnameDone || allScopesFilledPengawasan) {
-                        // Contractor-first: Progress/Terlambat yang sudah tersimpan tidak boleh membuat checkpoint lama menggantung
-                        // ketika review opname itemnya sudah diarahkan ke checkpoint berikutnya.
+                    } else if (allScopesOpnameDone) {
+                        // Semua scope sudah opname → hijau
                         map.set(fullDate, "filled");
                     } else {
-                        // Sudah isi sebagian pengawasan (mungkin baru progress) -> biru.
+                        // Sudah isi pengawasan (mungkin baru progress) → biru
                         map.set(fullDate, "normal");
                     }
                 } else {
@@ -982,7 +934,7 @@ export default function UnifiedSupervisionGantt({
         });
 
         return map;
-    }, [activeUnfinishedCheckpointDates, checkpointByDate, details, mode, timeline]);
+    }, [activeUnfinishedCheckpointDates, checkpointByDate, details, timeline]);
 
     const resolveCheckpointVisualState = (
         fullDate: string,
@@ -991,8 +943,6 @@ export default function UnifiedSupervisionGantt({
         fallbackState?: CheckpointVisualState
     ): CheckpointVisualState | undefined => {
         if (!checkpoint) return fallbackState;
-
-        if (fallbackState === "filled" || fallbackState === "needsInput") return fallbackState;
 
         const parsedDate = parseDate(fullDate);
         const today = new Date();
@@ -1161,42 +1111,38 @@ export default function UnifiedSupervisionGantt({
     let connectorY = 0;
     details.forEach((scope) => {
         connectorY += GROUP_HEIGHT;
-        const coordinates = new Map<number, { centerY: number; topY: number; bottomY: number; anchors: number[] }>();
+        const coordinates = new Map<number, { centerY: number; startX: number; firstEndX: number }>();
         scope.rows.forEach((row, rowIndex) => {
-            if (!row.bars.length) return;
-            const rowTop = connectorY + rowIndex * ROW_HEIGHT;
+            if (row.bars.length === 0) return;
+            const rowTop = connectorY + (rowIndex * ROW_HEIGHT);
+            const starts = row.bars.map((bar) => Math.max(1, bar.start));
+            const minStart = Math.min(...starts);
+            const firstBar = row.bars.reduce((winner, bar) => Math.max(1, bar.start) < Math.max(1, winner.start) ? bar : winner, row.bars[0]);
+            const firstEnd = Math.min(timeline.days, firstBar.end + Math.max(0, firstBar.delay));
             coordinates.set(row.taskId, {
-                centerY: rowTop + ROW_HEIGHT / 2,
-                topY: rowTop + 8,
-                bottomY: rowTop + ROW_HEIGHT - 8,
-                anchors: row.bars.map(bar => {
-                    const start = Math.max(1, bar.start);
-                    const end = Math.min(timeline.days, bar.end + Math.max(0, bar.delay));
-                    return (start - 1) * DAY_WIDTH + (end - start + 1) * DAY_WIDTH / 2;
-                }),
+                centerY: rowTop + (ROW_HEIGHT / 2),
+                startX: (minStart - 1) * DAY_WIDTH,
+                firstEndX: firstEnd * DAY_WIDTH,
             });
         });
-        scope.rows.forEach(row => row.dependencies.forEach(childId => {
-            const parent = coordinates.get(row.taskId);
-            const child = coordinates.get(childId);
-            if (!parent || !child) return;
-            const below = child.centerY >= parent.centerY;
-            const startY = below ? parent.bottomY : parent.topY;
-            const endY = below ? child.topY : child.bottomY;
-            const endX = child.anchors[0];
-            const direction = below ? 1 : -1;
-            const tension = Math.max(28, Math.min(70, Math.abs(endY - startY) / 2));
-            parent.anchors.forEach((startX, index) => {
-                const path = `M ${startX} ${startY} C ${startX} ${startY + direction * tension}, ${endX} ${endY - direction * tension}, ${endX} ${endY}`;
+
+        scope.rows.forEach((row) => {
+            row.dependencies.forEach((childId) => {
+                const parent = coordinates.get(row.taskId);
+                const child = coordinates.get(childId);
+                if (!parent || !child) return;
+                let tension = child.startX - parent.firstEndX < 40 ? 60 : 40;
+                if (child.startX - parent.firstEndX < 0) tension = 100;
+                const path = `M ${parent.firstEndX} ${parent.centerY} C ${parent.firstEndX + tension} ${parent.centerY}, ${child.startX - tension} ${child.centerY}, ${child.startX} ${child.centerY}`;
                 connectorNodes.push(
-                    <g key={`${scope.id_toko}-${row.taskId}-${childId}-${index}`}>
+                    <g key={`${scope.id_toko}-${row.taskId}-${childId}`}>
                         <path d={path} className="stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#unifiedDepArrow)" opacity="0.95" />
-                        <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                        <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                        <circle cx={parent.firstEndX} cy={parent.centerY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                        <circle cx={child.startX} cy={child.centerY} r="4" className="fill-white stroke-blue-500 stroke-2" />
                     </g>
                 );
             });
-        }));
+        });
         connectorY += scope.rows.length * ROW_HEIGHT;
     });
 
@@ -1206,7 +1152,6 @@ export default function UnifiedSupervisionGantt({
                 <div className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                         <span className="text-xs font-black uppercase text-red-700">Status tanggal</span>
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800"><span className="h-3 w-4 rounded border border-amber-500 bg-amber-100" />Menunggu kategori terikat</span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
                             <span className="h-2 w-2 rounded-full bg-sky-600" />
                             Pengawasan
@@ -1639,14 +1584,6 @@ export default function UnifiedSupervisionGantt({
                                     const width = Math.max(DAY_WIDTH * 0.65, (end - start + 1) * DAY_WIDTH - 6);
                                     acc.nodes.push(
                                         <React.Fragment key={`${row.id}-bar-${index}`}>
-                                            {(bar.waitingDays || 0) > 0 && (
-                                                <div
-                                                    data-testid="dependency-wait"
-                                                    className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-amber-500 bg-amber-100 px-2 text-[10px] font-black text-amber-900 shadow-sm"
-                                                    style={{ top: rowTop + 8, left: ((bar.waitingStart || 1) - 1) * DAY_WIDTH, width: (bar.waitingDays || 0) * DAY_WIDTH - 6, height: ROW_HEIGHT - 16 }}
-                                                    title={`${scope.scopeName} - ${row.label}: menunggu kategori terikat ${bar.waitingDays} hari`}
-                                                >Menunggu {bar.waitingDays} hari</div>
-                                            )}
                                             <div
                                                 className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-blue-500 bg-blue-100 px-2 text-[10px] font-black text-blue-800 shadow-sm"
                                                 style={{ top: rowTop + 8, left, width, height: ROW_HEIGHT - 16 }}

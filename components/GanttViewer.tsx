@@ -111,26 +111,9 @@ function mapIlCategories(items: any[] | undefined): Array<{ kategori_pekerjaan: 
         .map((kategori_pekerjaan) => ({ kategori_pekerjaan }));
 }
 
-type GanttViewerScope = {
-    id_toko?: number;
-    lingkup_pekerjaan?: string;
-};
-
-const normalizeScopeLabel = (value?: string | null) => {
-    const scope = String(value ?? '').trim().toUpperCase();
-    if (scope === 'SIPIL' || scope === 'ME') return scope;
-    if (scope.includes('SIPIL')) return 'SIPIL';
-    if (scope.includes('ME')) return 'ME';
-    return scope || '-';
-};
-
-const encodeScopedCategory = (scope: string, category: string) => `[${normalizeScopeLabel(scope)}] ${String(category || '').trim()}`;
-const stripScopedCategory = (category: string) => String(category || '').replace(/^\[(SIPIL|ME)\]\s*/i, '');
-
-export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false, hideLegend = false }: {
+export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false, hideLegend = false }: {
     nomorUlok: string;
     idToko?: number;
-    scopeTokoIds?: GanttViewerScope[];
     spkStartDate?: string;          // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
     spkDuration?: number;           // SPK duration in days (effective, used as main duration)
     spkEffectiveDuration?: number;  // Effective duration including approved extensions
@@ -150,102 +133,42 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
     const [errorMsg, setErrorMsg] = useState('');
     const [projectData, setProjectData] = useState<any>(null);
     const [tasks, setTasks] = useState<any[]>([]);
-    const scopeViewerKey = scopeTokoIds?.map(scope => scope.id_toko).filter(Boolean).join('-');
-    const viewerId = useMemo(() => `gantt-viewer-${idToko || scopeViewerKey || nomorUlok}`.replace(/[^a-zA-Z0-9_-]/g, '-'), [idToko, nomorUlok, scopeViewerKey]);
+    const viewerId = useMemo(() => `gantt-viewer-${idToko || nomorUlok}`.replace(/[^a-zA-Z0-9_-]/g, '-'), [idToko, nomorUlok]);
     const checkpointByDate = useMemo(
         () => new Map(checkpoints.map((checkpoint) => [checkpoint.tanggal_pengawasan, checkpoint])),
         [checkpoints]
     );
 
     useEffect(() => {
-        if (!nomorUlok && !idToko && !(scopeTokoIds || []).some(scope => scope.id_toko)) return;
+        if (!nomorUlok && !idToko) return;
         
         setIsLoading(true);
         setErrorMsg('');
         
-        const validScopeTokoIds = (scopeTokoIds || []).filter(scope => scope.id_toko).sort((a, b) => (normalizeScopeLabel(a.lingkup_pekerjaan) === "SIPIL" ? 0 : 1) - (normalizeScopeLabel(b.lingkup_pekerjaan) === "SIPIL" ? 0 : 1));
-        const fetchPromise = validScopeTokoIds.length > 1
-            ? Promise.all(validScopeTokoIds.map(scope =>
-                fetchGanttDetailByToko(Number(scope.id_toko)).then((res: any) => {
-                    if (!res || !res.gantt_data) throw new Error(`Gantt Chart belum dibuat untuk lingkup ${normalizeScopeLabel(scope.lingkup_pekerjaan)}.`);
-                    return { ...res, scopeLabel: normalizeScopeLabel(scope.lingkup_pekerjaan || res.toko?.lingkup_pekerjaan) };
-                })
-            )).then((responses: any[]) => {
-                const combinedCategories: any[] = [];
-                const combinedDayItems: any[] = [];
-                const combinedDependencies: any[] = [];
-                const combinedPengawasan: any[] = [];
-                const combinedIlItems: any[] = [];
-
-                responses.forEach((res) => {
-                    const scope = normalizeScopeLabel(res.scopeLabel || res.toko?.lingkup_pekerjaan);
-                    combinedCategories.push({ kategori_pekerjaan: scope, is_scope_header: true, scope });
-                    (res.kategori_pekerjaan || []).forEach((category: any) => {
-                        combinedCategories.push({
-                            ...category,
-                            kategori_pekerjaan: encodeScopedCategory(scope, category.kategori_pekerjaan),
-                            display_name: category.kategori_pekerjaan,
-                            scope,
-                        });
-                    });
-                    (res.day_gantt_data || []).forEach((entry: any) => {
-                        combinedDayItems.push({
-                            ...entry,
-                            kategori_pekerjaan: encodeScopedCategory(scope, entry.kategori_pekerjaan),
-                            scope,
-                        });
-                    });
-                    (res.dependency_data || []).forEach((dep: any) => {
-                        combinedDependencies.push({
-                            ...dep,
-                            kategori_pekerjaan: encodeScopedCategory(scope, dep.kategori_pekerjaan),
-                            kategori_pekerjaan_terikat: encodeScopedCategory(scope, dep.kategori_pekerjaan_terikat),
-                            scope,
-                        });
-                    });
-                    combinedPengawasan.push(...(res.pengawasan_data || []));
-                    (res.instruksi_lapangan_items || []).forEach((item: any) => {
-                        combinedIlItems.push({ ...item, kategori_pekerjaan: encodeScopedCategory(scope, `[IL] ${item.kategori_pekerjaan}`), scope });
-                    });
-                });
-
-                const first = responses[0];
+        const fetchPromise = idToko 
+            ? fetchGanttDetailByToko(idToko).then((res: any) => {
+                if (!res || !res.gantt_data) throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
                 return {
                     data: {
-                        gantt: first.gantt_data,
-                        toko: first.toko,
-                        kategori_pekerjaan: combinedCategories,
-                        day_items: combinedDayItems,
-                        dependencies: combinedDependencies,
-                        pengawasan: combinedPengawasan,
-                        instruksi_lapangan_items: combinedIlItems,
+                        gantt: res.gantt_data,
+                        toko: res.toko,
+                        kategori_pekerjaan: res.kategori_pekerjaan,
+                        day_items: res.day_gantt_data,
+                        dependencies: res.dependency_data || [],
+                        pengawasan: res.pengawasan_data || [],
+                        instruksi_lapangan_items: res.instruksi_lapangan_items || []
                     }
                 };
             })
-            : idToko
-                ? fetchGanttDetailByToko(idToko).then((res: any) => {
-                    if (!res || !res.gantt_data) throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
-                    return {
-                        data: {
-                            gantt: res.gantt_data,
-                            toko: res.toko,
-                            kategori_pekerjaan: res.kategori_pekerjaan,
-                            day_items: res.day_gantt_data,
-                            dependencies: res.dependency_data || [],
-                            pengawasan: res.pengawasan_data || [],
-                            instruksi_lapangan_items: res.instruksi_lapangan_items || []
-                        }
-                    };
-                })
-                : fetchGanttList({ nomor_ulok: nomorUlok })
-                    .then(res => {
-                        const list = res.data || [];
-                        if (list.length === 0) {
-                            throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
-                        }
-                        const ganttId = list[0].id;
-                        return fetchGanttDetail(ganttId);
-                    });
+            : fetchGanttList({ nomor_ulok: nomorUlok })
+                .then(res => {
+                    const list = res.data || [];
+                    if (list.length === 0) {
+                        throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
+                    }
+                    const ganttId = list[0].id;
+                    return fetchGanttDetail(ganttId);
+                });
 
         fetchPromise
             .then(detailRes => {
@@ -376,23 +299,9 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                     if (!exists) mergedCategories.push(category);
                 });
 
-                const scopeCounters: Record<string, number> = {};
-                let generatedTasks: any[] = mergedCategories.map((k: any, idx: number) => {
-                    const scope = normalizeScopeLabel(k.scope || k.kategori_pekerjaan);
-                    const isScopeHeader = Boolean(k.is_scope_header);
-                    if (!isScopeHeader) scopeCounters[scope] = (scopeCounters[scope] || 0) + 1;
-                    return {
-                        id: idx + 1,
-                        name: k.kategori_pekerjaan,
-                        displayName: k.display_name || stripScopedCategory(k.kategori_pekerjaan),
-                        displayIndex: isScopeHeader ? null : scopeCounters[scope],
-                        scope,
-                        isScopeHeader,
-                        dependencies: [],
-                        ranges: [],
-                        keterlambatan: 0,
-                    };
-                });
+                let generatedTasks: any[] = mergedCategories.map((k: any, idx: number) => ({
+                    id: idx + 1, name: k.kategori_pekerjaan, dependencies: [], ranges: [], keterlambatan: 0
+                }));
 
                 const categoryRangesMap: Record<string, any[]> = {};
                 day_items.forEach((entry: any) => {
@@ -446,11 +355,11 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                 setErrorMsg(err?.message || "Gagal memuat detail Gantt Chart.");
                 setIsLoading(false);
             });
-    }, [nomorUlok, idToko, scopeViewerKey, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, timelineStartDate, timelineDuration]);
+    }, [nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, timelineStartDate, timelineDuration]);
 
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
-        let processedTasks = tasks.map(task => ({ ...task }));
+        let processedTasks = [...tasks];
         let maxTaskEndDay = 0;
 
         processedTasks.forEach(task => {
@@ -458,10 +367,10 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
             const myParents = processedTasks.filter(pt => pt.dependencies && pt.dependencies.includes(task.id));
             if (myParents.length > 0) {
                 myParents.forEach(parentTask => {
-                    // Only the recorded delay of the direct dependency affects this row.
+                    const parentShift = parentTask.computed?.shift || 0;
                     const pRanges = parentTask.ranges || [];
-                    const parentDelay = Math.max(0, ...pRanges.map((range: any) => parseInt(range.keterlambatan) || 0));
-                    const potentialShift = parentDelay;
+                    const parentDelay = pRanges.length > 0 ? (parseInt(pRanges[pRanges.length-1].keterlambatan) || 0) : 0;
+                    const potentialShift = parentShift + parentDelay;
                     if (potentialShift > maxShift) maxShift = potentialShift;
                 });
             }
@@ -499,22 +408,11 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                     }
                 });
 
-                const rowTop = idx * ROW_HEIGHT;
-                const rangeCenterX = (range: any) => {
-                    const start = parseInt(range.start || 0) + shift;
-                    const end = parseInt(range.end || 0) + shift + (parseInt(range.keterlambatan) || 0);
-                    return ((start - 1) * DAY_WIDTH) + ((end - start + 1) * DAY_WIDTH / 2);
-                };
-
                 taskCoordinates[task.id] = {
-                    centerY: rowTop + (ROW_HEIGHT / 2),
-                    topY: rowTop + 13,
-                    bottomY: rowTop + 37,
+                    centerY: (idx * ROW_HEIGHT) + (ROW_HEIGHT / 2),
                     endX: maxEnd * DAY_WIDTH,
                     startX: (minStart - 1) * DAY_WIDTH,
-                    firstEndX: firstPeriodEnd * DAY_WIDTH,
-                    sourceAnchors: ranges.map((range: any) => rangeCenterX(range)),
-                    targetX: rangeCenterX(ranges[0]),
+                    firstEndX: firstPeriodEnd * DAY_WIDTH
                 };
             }
         });
@@ -526,24 +424,19 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                 for (let cId of task.dependencies) {
                     const parentCoordinates = taskCoordinates[task.id];
                     const childCoordinates = taskCoordinates[cId];
-                    if(parentCoordinates && childCoordinates && Array.isArray(parentCoordinates.sourceAnchors) && childCoordinates.targetX !== undefined) {
-                        const targetIsBelow = childCoordinates.centerY >= parentCoordinates.centerY;
-                        const startY = targetIsBelow ? parentCoordinates.bottomY : parentCoordinates.topY;
-                        const endX = childCoordinates.targetX;
-                        const endY = targetIsBelow ? childCoordinates.topY : childCoordinates.bottomY;
-                        const direction = targetIsBelow ? 1 : -1;
-                        const tension = Math.max(28, Math.min(70, Math.abs(endY - startY) / 2));
-
-                        parentCoordinates.sourceAnchors.forEach((startX: number, anchorIdx: number) => {
-                            const path = `M ${startX} ${startY} C ${startX} ${startY + (direction * tension)}, ${endX} ${endY - (direction * tension)}, ${endX} ${endY}`;
-                            svgLines.push(
-                                <g key={`${task.id}-${cId}-${anchorIdx}`}>
-                                    <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
-                                    <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                                    <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                                </g>
-                            );
-                        });
+                    if(parentCoordinates && childCoordinates && parentCoordinates.firstEndX !== undefined && childCoordinates.startX !== undefined) {
+                        const startX = parentCoordinates.firstEndX, startY = parentCoordinates.centerY;
+                        const endX = childCoordinates.startX, endY = childCoordinates.centerY;
+                        let tension = (endX - startX) < 40 ? 60 : 40;
+                        if ((endX - startX) < 0) tension = 100;
+                        const path = `M ${startX} ${startY} C ${startX + tension} ${startY}, ${endX - tension} ${endY}, ${endX} ${endY}`;
+                        svgLines.push(
+                            <g key={`${task.id}-${cId}`}>
+                                <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
+                                <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                            </g>
+                        );
                     }
                 }
             }
@@ -612,7 +505,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
             <div className="flex border-b overflow-hidden relative" style={{ maxHeight: "400px" }}>
                 <div className="w-1/3 min-w-50 border-r-[3px] border-slate-400 bg-white z-40 sticky left-0 shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)] flex flex-col">
                     {!hideDateHeader && (
-                        <div className="h-16 bg-slate-50 border-b-2 border-slate-300 flex items-center px-4 font-bold text-slate-600">
+                        <div className="h-10 bg-slate-50 border-b-2 border-slate-300 flex items-center px-4 font-bold text-slate-600">
                             Tahapan Pekerjaan
                         </div>
                     )}
@@ -620,32 +513,17 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                         const rightPane = document.getElementById(`${viewerId}-right`);
                         if (rightPane) rightPane.scrollTop = e.currentTarget.scrollTop;
                     }}>
-                        {processedTasks.map((task) => {
-                            if (task.isScopeHeader) {
-                                const isMe = task.scope === 'ME';
-                                return (
-                                    <div key={task.id} className="border-b border-slate-200 bg-slate-50 flex items-center px-4" style={{ height: ROW_HEIGHT }}>
-                                        <div className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-black ${isMe ? 'text-blue-700' : 'text-red-700'}`}>
-                                            <span className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] ${isMe ? 'border-blue-500 text-blue-600' : 'border-red-500 text-red-600'}`}>#</span>
-                                            {task.scope}
-                                        </div>
-                                    </div>
-                                );
-                            }
-
-                            const displayName = String(task.displayName || stripScopedCategory(task.name || '')).replace(/^\[IL\]\s*/i, '');
-                            return (
-                                <div key={task.id} className="border-b border-slate-100 flex flex-col justify-center px-4" style={{ height: ROW_HEIGHT }}>
-                                    <div className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800" title={displayName}>
-                                        <span className="shrink-0">{task.displayIndex ?? task.id}.</span>
-                                        {String(task.name || '').includes('[IL]') && (
-                                            <span className="shrink-0 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-black text-white">IL</span>
-                                        )}
-                                        <span className="truncate">{displayName}</span>
-                                    </div>
+                        {processedTasks.map((task) => (
+                            <div key={task.id} className="border-b border-slate-100 flex flex-col justify-center px-4" style={{ height: ROW_HEIGHT }}>
+                                <div className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800" title={task.name}>
+                                    <span className="shrink-0">{task.id}.</span>
+                                    {String(task.name || '').startsWith('[IL]') && (
+                                        <span className="shrink-0 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-black text-white">IL</span>
+                                    )}
+                                    <span className="truncate">{String(task.name || '').replace(/^\[IL\]\s*/i, '')}</span>
                                 </div>
-                            );
-                        })}
+                            </div>
+                        ))}
                     </div>
                 </div>
 
@@ -666,7 +544,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                     }}
                 >
                     {!hideDateHeader && (
-                        <div className="h-16 border-b-2 border-slate-300 flex sticky top-0 bg-white z-30" style={{ minWidth: totalChartWidth }}>
+                        <div className="h-10 border-b-2 border-slate-300 flex sticky top-0 bg-white z-30" style={{ minWidth: totalChartWidth }}>
                             {Array.from({ length: totalDaysToRender }).map((_, i) => {
                             let label: string = String(i + 1);
                             let isPengawasan = false;
@@ -726,10 +604,10 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                             } else if (isStBufferDay) {
                                 const isStTargetDay = (i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1;
                                 colClass = isStTargetDay
-                                    ? `relative bg-teal-50 text-teal-900 border-teal-200 shadow-[inset_0_3px_0_#134e4a] ${isClickable ? 'cursor-pointer hover:bg-teal-100' : ''}`
+                                    ? `relative bg-teal-700 text-white border-teal-800 shadow-[inset_0_3px_0_#134e4a] ${isClickable ? 'cursor-pointer hover:bg-teal-600' : ''}`
                                     : `relative bg-teal-50 text-teal-900 border-teal-100 shadow-[inset_0_3px_0_#99f6e4] ${isClickable ? 'cursor-pointer hover:bg-teal-100' : ''}`;
                             } else if (isSpkEndDay) {
-                                colClass = `relative bg-amber-50 text-slate-900 border-amber-200 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-amber-100' : ''}`;
+                                colClass = `relative bg-slate-800 text-white border-slate-700 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-slate-700' : ''}`;
                             } else if (isAlreadyOpname) {
                                 colClass = 'bg-emerald-50 text-emerald-700 cursor-pointer';
                             } else if (isLiveDay) {
@@ -746,7 +624,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                                     key={i}
                                     disabled={!isClickable}
                                     onClick={() => checkpoint && onCheckpointClick?.(checkpoint, i)}
-                                    className={`relative shrink-0 flex h-16 flex-col items-center justify-end border-r-2 border-slate-300 font-bold pb-1 ${colClass}`}
+                                    className={`shrink-0 flex flex-col items-center justify-center border-r-2 border-slate-300 font-bold py-0.75 ${colClass}`}
                                     style={{ width: DAY_WIDTH, fontSize: projectData?.spkStartDateObj ? '9px' : undefined }}
                                     title={isReadyOpname
                                         ? `${readyCount} pekerjaan siap Opname`
@@ -763,11 +641,21 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                                                         : undefined}
                                 >
                                     <span className={isExtensionDay || isStBufferDay || isSpkEndDay ? 'leading-3' : undefined}>{label}</span>
-                                    {(isSpkEndDay || isStBufferDay || isExtensionDay) && (
-                                        <span className={`absolute top-1 left-1/2 -translate-x-1/2 w-10 rounded px-1 py-0.5 text-[8px] leading-[9px] text-white ${isStBufferDay ? 'bg-teal-700' : 'bg-amber-700'}`}>
-                                            {isSpkEndDay ? 'Akhir SPK' : isStBufferDay
-                                                ? ((i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1 ? 'Target ST' : `SPK +${(i + 1) - projectData.stBufferStartDay + 1}`)
-                                                : 'SPK +'}
+                                    {isExtensionDay && (
+                                        <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-extrabold leading-3 text-amber-950">
+                                            {isSpkEndDay ? 'Akhir' : 'SPK+'}
+                                        </span>
+                                    )}
+                                    {isStBufferDay && (
+                                        <span className={`mt-0.5 whitespace-nowrap rounded-sm px-1 text-[8px] font-extrabold leading-3 ${(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1 ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'}`}>
+                                            {(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1
+                                                ? (Number(projectData.stBufferOffsetDays || 0) > 1 ? String(projectData.stBufferLabel || '').replace(' hari', '') : 'ST')
+                                                : `SPK +${(i + 1) - projectData.stBufferStartDay + 1}`}
+                                        </span>
+                                    )}
+                                    {isSpkEndDay && !isExtensionDay && (
+                                        <span className="mt-0.5 rounded-sm bg-amber-300 px-1 text-[8px] font-extrabold leading-3 text-slate-950">
+                                            Akhir
                                         </span>
                                     )}
                                     {isReadyOpname ? (
@@ -901,13 +789,6 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
 
                                         return (
                                             <React.Fragment key={`block-${task.id}-${rIdx}`}>
-                                                {shift > 0 && (
-                                                    <div className="absolute border border-amber-500 rounded-md bg-amber-100 flex items-center justify-center overflow-hidden text-[10px] font-bold text-amber-900"
-                                                        style={{ left: (rStart - 1) * DAY_WIDTH, width: shift * DAY_WIDTH, top: 8, height: ROW_HEIGHT - 16 }}
-                                                        title={`Menunggu kategori terikat ${shift} hari`}>
-                                                        Menunggu {shift} hari
-                                                    </div>
-                                                )}
                                                 <div
                                                     className="absolute border border-blue-500 rounded-md shadow-sm transition-all group overflow-hidden bg-blue-100 flex items-center justify-center cursor-default"
                                                     style={{ left: leftPos, width: blockWidth, top: 8, height: ROW_HEIGHT - 16 }}
@@ -985,4 +866,3 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
         </div>
     );
 }
-

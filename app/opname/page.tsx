@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
     Loader2, Search, CheckSquare, AlertCircle, CheckCircle,
-    Info, Hash, Send, X, Eye, ChevronDown, ChevronRight, ChevronUp,
+    Info, Hash, Send, X, Eye, ChevronDown, ChevronRight,
     Camera, FileText, ThumbsUp, ThumbsDown, Clock, Filter,
     Building2, ClipboardList, ArrowLeft, ExternalLink, RefreshCw, Lock, Database,
     CheckCheck
@@ -59,16 +59,11 @@ const formatTanggalShort = (dateStr: string | null | undefined): string => {
     return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-type WorkflowVersion = 'legacy' | 'contractor_first';
-
-type ProjectWorkflowMeta = Record<WorkflowVersion, boolean>;
-
 type OpnameFinalSummary = {
     id?: number | string;
     created_at?: string | null;
     status?: string | null;
     status_opname_final?: string | null;
-    workflow_version?: WorkflowVersion | string | null;
 };
 
 type OpnameNotificationTarget = {
@@ -187,73 +182,10 @@ const isRejectedOpnameStatus = (status?: string | null) => {
     return normalized === 'ditolak' || normalized === 'terlambat';
 };
 
-const buildLatestOpnameMap = (items: OpnameItem[]) => {
-    const latest = new Map<string, OpnameItem>();
-    items.forEach((item) => {
-        const itemKey = getOpnameItemKey(item);
-        const current = latest.get(itemKey);
-        if (!current || Number(item.id) > Number(current.id)) {
-            latest.set(itemKey, item);
-        }
-    });
-    return latest;
-};
-
 const getOpnameReviewSortRank = (status?: string | null) => {
     if (isPendingOpnameStatus(status)) return 0;
     if (isApprovedOpnameStatus(status) || isRejectedOpnameStatus(status)) return 2;
     return 1;
-};
-
-const isContractorFirstOpname = (item?: Pick<OpnameItem, 'workflow_version'> | null) =>
-    item?.workflow_version === 'contractor_first';
-
-const isLegacyOpname = (item?: Pick<OpnameItem, 'workflow_version'> | null) =>
-    !item?.workflow_version || item.workflow_version === 'legacy';
-
-const getOpnameSourceRef = (item: OpnameItem, rabRef?: RABDetailItem) =>
-    rabRef || item.rab_item || item.instruksi_lapangan_item;
-
-const buildRabItemFromOpname = (item: OpnameItem): RABDetailItem | null => {
-    const source = getOpnameSourceRef(item);
-    if (!source) return null;
-    const isIl = Boolean(item.id_instruksi_lapangan_item || item.instruksi_lapangan_item);
-    return {
-        id: isIl ? -Number(source.id) : Number(source.id),
-        id_rab: 'id_rab' in source ? Number(source.id_rab) || 0 : 0,
-        source_type: isIl ? 'IL' : 'RAB',
-        id_instruksi_lapangan_item: isIl ? Number(source.id) : undefined,
-        kategori_pekerjaan: source.kategori_pekerjaan || 'Lainnya',
-        jenis_pekerjaan: source.jenis_pekerjaan || '-',
-        satuan: source.satuan || '-',
-        volume: Number(source.volume) || 0,
-        harga_material: Number(source.harga_material) || 0,
-        harga_upah: Number(source.harga_upah) || 0,
-        total_material: Number(source.total_material) || 0,
-        total_upah: Number(source.total_upah) || 0,
-        total_harga: Number(source.total_harga) || 0,
-        catatan: 'Contractor-first opname',
-    };
-};
-
-const getContractorFirstRejectNote = (item: OpnameItem) =>
-    item.alasan_penolakan_support || item.catatan || '';
-
-const isContractorMenuVisibleOpname = (item: OpnameItem) => {
-    return true;
-};
-const withFallbackTimeout = async <T,>(promise: Promise<T>, fallback: T, timeoutMs = 15000): Promise<T> => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    try {
-        return await Promise.race([
-            promise,
-            new Promise<T>((resolve) => {
-                timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
-            }),
-        ]);
-    } finally {
-        if (timeoutId) clearTimeout(timeoutId);
-    }
 };
 // =============================================================================
 // SUB-COMPONENTS
@@ -308,8 +240,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     // Data
     const [rabList, setRabList] = useState<RABListItem[]>([]);
     const [selectedRab, setSelectedRab] = useState<RABListItem | null>(null);
-    const [selectedRabs, setSelectedRabs] = useState<RABListItem[]>([]);
-    const [selectedUlok, setSelectedUlok] = useState<string>("");
     const [rabItems, setRabItems] = useState<RABDetailItem[]>([]);
     const [tokoDetail, setTokoDetail] = useState<RABDetailToko | null>(null);
     const [existingOpname, setExistingOpname] = useState<OpnameItem[]>([]);
@@ -324,24 +254,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const [searchQuery, setSearchQuery] = useState('');
     const [opnameItemSearchQuery, setOpnameItemSearchQuery] = useState('');
     const [activeView, setActiveView] = useState<'form' | 'history'>('form');
-    const [supportFlowView, setSupportFlowView] = useState<WorkflowVersion>('legacy');
-    const [projectWorkflowByTokoId, setProjectWorkflowByTokoId] = useState<Record<number, ProjectWorkflowMeta>>({});
-    const [isWorkflowIndexLoading, setIsWorkflowIndexLoading] = useState(false);
     const [autoSelectedTokoId, setAutoSelectedTokoId] = useState<string | null>(null);
     const [notificationTarget, setNotificationTarget] = useState<OpnameNotificationTarget | null>(null);
-    const [downloadingFotoId, setDownloadingFotoId] = useState<number | null>(null);
 
-    const handleDownloadFoto = async (opnameItemId: number) => {
-        setDownloadingFotoId(opnameItemId);
-        try {
-            await downloadOpnameFoto(opnameItemId);
-            showAlert({ message: 'Foto opname berhasil diunduh.', type: 'success' });
-        } catch (err: any) {
-            showAlert({ message: `Gagal mengunduh foto: ${err.message || 'Terjadi kesalahan.'}`, type: 'error' });
-        } finally {
-            setDownloadingFotoId(null);
-        }
-    };
     // Opname inputs: keyed by rab_item id
     const [opnameInputs, setOpnameInputs] = useState<Record<number, {
         volume_akhir: string;
@@ -360,28 +275,17 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     // Expanded categories
     const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
-    const [collapsedLingkup, setCollapsedLingkup] = useState<Set<string>>(new Set());
-    const toggleLingkup = (l: string) => {
-        setCollapsedLingkup(prev => {
-            const next = new Set(prev);
-            if (next.has(l)) next.delete(l);
-            else next.add(l);
-            return next;
-        });
-    };
     const [isOpnameFinalLocked, setIsOpnameFinalLocked] = useState(false);
 
     // Load RAB list
     useEffect(() => {
         setIsLoading(true);
-        Promise.allSettled([
-            withFallbackTimeout(fetchRABList(), { status: 'error', data: [] as RABListItem[] }),
-            withFallbackTimeout(fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }), { status: 'error', data: [] as any[] })
+        Promise.all([
+            fetchRABList(),
+            fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true })
         ])
-            .then(([rabResult, instruksiResult]) => {
-                const res = rabResult.status === 'fulfilled' ? rabResult.value : { data: [] };
-                const instruksiRes = instruksiResult.status === 'fulfilled' ? instruksiResult.value : { data: [] };
-                const data = (res.data || []) as RABListItem[];
+            .then(([res, instruksiRes]) => {
+                const data = res.data || [];
                 const filtered = data.filter(item => {
                     const isApproved = item.status?.toUpperCase().includes('DISETUJUI') ||
                         item.status?.toUpperCase().includes('APPROVED');
@@ -394,93 +298,20 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             .finally(() => setIsLoading(false));
     }, []);
 
-    useEffect(() => {
-        if (rabList.length === 0) {
-            setProjectWorkflowByTokoId({});
-            return;
-        }
-
-        let cancelled = false;
-        const projectIds = new Set(rabList.map((item) => Number(item.id_toko)).filter(Boolean));
-        const next: Record<number, ProjectWorkflowMeta> = {};
-        projectIds.forEach((id) => {
-            next[id] = { legacy: false, contractor_first: false };
-        });
-
-        setIsWorkflowIndexLoading(true);
-        withFallbackTimeout(fetchOpnameFinalList(), { status: 'error', data: [] as OpnameFinalSummary[] }, 30000)
-            .then((res) => {
-                if (cancelled) return;
-                const rawData = (res as any).data;
-                const rows: OpnameFinalSummary[] = Array.isArray(rawData)
-                    ? rawData
-                    : Array.isArray(rawData?.opname_final)
-                        ? rawData.opname_final
-                        : Array.isArray((res as any).opname_final)
-                            ? (res as any).opname_final
-                            : [];
-
-                rows.forEach((item) => {
-                    const idToko = Number((item as any).id_toko);
-                    if (!projectIds.has(idToko)) return;
-                    if (item.workflow_version === 'contractor_first') {
-                        next[idToko].contractor_first = true;
-                    } else {
-                        next[idToko].legacy = true;
-                    }
-                });
-
-                setProjectWorkflowByTokoId(next);
-            })
-            .catch((err) => {
-                console.error('Gagal memuat index workflow opname:', err);
-                if (!cancelled) setProjectWorkflowByTokoId(next);
-            })
-            .finally(() => {
-                if (!cancelled) setIsWorkflowIndexLoading(false);
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [rabList]);
-
-    const workflowFilteredRabList = useMemo(() => {
-        return rabList.filter((r) => {
-            const meta = projectWorkflowByTokoId[Number(r.id_toko)];
-            return Boolean(meta?.legacy || meta?.contractor_first);
-        });
-    }, [rabList, projectWorkflowByTokoId]);
-
-    // Filter RAB List by search and active workflow tab
+    // Filter RAB List by search
     const filteredRabList = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        return workflowFilteredRabList.filter(r =>
+        return rabList.filter(r =>
             (r.nomor_ulok || '').toLowerCase().includes(q) ||
             (r.nama_toko || '').toLowerCase().includes(q) ||
             (r.cabang || '').toLowerCase().includes(q) ||
             (r.proyek || '').toLowerCase().includes(q)
         );
-    }, [workflowFilteredRabList, searchQuery]);
-
-    const resetSelectedProject = useCallback(() => {
-        setSelectedRab(null);
-        setRabItems([]);
-        setTokoDetail(null);
-        setOpnameInputs({});
-        setExistingOpname([]);
-        setIsOpnameFinalLocked(false);
-        setNotificationTarget(null);
-        setOpnameItemSearchQuery('');
-        setActiveView('form');
-    }, []);
-
+    }, [rabList, searchQuery]);
 
     // Handle RAB selection
-    const handleSelectUlok = async (ulok: string) => {
-        if (!ulok) {
-            setSelectedUlok("");
-            setSelectedRabs([]);
+    const handleSelectRab = async (rabId: string) => {
+        if (!rabId) {
             setSelectedRab(null);
             setRabItems([]);
             setTokoDetail(null);
@@ -490,81 +321,152 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             return;
         }
 
-        const rabs = rabList.filter(r => r.nomor_ulok === ulok);
-        if (rabs.length === 0) return;
+        const rab = rabList.find(r => r.id === parseInt(rabId));
+        if (!rab) return;
 
-        setSelectedUlok(ulok);
-        setSelectedRabs(rabs);
-        setSelectedRab(rabs[0]); // fallback for any legacy code
+        setSelectedRab(rab);
+        setRabItems([]);
+        setOpnameInputs({});
+        setExistingOpname([]);
         setIsLoadingDetail(true);
 
         try {
+            const pengawasanStatusMap = new Map<string, string>();
+            try {
+                const ganttRes = await fetchGanttDetailByToko(rab.id_toko).catch(() => null);
+                if (ganttRes && ganttRes.pengawasan_items) {
+                    ganttRes.pengawasan_items.forEach((p: any) => {
+                        if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            if (!pengawasanStatusMap.has(key)) {
+                                pengawasanStatusMap.set(key, p.status.toLowerCase());
+                            }
+                        }
+                    });
+                }
+            } catch (e) { console.error(e); }
+
+            const isIlOnlyProject = (rab as any).source_type === 'IL_ONLY' || Number(rab.id) < 0;
             let workingItems: RABDetailItem[] = [];
-            let existingData: OpnameItem[] = [];
-            let tokoMeta: any = null;
-            let currentWorkflow: WorkflowVersion = 'legacy';
-
-            for (const rab of rabs) {
-                const isIlOnlyProject = (rab as any).source_type === 'IL_ONLY' || Number(rab.id) < 0;
-                let currentItems: RABDetailItem[] = [];
-                const lingkupPekerjaan = (rab as any).lingkup_pekerjaan || (isIlOnlyProject ? 'ME' : 'SIPIL');
-
-                if (isIlOnlyProject) {
-                    if (!tokoMeta) tokoMeta = {
-                        id: rab.id_toko, nomor_ulok: rab.nomor_ulok, lingkup_pekerjaan: lingkupPekerjaan,
-                        nama_toko: rab.nama_toko, kode_toko: '', proyek: rab.proyek, cabang: rab.cabang, alamat: '', nama_kontraktor: ''
-                    };
-                } else {
-                    const detailRes = await fetchRABDetail(rab.id);
-                    const { items, toko } = detailRes.data;
-                    if (!tokoMeta) tokoMeta = toko;
-                    currentItems = (items || []).map((item: RABDetailItem) => ({
+            if (isIlOnlyProject) {
+                setTokoDetail({
+                    id: rab.id_toko,
+                    nomor_ulok: rab.nomor_ulok,
+                    lingkup_pekerjaan: (rab as any).lingkup_pekerjaan || '',
+                    nama_toko: rab.nama_toko,
+                    kode_toko: '',
+                    proyek: rab.proyek,
+                    cabang: rab.cabang,
+                    alamat: '',
+                    nama_kontraktor: ''
+                });
+            } else {
+                const detailRes = await fetchRABDetail(rab.id);
+                const { items, toko } = detailRes.data;
+                setTokoDetail(toko);
+                workingItems = (items || []).map((item: RABDetailItem) => {
+                    const k = item.kategori_pekerjaan?.toUpperCase();
+                    const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
+                    const key = `${k}|${j}`;
+                    return {
                         ...item,
                         source_type: item.source_type || 'RAB',
-                        lingkup_pekerjaan: toko.lingkup_pekerjaan || lingkupPekerjaan,
-                        id_toko: rab.id_toko
-                    }));
-                }
-
-                // Opname & IL items
-                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
-                const currentOpname = (opnameRes.data || []).map((o: any) => ({ ...o, lingkup_pekerjaan: lingkupPekerjaan, id_toko: rab.id_toko }));
-                existingData.push(...currentOpname);
-
-                const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((il: any) => ({
-                    ...il, lingkup_pekerjaan: `IL ${lingkupPekerjaan}`, id_toko: rab.id_toko
-                }));
-                currentItems = [...currentItems, ...instruksiItems];
-                workingItems.push(...currentItems);
-
-                const contractorFirstItemsForSelection = currentOpname.filter((item: any) => isContractorFirstOpname(item));
-                if (contractorFirstItemsForSelection.length > 0) currentWorkflow = 'contractor_first';
+                        pengawasan_status: pengawasanStatusMap.get(key)
+                    };
+                });
             }
 
-            setTokoDetail(tokoMeta);
-            setRabItems(workingItems);
-            setExistingOpname(existingData);
-            setSupportFlowView(currentWorkflow);
+            // Check for existing opname data
+            let existingData: OpnameItem[] = [];
+            try {
+                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
+                existingData = opnameRes.data || [];
+                const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((item: any) => {
+                    const k = item.kategori_pekerjaan?.toUpperCase();
+                    const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
+                    const key = `${k}|${j}`;
+                    return {
+                        ...item,
+                        pengawasan_status: pengawasanStatusMap.get(key)
+                    };
+                });
+                workingItems = [...workingItems, ...instruksiItems];
+                setRabItems(workingItems);
+                setExistingOpname(existingData);
 
-            // Initialize opnameInputs
-            const initialInputs: any = {};
-            workingItems.forEach((item: any) => {
-                const itemKey = getWorkItemKey(item);
-                const ex = existingData.filter(o => getOpnameItemKey(o) === itemKey).sort((a,b) => Number(b.id) - Number(a.id))[0];
-                initialInputs[item.id] = {
-                    volume_akhir: ex ? String(ex.volume_akhir) : "0",
-                    desain: ex?.desain || '', kualitas: ex?.kualitas || '', spesifikasi: ex?.spesifikasi || '', catatan: ex?.catatan || '', file: null, existing_foto: ex?.foto || null
-                };
+                // Initialize opnameInputs based on existing opname data (parsial)
+                const initialInputs: any = {};
+                const safeItems = workingItems;
+                safeItems.forEach((item: any) => {
+                    const itemKey = getWorkItemKey(item);
+                    const ex = existingData.filter(o => getOpnameItemKey(o) === itemKey).sort((a,b) => Number(b.id) - Number(a.id))[0];
+                    initialInputs[item.id] = {
+                        volume_akhir: ex ? String(ex.volume_akhir) : "0",
+                        desain: ex?.desain || '',
+                        kualitas: ex?.kualitas || '',
+                        spesifikasi: ex?.spesifikasi || '',
+                        catatan: ex?.catatan || '',
+                        file: null,
+                        existing_foto: ex?.foto || null
+                    };
+                });
+                setOpnameInputs(initialInputs);
+            } catch {
+                setRabItems(workingItems);
+                setExistingOpname([]);
+                setOpnameInputs({});
+            }
+
+            // Check locked opname status
+            let lockedOpnameFinal = false;
+            try {
+                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci' });
+                const finalData = finalRes.data as unknown;
+                let finalItems: OpnameFinalSummary[] = [];
+                if (Array.isArray(finalData)) {
+                    finalItems = finalData as OpnameFinalSummary[];
+                } else if (finalData && typeof finalData === 'object') {
+                    const opnameFinal = (finalData as { opname_final?: unknown }).opname_final;
+                    finalItems = Array.isArray(opnameFinal) ? opnameFinal as OpnameFinalSummary[] : [];
+                }
+
+                const latestFinal = finalItems.reduce<OpnameFinalSummary | null>((latest, item) => {
+                    if (!latest) return item;
+                    const latestId = Number(latest.id) || 0;
+                    const itemId = Number(item.id) || 0;
+                    if (itemId !== latestId) return itemId > latestId ? item : latest;
+
+                    const latestTime = new Date(latest.created_at || 0).getTime();
+                    const itemTime = new Date(item.created_at || 0).getTime();
+                    return itemTime > latestTime ? item : latest;
+                }, null);
+
+                if (latestFinal) {
+                    const status = String(latestFinal.status_opname_final || latestFinal.status || '').toUpperCase();
+                    const isRejected = status.includes('DITOLAK') || status.includes('TOLAK') || status.includes('REJECTED');
+                    lockedOpnameFinal = !isRejected;
+                }
+            } catch {
+                // ignore
+            }
+            setIsOpnameFinalLocked(lockedOpnameFinal);
+
+            // [REMOVED DUPLICATE] opnameInputs sudah diset di blok try atas dengan data existingOpname yang sudah difilter dan disort.
+            // Jangan set ulang di sini karena akan menimpa data yang sudah benar.
+
+            // Expand all categories by default
+            const cats = new Set<string>();
+            (workingItems || []).forEach((item: RABDetailItem) => {
+                if (item.kategori_pekerjaan) cats.add(item.kategori_pekerjaan);
             });
-            setOpnameInputs(initialInputs);
-        } catch (error) {
-            console.error("Error loading ulok details:", error);
-            setRabItems([]);
-            setExistingOpname([]);
+            setExpandedCats(cats);
+
+        } catch (err: any) {
+            showAlert({ message: `Gagal memuat detail RAB: ${err.message}`, type: "error" });
         } finally {
             setIsLoadingDetail(false);
         }
-    };;
+    };
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -573,7 +475,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         const validMode = targetMode === 'finalisasi_ktk' || targetMode === 'revisi_ktk' ? targetMode : null;
         const targetOpnameFinalId = params.get('opname_final_id');
         const targetKey = [targetTokoId, validMode, targetOpnameFinalId].filter(Boolean).join('|');
-        if (!targetTokoId || isLoading || rabList.length === 0 || isWorkflowIndexLoading || autoSelectedTokoId === targetKey) return;
+        if (!targetTokoId || isLoading || rabList.length === 0 || autoSelectedTokoId === targetKey) return;
 
         const targetProject = rabList.find(item => String(item.id_toko) === targetTokoId);
         if (!targetProject) return;
@@ -584,8 +486,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             setActiveView('form');
         }
         setSearchQuery(targetProject.nama_toko || targetProject.nomor_ulok || "");
-        handleSelectUlok(targetProject.nomor_ulok || "");
-    }, [autoSelectedTokoId, isLoading, isWorkflowIndexLoading, rabList]);
+        handleSelectRab(String(targetProject.id));
+    }, [autoSelectedTokoId, isLoading, rabList]);
 
     // Handle input change
     const handleSetInput = async (itemId: number, field: string, value: any) => {
@@ -629,140 +531,78 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         });
     };
 
-    const legacyOpnameItems = useMemo(
-        () => existingOpname.filter((item) => isLegacyOpname(item)),
-        [existingOpname]
-    );
-
-    const contractorFirstOpnameItems = useMemo(
-        () => existingOpname.filter((item) => isContractorFirstOpname(item)),
-        [existingOpname]
-    );
-
-    const latestOpnameByItemKey = useMemo(() => buildLatestOpnameMap(legacyOpnameItems), [legacyOpnameItems]);
-    const latestContractorFirstOpnameByItemKey = useMemo(() => buildLatestOpnameMap(contractorFirstOpnameItems), [contractorFirstOpnameItems]);
-
-    const hasLegacyRejectedForReinput = useMemo(
-        () => Array.from(latestOpnameByItemKey.values()).some((item) => isRejectedOpnameStatus(item.status)),
-        [latestOpnameByItemKey]
-    );
-
-    const hasLegacyPendingILItem = useMemo(
-        () => Array.from(latestOpnameByItemKey.values()).some((item) => isPendingOpnameStatus(item.status) && (item.instruksi_lapangan_item != null || item.id_instruksi_lapangan_item != null)),
-        [latestOpnameByItemKey]
-    );
-
-    // Check if all items are approved for KTK finalization and finalized read-only view.
-    const legacyAllApproved = useMemo(() => {
-        if (rabItems.length === 0) return false;
-        return rabItems.every((item) => isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status));
-    }, [rabItems, latestOpnameByItemKey]);
-
-    const contractorFirstReviewStats = useMemo(() => {
-        const latestItems = Array.from(latestContractorFirstOpnameByItemKey.values());
-        const approved = latestItems.filter((item) => isApprovedOpnameStatus(item.status)).length;
-        const pending = latestItems.filter((item) => isPendingOpnameStatus(item.status)).length;
-        const rejected = latestItems.filter((item) => isRejectedOpnameStatus(item.status)).length;
-        const not_submitted = rabItems.length - (approved + pending + rejected);
-        return { total: rabItems.length, not_submitted, approved, pending, rejected };
-    }, [latestContractorFirstOpnameByItemKey, rabItems.length]);
-
-    const contractorFirstAllApproved = useMemo(() => {
-        if (rabItems.length === 0) return false;
-        return rabItems.every((item) => {
-            const existing = latestContractorFirstOpnameByItemKey.get(getWorkItemKey(item));
-            return existing && isApprovedOpnameStatus(existing.status);
+    const latestOpnameByItemKey = useMemo(() => {
+        const latest = new Map<string, OpnameItem>();
+        existingOpname.forEach((item) => {
+            const itemKey = getOpnameItemKey(item);
+            const current = latest.get(itemKey);
+            if (!current || Number(item.id) > Number(current.id)) {
+                latest.set(itemKey, item);
+            }
         });
-    }, [rabItems, latestContractorFirstOpnameByItemKey]);
-
-    const activeWorkflowAllApproved = supportFlowView === 'contractor_first' ? contractorFirstAllApproved : legacyAllApproved;
-    const activeLatestOpnameByItemKey = supportFlowView === 'contractor_first' ? latestContractorFirstOpnameByItemKey : latestOpnameByItemKey;
-    const activeWorkflowOpnameItems = supportFlowView === 'contractor_first' ? contractorFirstOpnameItems : legacyOpnameItems;
-    const activeTotalCount = supportFlowView === 'contractor_first' ? contractorFirstReviewStats.total : rabItems.length;
-    const activeApprovedCount = supportFlowView === 'contractor_first'
-        ? contractorFirstReviewStats.approved
-        : Array.from(activeLatestOpnameByItemKey.values()).filter((item) => isApprovedOpnameStatus(item.status)).length;
-
-    const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || activeWorkflowAllApproved;
-    const shouldLockLegacyMenuInputForSupport = supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && !hasLegacyRejectedForReinput && !hasLegacyPendingILItem;
-    const canEditOpnameMenu = supportFlowView === 'legacy' && !isReadOnly && !shouldShowReadOnlyOpnameItems && !shouldLockLegacyMenuInputForSupport;
-
-    const contractorFirstMenuReviewItems = useMemo(() => {
-        return existingOpname.filter((item) => {
-            return isContractorFirstOpname(item)
-                && String(item.status || '').trim().toLowerCase() === 'pending'
-                && Number(item.revision_no || 0) > 0;
-        });
+        return latest;
     }, [existingOpname]);
 
-    const approvedReadOnlyOpnameItems = useMemo(() => {
-        return Array.from(activeLatestOpnameByItemKey.values())
-            .filter((item) => isApprovedOpnameStatus(item.status))
-            .sort((a, b) => Number(a.id) - Number(b.id));
-    }, [activeLatestOpnameByItemKey]);
+    // Check if all items are approved (for Opname button and finalized read-only view)
+    const allApproved = useMemo(() => {
+        if (rabItems.length === 0) return false;
+        return rabItems.every((item) => {
+            // Jika status pengawasan adalah "Tidak Dikerjakan", maka item ini otomatis "Approved" / di-skip
+            const statusPengawasan = (item as any).pengawasan_status;
+            if (statusPengawasan === 'tidak dikerjakan' || statusPengawasan === 'tidak_dikerjakan') {
+                return true;
+            }
+            return isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status);
+        });
+    }, [rabItems, latestOpnameByItemKey]);
 
-    // Legacy menu: initial support input stays in Gantt; this form only re-submits contractor-rejected legacy opname.
+    const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || allApproved;
+
+    // Group items by category. Before all-approved/finalized, only rejected items can be revised here.
+    // After all-approved/finalized, show every item as a read-only final review.
     const groupedItems = useMemo(() => {
-        if (supportFlowView !== 'legacy') return [];
-        if (shouldLockLegacyMenuInputForSupport) return [];
-
-        const map = new Map<string, Map<string, RABDetailItem[]>>();
+        const map = new Map<string, RABDetailItem[]>();
         rabItems.forEach(item => {
             const itemKey = getWorkItemKey(item);
             const latestOpname = latestOpnameByItemKey.get(itemKey);
             const status = latestOpname?.status;
 
             if (!shouldShowReadOnlyOpnameItems) {
-                const isRejected = isRejectedOpnameStatus(status);
-                const isPendingIL = isPendingOpnameStatus(status) && (item.source_type === 'IL' || item.instruksi_lapangan_item != null || item.id_instruksi_lapangan_item != null);
-                if (!isRejected && !isPendingIL) return;
+                const isBlocked = isPendingOpnameStatus(status) || isApprovedOpnameStatus(status);
+                if (isBlocked) return;
+                if (status && !isRejectedOpnameStatus(status)) return;
             }
 
-            let lingkup = (item as any).lingkup_pekerjaan || 'SIPIL';
-            if (item.source_type === 'IL' && !lingkup.startsWith('IL ')) lingkup = `IL ${lingkup}`;
-
             const cat = item.kategori_pekerjaan;
-            
-            if (!map.has(lingkup)) map.set(lingkup, new Map());
-            const catMap = map.get(lingkup)!;
-            if (!catMap.has(cat)) catMap.set(cat, []);
-            catMap.get(cat)!.push(item);
+            if (!map.has(cat)) map.set(cat, []);
+            map.get(cat)!.push(item);
         });
-        
-        return Array.from(map.entries())
-            .sort((a, b) => {
-                if (a[0] === 'SIPIL') return -1;
-                if (b[0] === 'SIPIL') return 1;
-                if (a[0] === 'ME') return -1;
-                if (b[0] === 'ME') return 1;
-                return a[0].localeCompare(b[0]);
-            })
-            .map(([lingkup, catMap]) => ({
-                lingkup,
-                categories: Array.from(catMap.entries()).map(([name, items]) => ({ name, items }))
-            }));
-    }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems, shouldLockLegacyMenuInputForSupport, supportFlowView]);
+        return Array.from(map.entries()).map(([kategori, items]) => {
+            // Sembunyikan item yang "Tidak Dikerjakan" dari tampilan Opname (BBS dan Kontraktor)
+            const visibleItems = items.filter(item => {
+                const pStatus = (item as any).pengawasan_status;
+                return pStatus !== 'tidak dikerjakan' && pStatus !== 'tidak_dikerjakan';
+            });
+            return { name: kategori, items: visibleItems };
+        }).filter(group => group.items.length > 0);
+    }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems]);
     const filteredGroupedItems = useMemo(() => {
         if (!opnameItemSearchQuery.trim()) return groupedItems;
         const term = opnameItemSearchQuery.toLowerCase();
-        return groupedItems.map(lingkupGroup => {
-            const filteredCats = lingkupGroup.categories.map(g => {
-                const matchCat = g.name.toLowerCase().includes(term);
-                const filteredItems = g.items.filter(item => 
-                    item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
-                );
-                return { ...g, items: filteredItems };
-            }).filter(g => g.items.length > 0);
-            return { ...lingkupGroup, categories: filteredCats };
-        }).filter(lingkupGroup => lingkupGroup.categories.length > 0);
+        return groupedItems.map(g => {
+            const matchCat = g.name.toLowerCase().includes(term);
+            const filteredItems = g.items.filter(item => 
+                item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
+            );
+            return { ...g, items: filteredItems };
+        }).filter(g => g.items.length > 0);
     }, [groupedItems, opnameItemSearchQuery]);
 
     // Helper: check if an item was previously rejected
     const getRejectedOpname = (rabItemId: number) => {
         const item = rabItems.find((rabItem) => Number(rabItem.id) === Number(rabItemId));
         const itemKey = item ? getWorkItemKey(item) : `rab:${rabItemId}`;
-        const latest = latestOpnameByItemKey.get(itemKey);
-        return isRejectedOpnameStatus(latest?.status) ? latest : undefined;
+        return existingOpname.find(o => getOpnameItemKey(o) === itemKey && o.status?.toLowerCase() === 'ditolak');
     };
 
     // Actual kunci logic (extracted so GlobalAlert can call it)
@@ -775,12 +615,20 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: "Finalisasi Kerja Tambah Kurang hanya dapat dilakukan oleh Branch Building Support.", type: "warning" });
             return;
         }
-        if (!selectedRab || !activeWorkflowAllApproved) return;
+        if (!selectedRab || !allApproved) return;
 
         setIsSubmitting(true);
         try {
-            const latestOpnames = buildLatestOpnameMap(activeWorkflowOpnameItems);
+            // Deduplicate opname items by id_rab_item (take latest)
+            const latestOpnames = new Map<string, OpnameItem>();
+            existingOpname.forEach(item => {
+                const itemKey = getOpnameItemKey(item);
+                if (!latestOpnames.has(itemKey) || Number(item.id) > Number(latestOpnames.get(itemKey)!.id)) {
+                    latestOpnames.set(itemKey, item);
+                }
+            });
 
+            // Build items payload with new API fields
             const opnameItemsData = Array.from(latestOpnames.values()).map(item => {
                 const itemKey = getOpnameItemKey(item);
                 const rabRef = rabItems.find(r => getWorkItemKey(r) === itemKey);
@@ -788,10 +636,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 const totalHargaOpname = Math.round((Number(item.volume_akhir) || 0) * hargaSatuan);
 
                 return {
-                    id: item.id,
+                    id: item.id, // existing opname item id for upsert
                     id_toko: selectedRab.id_toko,
-                    id_rab_item: rabRef?.source_type === 'IL' ? undefined : Number(item.id_rab_item ?? rabRef?.id),
-                    id_instruksi_lapangan_item: rabRef?.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item ?? rabRef?.id_instruksi_lapangan_item) : undefined,
+                    id_rab_item: rabRef?.source_type === 'IL' ? undefined : Number(item.id_rab_item),
+                    id_instruksi_lapangan_item: rabRef?.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item) : undefined,
                     status: item.status || 'disetujui',
                     volume_akhir: item.volume_akhir,
                     selisih_volume: item.selisih_volume,
@@ -809,6 +657,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 throw new Error('ID Opname tidak ditemukan. Simpan item opname terlebih dahulu sebelum finalisasi Kerja Tambah Kurang.');
             }
 
+            // Calculate grand totals
             let grandTotalRab = 0;
             let grandTotalOpname = 0;
 
@@ -831,18 +680,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 grand_total_opname: String(Math.round(grandTotalOpname)),
                 grand_total_rab: String(Math.round(grandTotalRab)),
                 opname_item: opnameItemsData,
-                workflow_version: supportFlowView,
             });
 
-            showAlert({
-                message: supportFlowView === 'contractor_first'
-                    ? 'Finalisasi KTK contractor-first berhasil dikirim untuk approval Koordinator.'
-                    : 'Proses Kerja Tambah Kurang berhasil difinalisasi dan dikirim untuk approval Koordinator.',
-                type: "success"
-            });
-            handleSelectUlok(selectedUlok);
+            showAlert({ message: 'Proses Kerja Tambah Kurang berhasil difinalisasi dan dikirim untuk approval Koordinator.', type: "success" });
+            // Refresh data
+            handleSelectRab(selectedRab.id.toString());
         } catch (err: any) {
-            showAlert({ message: 'Gagal finalisasi Kerja Tambah Kurang: ' + err.message, type: "error" });
+            showAlert({ message: `Gagal finalisasi Kerja Tambah Kurang: ${err.message}`, type: "error" });
         } finally {
             setIsSubmitting(false);
         }
@@ -854,12 +698,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: "Finalisasi Kerja Tambah Kurang hanya dapat dilakukan oleh Branch Building Support.", type: "warning" });
             return;
         }
-        if (!selectedRab || !activeWorkflowAllApproved) return;
+        if (!selectedRab || !allApproved) return;
         showAlert({
             title: 'Finalisasi Kerja Tambah Kurang',
-            message: supportFlowView === 'contractor_first'
-                ? 'Finalisasi KTK contractor-first untuk proyek ini? Pastikan semua item sudah disetujui support.'
-                : 'Finalisasi proses Kerja Tambah Kurang untuk proyek ini? Setelah difinalisasi, data akan masuk proses approval Koordinator.',
+            message: 'Finalisasi proses Kerja Tambah Kurang untuk proyek ini? Setelah difinalisasi, data akan masuk proses approval Koordinator.',
             type: 'warning',
             confirmMode: true,
             confirmText: 'Ya, Finalisasi',
@@ -870,8 +712,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     // Submit Opname per item (single) — uses bulk endpoint with 1 item for consistency
     const handleSubmitItem = async (rabItem: RABDetailItem) => {
-        if (!canEditOpnameMenu) {
-            showAlert({ message: "Input opname dari menu ini dikunci untuk Branch Building Support. Untuk data legacy, isi opname melalui Gantt Chart.", type: "warning" });
+        if (isReadOnly) {
+            showAlert({ message: "Role ini hanya memiliki akses view.", type: "warning" });
             return;
         }
         if (!selectedRab) return;
@@ -897,7 +739,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
 
             // Check if existing opname for this item (for upsert via id)
-            const existingRecord = latestOpnameByItemKey.get(getWorkItemKey(rabItem));
+            const existingRecord = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(rabItem));
 
             const itemPayload: Record<string, any> = {
                 id_toko: selectedRab.id_toko,
@@ -933,7 +775,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             });
             // Sum existing approved/pending opnames + this new one
             const latestOpnames = new Map<string, OpnameItem>();
-            legacyOpnameItems.forEach(o => {
+            existingOpname.forEach(o => {
                 const itemKey = getOpnameItemKey(o);
                 if (!latestOpnames.has(itemKey) || Number(o.id) > Number(latestOpnames.get(itemKey)!.id)) {
                     latestOpnames.set(itemKey, o);
@@ -993,15 +835,14 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     /** Bulk Submit All Items in the form */
     const handleSubmitAll = async () => {
-        if (!canEditOpnameMenu) {
-            showAlert({ message: "Input opname dari menu ini dikunci untuk Branch Building Support. Untuk data legacy, isi opname melalui Gantt Chart.", type: "warning" });
-            return;
-        }
-        if (!selectedRabs || selectedRabs.length === 0 || rabItems.length === 0) return;
+        if (!selectedRab || rabItems.length === 0) return;
 
+        // Collect only items that are still editable in the form.
+        const blockedStatuses = new Set(['pending', 'disetujui', 'selesai', 'progress']);
         const itemsToSubmit = rabItems.filter(item => {
-            const existing = latestOpnameByItemKey.get(getWorkItemKey(item));
-            return isRejectedOpnameStatus(existing?.status);
+            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(item));
+            const status = existing?.status?.toLowerCase() || '';
+            return !blockedStatuses.has(status);
         });
 
         if (itemsToSubmit.length === 0) {
@@ -1009,11 +850,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             return;
         }
 
+        // Validate all items
         const validationErrors: string[] = [];
-        
-        // Group items by id_toko
-        const payloadGroups = new Map();
-        
+        const payloadItems: any[] = [];
+        const files: File[] = [];
+        const fileIndexes: number[] = [];
+
         itemsToSubmit.forEach((item) => {
             const input = opnameInputs[item.id];
             if (!input || !input.volume_akhir || !input.desain || !input.kualitas || !input.spesifikasi || (!input.file && !input.existing_foto)) {
@@ -1021,69 +863,121 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 return;
             }
 
-            const idTokoStr = String((item as any).id_toko || selectedRab?.id_toko || selectedRabs[0].id_toko);
+            const volAkhir = parseDecimalInput(input.volume_akhir);
+            const volRab = Number(item.volume) || 0;
+            const selisihVol = Number((volAkhir - volRab).toFixed(4));
+            const price = (Number(item.harga_material) || 0) + (Number(item.harga_upah) || 0);
             
-            if (!payloadGroups.has(idTokoStr)) {
-                payloadGroups.set(idTokoStr, { items: [], files: [], fileIndexes: [] });
-            }
-            const group = payloadGroups.get(idTokoStr);
+            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(item));
             
-            const itemData: any = {
-                id_rab_item: item.source_type !== 'IL' ? item.id : undefined,
+            payloadItems.push({
+                id: existing?.id,
+                id_toko: selectedRab.id_toko,
+                id_rab_item: item.source_type === 'IL' ? undefined : item.id,
                 id_instruksi_lapangan_item: item.source_type === 'IL' ? item.id_instruksi_lapangan_item : undefined,
-                volume_akhir: parseDecimalInput(input.volume_akhir),
-                desain: input.desain,
-                kualitas: input.kualitas,
-                spesifikasi: input.spesifikasi,
-                catatan: input.catatan || "",
-            };
-            
-            if (!input.file && input.existing_foto) {
-                itemData.existing_foto = input.existing_foto;
-            }
-            
-            group.items.push(itemData);
-            
+                status: 'pending',
+                volume_akhir: volAkhir,
+                selisih_volume: selisihVol,
+                total_selisih: Math.round(selisihVol * price),
+                total_harga_opname: Math.round(volAkhir * price),
+                desain: input.desain?.trim(),
+                kualitas: input.kualitas?.trim(),
+                spesifikasi: input.spesifikasi?.trim(),
+                catatan: input.catatan?.trim() || undefined,
+                foto: (!input.file && input.existing_foto) ? input.existing_foto : undefined,
+            });
+
             if (input.file) {
-                group.files.push(input.file);
-                group.fileIndexes.push(group.items.length - 1);
+                files.push(input.file);
+                fileIndexes.push(payloadItems.length - 1);
             }
         });
 
         if (validationErrors.length > 0) {
-            showAlert({
-                message: `Silakan lengkapi semua field dan unggah foto untuk:\n${validationErrors.slice(0, 5).join('\n')}${validationErrors.length > 5 ? '\n...dan lainnya' : ''}`,
-                type: 'warning'
+            showAlert({ 
+                title: "Validasi Gagal",
+                message: `Beberapa item belum lengkap: ${validationErrors.slice(0, 3).join(', ')}${validationErrors.length > 3 ? '...' : ''}. Pastikan Volume, Verifikasi, dan Foto sudah terisi.`, 
+                type: "warning" 
             });
             return;
         }
 
-        setIsSubmitting(true);
-        try {
-            const promises = Array.from(payloadGroups.entries()).map(async ([idTokoStr, group]) => {
-                const formData = new FormData();
-                formData.append("id_toko", idTokoStr);
-                formData.append("items", JSON.stringify(group.items));
-                group.files.forEach((file: any) => formData.append("files", file));
-                formData.append("fileIndexes", JSON.stringify(group.fileIndexes));
-                
-                return await submitOpnameBulk(formData);
-            });
-            
-            await Promise.all(promises);
+        // Confirmation
+        showAlert({
+            title: "Submit Semua Item",
+            message: `Apakah Anda yakin ingin mensubmit ${payloadItems.length} item sekaligus?`,
+            type: "info",
+            confirmMode: true,
+            confirmText: "Ya, Submit Semua",
+            cancelText: "Batal",
+            onConfirm: async () => {
+                setIsSubmitting(true);
+                try {
+                    // Calculate totals
+                    let grandTotalRab = 0;
+                    let grandTotalOpname = 0;
+                    
+                    const submissionMap = new Map(payloadItems.map(p => [
+                        p.id_instruksi_lapangan_item ? `il:${p.id_instruksi_lapangan_item}` : `rab:${p.id_rab_item}`,
+                        p
+                    ]));
+                    
+                    rabItems.forEach(r => {
+                        const price = (Number(r.harga_material) || 0) + (Number(r.harga_upah) || 0);
+                        grandTotalRab += Math.round((Number(r.volume) || 0) * price);
+                        
+                        const sub = submissionMap.get(getWorkItemKey(r));
+                        if (sub) {
+                            grandTotalOpname += sub.total_harga_opname;
+                        } else {
+                            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(r));
+                            if (existing) {
+                                grandTotalOpname += Math.round(Number(existing.total_harga_opname) || (Number(existing.volume_akhir) * price));
+                            }
+                        }
+                    });
 
-            showAlert({ message: "Semua opname berhasil disubmit.", type: "success" });
-            await reloadData();
-        } catch (err: any) {
-            showAlert({ message: err.message || "Terjadi kesalahan saat menyimpan bulk opname.", type: "error" });
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const { submitOpnameBulk } = await import('@/lib/api');
+
+                    if (files.length > 0) {
+                        const formData = new FormData();
+                        formData.append('id_toko', String(selectedRab.id_toko));
+                        formData.append('email_pembuat', userInfo.email);
+                        formData.append('grand_total_opname', String(grandTotalOpname));
+                        formData.append('grand_total_rab', String(grandTotalRab));
+                        formData.append('items', JSON.stringify(payloadItems));
+                        files.forEach(f => formData.append('file_foto_opname', f));
+                        formData.append('file_foto_opname_indexes', JSON.stringify(fileIndexes));
+                        formData.append('tipe_opname', 'OPNAME');
+                        await submitOpnameBulk(formData);
+                    } else {
+                        await submitOpnameBulk({
+                            id_toko: Number(selectedRab.id_toko),
+                            email_pembuat: userInfo.email,
+                            tipe_opname: 'OPNAME',
+                            grand_total_opname: String(grandTotalOpname),
+                            grand_total_rab: String(grandTotalRab),
+                            items: payloadItems,
+                        });
+                    }
+
+                    setTimeout(() => {
+                        showAlert({ message: `${payloadItems.length} item berhasil disubmit!`, type: "success" });
+                        handleSelectRab(selectedRab.id.toString()); // Refresh
+                    }, 300);
+                } catch (err: any) {
+                    setTimeout(() => {
+                        showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                    }, 300);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     // Check if there's existing opname data for this project
-    const visibleOpnameCount = supportFlowView === 'legacy' ? legacyOpnameItems.length : contractorFirstOpnameItems.length;
-    const hasExistingOpname = visibleOpnameCount > 0;
+    const hasExistingOpname = existingOpname.length > 0;
 
     return (
         <>
@@ -1123,7 +1017,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 >
                                     <Clock className="w-4 h-4 inline mr-1.5" />Riwayat
                                     {hasExistingOpname && (
-                                        <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{visibleOpnameCount}</span>
+                                        <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{existingOpname.length}</span>
                                     )}
                                 </button>
                             </div>
@@ -1149,31 +1043,30 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 />
                             </div>
 
-                            {isLoading || isWorkflowIndexLoading ? (
+                            {isLoading ? (
                                 <div className="p-4 text-center text-slate-500 bg-slate-50 rounded-lg text-sm">
                                     <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-                                    {isLoading ? 'Memuat data proyek...' : 'Memuat index workflow opname...'}
+                                    Memuat data proyek...
                                 </div>
                             ) : (
                                 <div className="relative">
                                     <select
                                         className="w-full p-3 border rounded-lg bg-slate-50 outline-none font-semibold text-slate-700 cursor-pointer focus:bg-white focus:ring-2 focus:ring-emerald-500 appearance-none pr-10"
-                                        value={selectedUlok || ''}
-                                        onChange={(e) => handleSelectUlok(e.target.value)}
+                                        value={selectedRab?.id?.toString() || ''}
+                                        onChange={(e) => handleSelectRab(e.target.value)}
                                     >
                                         <option value="">— Pilih Proyek —</option>
-                                        {filteredRabList.length === 0 && (
-                                            <option value="" disabled>Tidak ada ULOK yang perlu diproses</option>
-                                        )}
-                                        {Array.from(new Set(filteredRabList.map(r => r.nomor_ulok))).map(ulok => {
-                                            const rabs = filteredRabList.filter(r => r.nomor_ulok === ulok);
-                                            const first = rabs[0];
-                                            return (
-                                                <option key={ulok} value={ulok}>
-                                                    {formatUlokWithDash(ulok)} - {first.nama_toko}
-                                                </option>
-                                            );
-                                        })}
+                                        {filteredRabList.map(rab => {
+                                                    const isTakeover = Number((rab.toko as any)?.takeover_sequence || (rab as any).takeover_sequence || 0) > 0;
+                                                    const projectType = (rab as any).source_type === 'IL_ONLY' 
+                                                        ? `IL${(rab as any).lingkup_pekerjaan ? ` - ${(rab as any).lingkup_pekerjaan}` : ''}` 
+                                                        : `${rab.proyek}${isTakeover ? ' - Takeover' : ''}`;
+                                                    return (
+                                                        <option key={rab.id} value={rab.id}>
+                                                            {formatUlokWithDash(rab.nomor_ulok)} - {rab.nama_toko} ({projectType})
+                                                        </option>
+                                                    );
+                                                })}
                                     </select>
                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                                 </div>
@@ -1205,7 +1098,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                                     <InfoItem icon={<Hash className="w-4 h-4" />} label="No. ULOK" value={formatUlokWithDash(tokoDetail.nomor_ulok)} highlight />
                                     <InfoItem icon={<Building2 className="w-4 h-4" />} label="Nama Toko" value={tokoDetail.nama_toko} />
-                                    <InfoItem icon={<FileText className="w-4 h-4" />} label="Lingkup" value={(tokoDetail.lingkup_pekerjaan || '-') + ' - ' + (supportFlowView === 'contractor_first' ? 'Contractor-first' : 'Legacy')} />
+                                    <InfoItem icon={<FileText className="w-4 h-4" />} label="Lingkup" value={tokoDetail.lingkup_pekerjaan || '-'} />
                                     <InfoItem icon={<Building2 className="w-4 h-4" />} label="Kontraktor" value={tokoDetail.nama_kontraktor || '-'} />
                                 </div>
 
@@ -1241,225 +1134,25 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     </div>
                                 )}
 
-                                {supportFlowView === 'contractor_first' && (
-                                    <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-                                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                                            <p className="text-[11px] font-black uppercase text-slate-400">Total Item</p>
-                                            <p className="mt-1 text-2xl font-black text-slate-800">{contractorFirstReviewStats.total}</p>
-                                        </div>
-                                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
-                                            <p className="text-[11px] font-black uppercase text-blue-600">Belum Diajukan</p>
-                                            <p className="mt-1 text-2xl font-black text-blue-700">{contractorFirstReviewStats.not_submitted}</p>
-                                        </div>
-                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-                                            <p className="text-[11px] font-black uppercase text-amber-600">Belum Review</p>
-                                            <p className="mt-1 text-2xl font-black text-amber-700">{contractorFirstReviewStats.pending}</p>
-                                        </div>
-                                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-                                            <p className="text-[11px] font-black uppercase text-emerald-600">Disetujui</p>
-                                            <p className="mt-1 text-2xl font-black text-emerald-700">{contractorFirstReviewStats.approved}</p>
-                                        </div>
-                                        <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
-                                            <p className="text-[11px] font-black uppercase text-red-600">Ditolak</p>
-                                            <p className="mt-1 text-2xl font-black text-red-700">{contractorFirstReviewStats.rejected}</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                    {/* Support Re-Review Section */}
-                                    {(() => {
-                                        const pendingRevisions = contractorFirstMenuReviewItems;
-                                        
-                                        // Dynamic grouping for pendingRevisions
-                                        const groupedPendingRevisions = (() => {
-                                            const map = new Map<string, Map<string, any[]>>();
-                                            pendingRevisions.forEach(item => {
-                                                const sourceRef = item.rab_item || item.instruksi_lapangan_item;
-                                                let lingkup = item.lingkup_pekerjaan || sourceRef?.lingkup_pekerjaan || 'SIPIL';
-                                                if (sourceRef?.source_type === 'IL' && !lingkup.startsWith('IL ')) lingkup = `IL ${lingkup}`;
-                                                
-                                                const cat = sourceRef?.kategori_pekerjaan || 'Lainnya';
-                                                if (!map.has(lingkup)) map.set(lingkup, new Map());
-                                                const catMap = map.get(lingkup)!;
-                                                if (!catMap.has(cat)) catMap.set(cat, []);
-                                                catMap.get(cat)!.push(item);
-                                            });
-                                            return Array.from(map.entries())
-                                                .sort((a, b) => {
-                                                    if (a[0] === 'SIPIL') return -1;
-                                                    if (b[0] === 'SIPIL') return 1;
-                                                    if (a[0] === 'ME') return -1;
-                                                    if (b[0] === 'ME') return 1;
-                                                    return a[0].localeCompare(b[0]);
-                                                })
-                                                .map(([lingkup, catMap]) => ({
-                                                    lingkup,
-                                                    categories: Array.from(catMap.entries()).map(([name, items]) => ({ name, items }))
-                                                }));
-                                        })();
-                                        if (supportFlowView !== 'contractor_first') return null;
-                                        if (pendingRevisions.length === 0) {
-                                            return (
-                                                <div className="mb-6 rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                                                    <CheckCircle className="mx-auto mb-3 h-10 w-10 text-slate-300" aria-hidden="true" />
-                                                    <h3 className="text-sm font-black text-slate-700">Tidak Ada Review Contractor-first</h3>
-                                                    <p className="mt-1 text-sm text-slate-500">Belum ada opname dari kontraktor yang ditolak pada pengawasan selesai lalu diajukan ulang.</p>
-                                                </div>
-                                            );
-                                        }
-                                        return (
-                                            <div className="mb-6 p-5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-sm">
-                                                <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-4 border-b border-blue-200 pb-2">
-                                                    <Clock className="w-4 h-4" /> Review Opname Kontraktor - Menu Opname ({pendingRevisions.length})
-                                                </h3>
-                                                <div className="space-y-6">
-                                                    {groupedPendingRevisions.map((lingkupGroup, li) => (
-                                                        <div key={li} className="space-y-4">
-                                                            <button 
-                                                                type="button" 
-                                                                onClick={() => toggleLingkup(lingkupGroup.lingkup)}
-                                                                className="w-full flex items-center justify-between gap-2 mb-2 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <Building2 className="w-5 h-5 text-emerald-600" />
-                                                                    <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
-                                                                </div>
-                                                                <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
-                                                                    {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                                                                </div>
-                                                            </button>
-                                                            {!collapsedLingkup.has(lingkupGroup.lingkup) && (
-                                                                <div className="space-y-4">
-                                                                    {lingkupGroup.categories.map((group, gi) => (
-                                                                <div key={gi} className="space-y-3">
-                                                                    <h4 className="font-bold text-slate-700 uppercase tracking-wide text-sm flex items-center gap-2 mb-2">
-                                                                        <div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>
-                                                                        {group.name}
-                                                                    </h4>
-                                                                    {group.items.map(item => {
-                                                        const sourceRef = item.rab_item || item.instruksi_lapangan_item;
-                                                        const satuan = sourceRef?.satuan || '-';
-                                                        const hargaMaterial = Number(sourceRef?.harga_material || 0);
-                                                        const hargaUpah = Number(sourceRef?.harga_upah || 0);
-                                                        const volRab = Number(sourceRef?.volume || 0);
-                                                        return (
-                                                            <div key={item.id} className="p-4 bg-white border border-blue-100 rounded-lg shadow-sm hover:bg-slate-50/50 transition-colors">
-                                                                <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
-                                                                    {/* Left: Info */}
-                                                                    <div className="flex-1 min-w-0 w-full">
-                                                                        <div className="flex flex-col gap-1 mb-2">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
-                                                                                <Badge className="bg-amber-100 text-amber-800 border-none whitespace-nowrap">{Number(item.revision_no || 1) > 1 ? `Revisi ke-${item.revision_no}` : 'Pengajuan ulang'}</Badge>
-                                                                            </div>
-                                                                            <div className="flex flex-wrap gap-1.5">
-                                                                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {satuan}</span>
-                                                                                <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(hargaMaterial)}</span>
-                                                                                <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hargaUpah)}</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-slate-200 text-xs rounded-lg border border-slate-200 overflow-hidden mt-3">
-                                                                            <div className="p-2.5 bg-white">
-                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol RAB</div>
-                                                                                <div className="font-semibold text-slate-700">{volRab} <span className="text-xs font-normal text-slate-400">{satuan}</span></div>
-                                                                            </div>
-                                                                            <div className="p-2.5 bg-white">
-                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol Akhir</div>
-                                                                                <div className="font-bold text-slate-800">{item.volume_akhir} <span className="text-xs font-normal text-slate-400">{satuan}</span></div>
-                                                                            </div>
-                                                                            <div className="p-2.5 bg-slate-50">
-                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Vol</div>
-                                                                                <div className={`font-bold ${item.selisih_volume > 0 ? 'text-blue-600' : (item.selisih_volume < 0 ? 'text-red-600' : 'text-slate-600')}`}>
-                                                                                    {item.selisih_volume > 0 ? '+' : ''}{item.selisih_volume}
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="p-2.5 bg-white">
-                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total RAB</div>
-                                                                                <div className="font-semibold text-slate-700">{formatRp(Number(sourceRef?.total_harga) || (volRab * (hargaMaterial + hargaUpah)))}</div>
-                                                                            </div>
-                                                                            <div className="p-2.5 bg-white">
-                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total Opname</div>
-                                                                                <div className="font-bold text-slate-800">
-                                                                                    {formatRp(Number(item.total_harga_opname) || (Number(item.volume_akhir) * (hargaMaterial + hargaUpah)))}
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="p-2.5 bg-slate-50">
-                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Biaya</div>
-                                                                                <div className={`font-bold ${item.total_selisih > 0 ? 'text-blue-600' : (item.total_selisih < 0 ? 'text-red-600' : 'text-slate-600')}`}>
-                                                                                    {item.total_selisih > 0 ? '+' : ''}{formatRp(item.total_selisih)}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex gap-4 mt-3 text-xs text-slate-500">
-                                                                            <span>Desain: <b className={item.desain === 'Sesuai' ? 'text-green-600' : 'text-red-600'}>{item.desain || '-'}</b></span>
-                                                                            <span>Kualitas: <b className={item.kualitas === 'Baik' ? 'text-green-600' : 'text-red-600'}>{item.kualitas || '-'}</b></span>
-                                                                            <span>Spesifikasi: <b className={item.spesifikasi === 'Sesuai' ? 'text-green-600' : 'text-red-600'}>{item.spesifikasi || '-'}</b></span>
-                                                                        </div>
-
-                                                                        {item.catatan && (
-                                                                            <div className="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 italic">
-                                                                                📝 {item.catatan}
-                                                                            </div>
-                                                                        )}
-
-                                                                        {item.foto && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleDownloadFoto(item.id)}
-                                                                                disabled={downloadingFotoId === item.id}
-                                                                                className="inline-flex items-center gap-1 mt-3 text-xs text-blue-600 hover:text-blue-800 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                                                                            >
-                                                                                {downloadingFotoId === item.id
-                                                                                    ? <Loader2 className="w-3 h-3 animate-spin" />
-                                                                                    : <Camera className="w-3 h-3" />}
-                                                                                {downloadingFotoId === item.id ? 'Mengunduh...' : 'Lihat Foto'}
-                                                                                <ExternalLink className="w-3 h-3" />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                    {/* Right: Actions */}
-                                                                    <div className="shrink-0 w-full md:w-auto mt-2 md:mt-0">
-                                                                        <SupportReReviewActions item={item} onReviewed={() => handleSelectUlok(selectedUlok || '')} />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                                </div>
-                                                            ))}
-                                                            </div>
-                                                        )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                    
-
                                 {/* Finalisasi Kerja Tambah Kurang */}
                                 {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
-                                    <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${activeWorkflowAllApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
+                                    <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${allApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
                                         <div>
-                                            <h4 className={`font-bold text-sm ${activeWorkflowAllApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
+                                            <h4 className={`font-bold text-sm ${allApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
                                                 <Lock className="w-4 h-4 inline mr-1.5" />
                                                 Finalisasi Proses Kerja Tambah Kurang
                                             </h4>
-                                            <p className={`text-xs mt-0.5 ${activeWorkflowAllApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                {activeWorkflowAllApproved
-                                                    ? (supportFlowView === 'contractor_first'
-                                                        ? 'Semua item contractor-first telah disetujui Support. Klik untuk finalisasi KTK.'
-                                                        : 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.')
-                                                    : `Semua item harus berstatus Disetujui (${activeApprovedCount}/${activeTotalCount} item disetujui oleh ${supportFlowView === 'contractor_first' ? 'Support' : 'Kontraktor'}).`
+                                            <p className={`text-xs mt-0.5 ${allApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                {allApproved
+                                                    ? 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.'
+                                                    : `Semua item harus berstatus Disetujui (${existingOpname.filter(o => o.status?.toLowerCase() === 'disetujui').length}/${rabItems.length} item disetujui oleh Kontraktor).`
                                                 }
                                             </p>
                                         </div>
                                         <Button
                                             onClick={handleKunciOpnameFinal}
-                                            disabled={!activeWorkflowAllApproved || isSubmitting}
-                                            className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${activeWorkflowAllApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
+                                            disabled={!allApproved || isSubmitting}
+                                            className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${allApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
                                         >
                                             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
                                             Finalisasi Proses Kerja Tambah Kurang
@@ -1467,137 +1160,29 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     </div>
                                 )}
 
-                                {supportFlowView === 'legacy' && hasExistingOpname && activeView === 'form' && (
+                                {hasExistingOpname && activeView === 'form' && (
                                     <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
                                         <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                                         <div>
-                                            <p className="text-sm font-bold text-amber-800">Data opname legacy sudah pernah disubmit ({legacyOpnameItems.length} item).</p>
-                                            <p className="text-xs text-amber-600 mt-0.5">Menu ini membuka form input untuk Instruksi Lapangan (IL) yang baru disetujui, dan submit ulang untuk item legacy yang ditolak. Lihat tab <b>Riwayat</b> untuk data lengkap.</p>
+                                            <p className="text-sm font-bold text-amber-800">Data opname sudah pernah disubmit ({existingOpname.length} item).</p>
+                                            <p className="text-xs text-amber-600 mt-0.5">Submit kembali akan membuat data opname baru. Lihat tab <b>Riwayat</b> untuk data yang sudah ada.</p>
                                         </div>
                                     </div>
                                 )}
 
                                 {activeView === 'form' ? (
-                                    <>
-                                    {canLockOpnameFinal && approvedReadOnlyOpnameItems.length > 0 && (
-                                        <div className="mb-6 p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
-                                            <h3 className="font-bold text-emerald-800 flex items-center gap-2 mb-4 border-b border-emerald-200 pb-2">
-                                                <CheckCircle className="w-4 h-4" /> Data Opname Disetujui - Read Only ({approvedReadOnlyOpnameItems.length})
-                                            </h3>
-                                            <div className="space-y-6">
-                                                {(() => {
-                                                    const map = new Map<string, Map<string, any[]>>();
-                                                    approvedReadOnlyOpnameItems.forEach(item => {
-                                                        const itemKey = getOpnameItemKey(item);
-                                                        const rabRef = rabItems.find((r) => getWorkItemKey(r) === itemKey);
-                                                        const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
-                                                        
-                                                        let lingkup = item.lingkup_pekerjaan || sourceRef?.lingkup_pekerjaan || 'SIPIL';
-                                                        if (sourceRef?.source_type === 'IL' && !lingkup.startsWith('IL ')) lingkup = `IL ${lingkup}`;
-                                                        
-                                                        const cat = sourceRef?.kategori_pekerjaan || 'Lainnya';
-                                                        if (!map.has(lingkup)) map.set(lingkup, new Map());
-                                                        const catMap = map.get(lingkup)!;
-                                                        if (!catMap.has(cat)) catMap.set(cat, []);
-                                                        catMap.get(cat)!.push(item);
-                                                    });
-                                                    
-                                                    return Array.from(map.entries())
-                                                        .sort((a, b) => {
-                                                            if (a[0] === 'SIPIL') return -1;
-                                                            if (b[0] === 'SIPIL') return 1;
-                                                            if (a[0] === 'ME') return -1;
-                                                            if (b[0] === 'ME') return 1;
-                                                            return a[0].localeCompare(b[0]);
-                                                        })
-                                                        .map(([lingkup, catMap]) => ({
-                                                            lingkup,
-                                                            categories: Array.from(catMap.entries()).map(([name, items]) => ({ name, items }))
-                                                        }));
-                                                })().map((lingkupGroup, li) => (
-                                                    <div key={li} className="space-y-4">
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => toggleLingkup(lingkupGroup.lingkup)}
-                                                            className="w-full flex items-center justify-between gap-2 mb-2 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <Building2 className="w-5 h-5 text-emerald-600" />
-                                                                <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
-                                                            </div>
-                                                            <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
-                                                                {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                                                            </div>
-                                                        </button>
-                                                        {!collapsedLingkup.has(lingkupGroup.lingkup) && (
-                                                            <div className="space-y-4">
-                                                                {lingkupGroup.categories.map((group, gi) => (
-                                                            <div key={gi} className="space-y-3">
-                                                                <h4 className="font-bold text-slate-700 uppercase tracking-wide text-sm flex items-center gap-2 mb-2">
-                                                                    <div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>
-                                                                    {group.name}
-                                                                </h4>
-                                                                {group.items.map(item => {
-                                                    const itemKey = getOpnameItemKey(item);
-                                                    const rabRef = rabItems.find((r) => getWorkItemKey(r) === itemKey);
-                                                    const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
-                                                    const hargaSatuan = (Number((sourceRef as any)?.harga_material) || 0) + (Number((sourceRef as any)?.harga_upah) || 0);
-                                                    const volRab = Number((sourceRef as any)?.volume) || 0;
-                                                    const volAkhir = Number(item.volume_akhir) || 0;
-                                                    const totalRab = Math.round(volRab * hargaSatuan);
-                                                    const totalOpname = Math.round(volAkhir * hargaSatuan);
-                                                    const workflowLabel = isContractorFirstOpname(item) ? 'Contractor-first' : 'Legacy';
-                                                    return (
-                                                        <div key={item.id} className="p-4 bg-white border border-emerald-100 rounded-lg shadow-sm">
-                                                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                                                <div>
-                                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                                        <span className="font-bold text-slate-800 text-sm">{(sourceRef as any)?.jenis_pekerjaan || '-'}</span>
-                                                                        <Badge className="bg-slate-100 text-slate-700 border-none">{workflowLabel}</Badge>
-                                                                        <StatusBadge status={item.status} />
-                                                                    </div>
-                                                                    <p className="text-xs text-slate-500">{(sourceRef as any)?.kategori_pekerjaan || '-'}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-xs">
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume RAB</p><p className="font-bold text-slate-800 mt-1">{volRab} {(sourceRef as any)?.satuan || ''}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume Akhir</p><p className="font-bold text-slate-800 mt-1">{item.volume_akhir} {(sourceRef as any)?.satuan || ''}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total RAB</p><p className="font-bold text-slate-800 mt-1">{formatRp(totalRab)}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total Opname</p><p className="font-bold text-emerald-700 mt-1">{formatRp(totalOpname)}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Selisih</p><p className={`font-bold mt-1 ${totalOpname - totalRab > 0 ? 'text-blue-600' : totalOpname - totalRab < 0 ? 'text-red-600' : 'text-slate-700'}`}>{formatRp(totalOpname - totalRab)}</p></div>
-                                                            </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2 text-xs">
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Desain</p><p className="font-semibold text-slate-800 mt-1">{item.desain || '-'}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Kualitas</p><p className="font-semibold text-slate-800 mt-1">{item.kualitas || '-'}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Spesifikasi</p><p className="font-semibold text-slate-800 mt-1">{item.spesifikasi || '-'}</p></div>
-                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Catatan</p><p className="font-semibold text-slate-800 mt-1">{item.catatan || '-'}</p></div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                                            </div>
-                                                        ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Section 2: Form Input */}
-                                    {supportFlowView === 'legacy' && (
+                                    /* Section 2: Form Input */
                                     <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                                         <div className="border-b pb-2 mb-4 flex items-center justify-between">
                                             <h3 className="font-bold text-slate-700 flex items-center gap-2">
                                                 <ClipboardList className="w-4 h-4 text-emerald-600" />
                                                 2. Input Volume Akhir & Verifikasi Pekerjaan
                                             </h3>
-                                            {groupedItems.length > 0 && canEditOpnameMenu && (
+                                            {groupedItems.length > 0 && !isReadOnly && !shouldShowReadOnlyOpnameItems && (
                                                 <Button
                                                     size="sm"
                                                     onClick={handleSubmitAll}
-                                                    disabled={isSubmitting}
+                                                    disabled={isSubmitting || isLoadingDetail}
                                                     className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs px-4 shadow-sm h-8"
                                                 >
                                                     {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Send className="w-3 h-3 mr-1.5" />}
@@ -1619,21 +1204,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                             </div>
                                         )}
 
-                                        {shouldLockLegacyMenuInputForSupport && !shouldShowReadOnlyOpnameItems && (
-                                            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 flex items-start gap-3">
-                                                <Lock className="w-4 h-4 mt-0.5 text-slate-500 shrink-0" />
-                                                <div>
-                                                    <p className="font-bold text-slate-800">Input opname legacy dikunci di menu Opname.</p>
-                                                    <p className="text-xs mt-1">Menu ini dipakai Branch Building Support untuk finalisasi KTK/read-only dan review ulang opname contractor-first. Untuk data legacy, pengisian opname tetap melalui Gantt Chart.</p>
-                                                </div>
-                                            </div>
-                                        )}
-
                                         {groupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
                                                 <Info className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                                <h4 className="font-bold text-slate-600">{shouldLockLegacyMenuInputForSupport ? 'Tidak Ada Input di Menu Ini' : shouldShowReadOnlyOpnameItems ? 'Data Opname Tidak Ditemukan' : 'Belum Ada Pekerjaan Selesai'}</h4>
-                                                <p className="text-sm mt-1">{shouldLockLegacyMenuInputForSupport ? 'Untuk legacy, input opname dilakukan lewat Gantt Chart. Untuk contractor-first, hanya pengajuan ulang dari pengawasan Selesai yang muncul untuk direview di sini.' : shouldShowReadOnlyOpnameItems ? 'Data item final belum berhasil dimuat. Coba refresh halaman.' : 'Silakan isi laporan Pengawasan (status Selesai) pada menu Gantt Chart terlebih dahulu.'}</p>
+                                                <h4 className="font-bold text-slate-600">{shouldShowReadOnlyOpnameItems ? 'Data Opname Tidak Ditemukan' : 'Belum Ada Pekerjaan Baru'}</h4>
+                                                <p className="text-sm mt-1">{shouldShowReadOnlyOpnameItems ? 'Data item final belum berhasil dimuat. Coba refresh halaman.' : 'Silakan isi laporan Pengawasan pada menu Gantt Chart terlebih dahulu (pastikan item berstatus Selesai atau Tidak Dikerjakan).'}</p>
                                             </div>
                                         ) : filteredGroupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
@@ -1642,34 +1217,16 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                 <p className="text-sm mt-1">Tidak ada item yang cocok dengan "{opnameItemSearchQuery}".</p>
                                             </div>
                                         ) : (
-                                            <div className="space-y-8">
-                                                {filteredGroupedItems.map((lingkupGroup, li) => (
-                                                    <div key={li} className="space-y-4">
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => toggleLingkup(lingkupGroup.lingkup)}
-                                                            className="w-full flex items-center justify-between gap-2 mb-4 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <Building2 className="w-5 h-5 text-emerald-600" />
-                                                                <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
-                                                            </div>
-                                                            <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
-                                                                {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                                                            </div>
-                                                        </button>
-                                                        {!collapsedLingkup.has(lingkupGroup.lingkup) && (
-                                                            <div className="space-y-4">
-                                                                {lingkupGroup.categories.map((group, gi) => {
-                                                                const catKey = `${lingkupGroup.lingkup}-${group.name}`;
-                                                                const isExpanded = expandedCats.has(catKey);
-                                                                const isIlGroup = group.name.startsWith('[IL]');
-                                                                return (
-                                                                    <div key={gi} className={`border rounded-xl overflow-hidden ${isIlGroup ? 'border-indigo-200' : 'border-slate-200'}`}>
-                                                                        {/* Category header */}
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => toggleCategory(catKey)}
+                                            <div className="space-y-4">
+                                                {filteredGroupedItems.map((group, gi) => {
+                                                    const isExpanded = expandedCats.has(group.name);
+                                                    const isIlGroup = group.name.startsWith('[IL]');
+                                                    return (
+                                                        <div key={gi} className={`border rounded-xl overflow-hidden ${isIlGroup ? 'border-indigo-200' : 'border-slate-200'}`}>
+                                                            {/* Category header */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleCategory(group.name)}
                                                                 className={`w-full px-5 py-3 flex justify-between items-center transition-colors ${isIlGroup ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-slate-100 hover:bg-slate-200'}`}
                                                             >
                                                                 <h4 className="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2">
@@ -1732,11 +1289,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hUpah)}</span>
                                                                                     </div>
                                                                                 </div>
-                                                                                {(rejectedRecord?.alasan_penolakan_support || rejectedRecord?.catatan) && (
+                                                                                {rejectedRecord?.catatan && (
                                                                                     <div className="mb-3 p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
                                                                                         <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                                                                                         <div>
-                                                                                            <span className="font-bold">Alasan penolakan:</span> {rejectedRecord.alasan_penolakan_support || rejectedRecord.catatan}
+                                                                                            <span className="font-bold">Alasan penolakan:</span> {rejectedRecord.catatan}
                                                                                         </div>
                                                                                     </div>
                                                                                 )}
@@ -1753,7 +1310,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                                     type="text"
                                                                                                     inputMode="decimal"
                                                                                                     className="w-full p-2 border border-slate-300 rounded text-sm bg-emerald-50 focus:bg-white focus:border-emerald-500 focus:outline-none font-bold pr-12"
-                                                                                                    disabled={!canEditOpnameMenu}
+                                                                                                    disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                     value={input.volume_akhir}
                                                                                                     onChange={(e) => handleSetInput(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))}
                                                                                                 />
@@ -1795,7 +1352,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Desain *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={!canEditOpnameMenu}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 value={input.desain || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'desain', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1806,7 +1363,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Kualitas *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={!canEditOpnameMenu}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 value={input.kualitas || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'kualitas', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1817,7 +1374,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={!canEditOpnameMenu}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 value={input.spesifikasi || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'spesifikasi', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1834,7 +1391,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Catatan</label>
                                                                                             <textarea
                                                                                                 className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none placeholder:text-slate-400 bg-slate-50 flex-1 resize-none min-h-15"
-                                                                                                disabled={!canEditOpnameMenu}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 placeholder="Keterangan tambahan..."
                                                                                                 value={input.catatan || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'catatan', e.target.value)}
@@ -1845,7 +1402,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             <input
                                                                                                 type="file"
                                                                                                 accept="image/*"
-                                                                                                disabled={!canEditOpnameMenu}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
                                                                                                 onChange={(e) => handleSetInput(item.id, 'file', e.target.files?.[0] || null)}
                                                                                             />
@@ -1865,7 +1422,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                 </div>
  
                                                                                 {/* Per-item Submit Button */}
-                                                                                {canEditOpnameMenu && (
+                                                                                {!isReadOnly && !shouldShowReadOnlyOpnameItems && (
                                                                                     <div className="flex justify-end pt-3 mt-3 border-t border-slate-200">
                                                                                         <Button
                                                                                             size="sm"
@@ -1886,19 +1443,14 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                         </div>
                                                     );
                                                 })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
                                             </div>
                                         )}
 
 
                                     </div>
-                                    )}
-                                </>) : (
+                                ) : (
                                     /* History View */
-                                    <OpnameHistoryView opnameList={activeWorkflowOpnameItems} rabItems={rabItems} />
+                                    <OpnameHistoryView opnameList={existingOpname} rabItems={rabItems} />
                                 )}
                             </>
                         )}
@@ -2028,7 +1580,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     // Data
     const [opnameList, setOpnameList] = useState<OpnameItem[]>([]);
     const [rabList, setRabList] = useState<RABListItem[]>([]);
-    const [selectedToko, setSelectedToko] = useState<{ id_tokos: number[]; nomor_ulok: string; nama_toko: string } | null>(null);
+    const [selectedToko, setSelectedToko] = useState<{ id_toko: number; nomor_ulok: string; nama_toko: string } | null>(null);
     const [filteredOpname, setFilteredOpname] = useState<OpnameItem[]>([]);
     const [rabItems, setRabItems] = useState<RABDetailItem[]>([]);
 
@@ -2038,15 +1590,6 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
     // UI
     const [isLoading, setIsLoading] = useState(true);
-    const [collapsedLingkup, setCollapsedLingkup] = useState<Set<string>>(new Set());
-    const toggleLingkup = (l: string) => {
-        setCollapsedLingkup(prev => {
-            const next = new Set(prev);
-            if (next.has(l)) next.delete(l);
-            else next.add(l);
-            return next;
-        });
-    };
     const [isLoadingItems, setIsLoadingItems] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('');
@@ -2112,12 +1655,12 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 setRabList(filteredRab);
 
                 // Load all opnames (backend should filter by user access)
-                return fetchOpnameList({ tipe_opname: 'OPNAME', assigned_to: 'contractor' }).then(opnameRes => ({ opnameRes, filteredRab, ilTokoIds: new Set(nextIlTokoMap.keys()) }));
+                return fetchOpnameList({ tipe_opname: 'OPNAME' }).then(opnameRes => ({ opnameRes, filteredRab, ilTokoIds: new Set(nextIlTokoMap.keys()) }));
             })
             .then(({ opnameRes, filteredRab, ilTokoIds }) => {
                 const allOpname = opnameRes.data || [];
                 const validTokoIds = new Set(filteredRab.map(r => r.id_toko));
-                const filteredOpname = allOpname.filter(o => (validTokoIds.has(o.id_toko) || ilTokoIds.has(o.id_toko)) && isContractorMenuVisibleOpname(o));
+                const filteredOpname = allOpname.filter(o => validTokoIds.has(o.id_toko) || ilTokoIds.has(o.id_toko));
                 setOpnameList(filteredOpname);
             })
             .catch(err => console.error("Gagal memuat data:", err))
@@ -2126,31 +1669,26 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
     // Group opname by toko for project selection
     const tokoGroups = useMemo(() => {
-        const map = new Map<string, { id_tokos: number[]; nomor_ulok: string; nama_toko: string; cabang: string; count: number; items: OpnameItem[] }>();
+        const map = new Map<number, { id_toko: number; nomor_ulok: string; nama_toko: string; cabang: string; count: number; items: OpnameItem[] }>();
         opnameList.forEach(item => {
             const id = item.id_toko;
-            const rab = rabList.find(r => r.id_toko === id);
-            const ilToko = ilTokoMap.get(id);
-            const ulok = rab?.nomor_ulok || ilToko?.nomor_ulok || item.toko?.nomor_ulok || '-';
-            
-            if (!map.has(ulok)) {
-                map.set(ulok, {
-                    id_tokos: [],
-                    nomor_ulok: ulok,
+            if (!map.has(id)) {
+                const rab = rabList.find(r => r.id_toko === id);
+                const ilToko = ilTokoMap.get(id);
+                map.set(id, {
+                    id_toko: id,
+                    nomor_ulok: rab?.nomor_ulok || ilToko?.nomor_ulok || item.toko?.nomor_ulok || '-',
                     nama_toko: rab?.nama_toko || ilToko?.nama_toko || item.toko?.nama_toko || 'Toko',
                     cabang: (rab?.cabang || ilToko?.cabang || item.toko?.cabang || '').toUpperCase(),
                     count: 0,
                     items: [],
                 });
             }
-            const group = map.get(ulok)!;
-            if (!group.id_tokos.includes(id)) {
-                group.id_tokos.push(id);
-            }
-            if (item.status === 'pending') group.count++;
+            const group = map.get(id)!;
+            group.count++;
             group.items.push(item);
         });
-        return Array.from(map.values()).sort((a, b) => b.count - a.count);
+        return Array.from(map.values());
     }, [opnameList, rabList, ilTokoMap]);
 
     // Filter by search and branch
@@ -2171,59 +1709,77 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     }, [tokoGroups, searchQuery, allowedBranches, selectedCabangFilter, isHeadOfficeContractor]);
 
     // Handle toko selection
-    const handleSelectToko = async (ulok: string) => {
-        const group = tokoGroups.find(g => g.nomor_ulok === ulok);
+    const handleSelectToko = async (tokoId: number) => {
+        const group = tokoGroups.find(g => g.id_toko === tokoId);
         if (!group) return;
 
-        setSelectedToko({ id_tokos: group.id_tokos, nomor_ulok: group.nomor_ulok, nama_toko: group.nama_toko });
+        setSelectedToko({ id_toko: group.id_toko, nomor_ulok: group.nomor_ulok, nama_toko: group.nama_toko });
         setIsLoadingItems(true);
 
         try {
-            let combinedOpname: OpnameItem[] = [];
-            let combinedRabItems: RABDetailItem[] = [];
-            let tokoMeta: any = null;
+            // Load fresh opname data by id_toko — response includes toko + rab_item relations
+            const opnameRes = await fetchOpnameList({ id_toko: tokoId, tipe_opname: 'OPNAME' });
+            const opnameData = opnameRes.data || [];
+            setFilteredOpname(opnameData);
 
-            for (const id_toko of group.id_tokos) {
-                const opnameRes = await fetchOpnameList({ id_toko, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
-                const currentOpname = (opnameRes.data || []).filter(isContractorMenuVisibleOpname);
-                
-                const rab = rabList.find(r => r.id_toko === id_toko);
-                const isIlOnlyProject = (rab as any)?.source_type === 'IL_ONLY' || Number(rab?.id) < 0;
-                const lingkup = (rab as any)?.lingkup_pekerjaan || (isIlOnlyProject ? 'ME' : 'SIPIL');
-                
-                // attach lingkup so the view groups it properly
-                currentOpname.forEach((o: any) => o.lingkup_pekerjaan = lingkup);
-                combinedOpname.push(...currentOpname);
+            // Update toko info from response if available
+            if (opnameRes.toko) {
+                setSelectedToko({
+                    id_toko: opnameRes.toko.id,
+                    nomor_ulok: opnameRes.toko.nomor_ulok || group.nomor_ulok,
+                    nama_toko: opnameRes.toko.nama_toko || group.nama_toko,
+                });
+            }
 
-                if (opnameRes.toko && !tokoMeta) {
-                    tokoMeta = {
-                        nomor_ulok: opnameRes.toko.nomor_ulok || group.nomor_ulok,
-                        nama_toko: opnameRes.toko.nama_toko || group.nama_toko,
-                    };
+            // Load RAB items and Gantt details for reference
+            const rab = rabList.find(r => r.id_toko === tokoId);
+            let reviewItems: RABDetailItem[] = [];
+            let instruksiItems: any[] = [];
+
+            if (rab) {
+                // Tarik detail RAB dan Gantt secara paralel
+                const [rabDetail, ganttRes] = await Promise.all([
+                    fetchRABDetail(rab.id).catch(() => null),
+                    fetchGanttDetailByToko(tokoId).catch(() => null)
+                ]);
+
+                const pengawasanStatusMap = new Map<string, string>();
+                if (ganttRes && ganttRes.pengawasan_items) {
+                    ganttRes.pengawasan_items.forEach((p: any) => {
+                        if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            if (!pengawasanStatusMap.has(key)) {
+                                pengawasanStatusMap.set(key, p.status.toLowerCase());
+                            }
+                        }
+                    });
                 }
 
-                if (rab && !isIlOnlyProject) {
-                    const rabDetail = await fetchRABDetail(rab.id);
-                    const items = (rabDetail.data.items || []).map((item: RABDetailItem) => ({
+                if (rabDetail && rabDetail.data && rabDetail.data.items) {
+                    reviewItems = rabDetail.data.items.map((item: RABDetailItem) => {
+                        const k = item.kategori_pekerjaan?.toUpperCase();
+                        const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
+                        const key = `${k}|${j}`;
+                        return {
+                            ...item,
+                            source_type: item.source_type || 'RAB',
+                            pengawasan_status: pengawasanStatusMap.get(key)
+                        };
+                    });
+                }
+
+                // Map instruksi lapangan items and attach pengawasan status
+                instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((item: any) => {
+                    const k = item.kategori_pekerjaan?.toUpperCase();
+                    const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
+                    const key = `${k}|${j}`;
+                    return {
                         ...item,
-                        source_type: item.source_type || 'RAB',
-                        lingkup_pekerjaan: lingkup
-                    }));
-                    combinedRabItems.push(...items);
-                }
-
-                const ilItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((il: any) => ({
-                    ...il,
-                    lingkup_pekerjaan: `IL ${lingkup}`
-                }));
-                combinedRabItems.push(...ilItems);
+                        pengawasan_status: pengawasanStatusMap.get(key)
+                    };
+                });
             }
-
-            setFilteredOpname(combinedOpname);
-            if (tokoMeta) {
-                setSelectedToko({ ...tokoMeta, id_tokos: group.id_tokos });
-            }
-            setRabItems(combinedRabItems);
+            setRabItems([...reviewItems, ...instruksiItems]);
         } catch (err: any) {
             showAlert({ message: `Gagal memuat data: ${err.message}`, type: "error" });
         } finally {
@@ -2236,19 +1792,8 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         if (!selectedToko) return;
         setIsLoadingItems(true);
         try {
-            let combinedOpname: OpnameItem[] = [];
-            for (const id_toko of selectedToko.id_tokos) {
-                const opnameRes = await fetchOpnameList({ id_toko, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
-                const currentOpname = (opnameRes.data || []).filter(isContractorMenuVisibleOpname);
-                
-                const rab = rabList.find(r => r.id_toko === id_toko);
-                const isIlOnlyProject = (rab as any)?.source_type === 'IL_ONLY' || Number(rab?.id) < 0;
-                const lingkup = (rab as any)?.lingkup_pekerjaan || (isIlOnlyProject ? 'ME' : 'SIPIL');
-                
-                currentOpname.forEach((o: any) => o.lingkup_pekerjaan = lingkup);
-                combinedOpname.push(...currentOpname);
-            }
-            setFilteredOpname(combinedOpname);
+            const opnameRes = await fetchOpnameList({ id_toko: selectedToko.id_toko, tipe_opname: 'OPNAME' });
+            setFilteredOpname(opnameRes.data || []);
         } catch (err) {
             console.error(err);
         } finally {
@@ -2270,55 +1815,28 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     }, [filteredOpname, filterStatus]);
     // Group by category for display
     const groupedOpname = useMemo(() => {
-        // Group first by lingkup_pekerjaan, then by kategori_pekerjaan
-        const map = new Map<string, Map<string, (OpnameItem & { rabRef?: RABDetailItem })[]>>();
-        
+        const map = new Map<string, (OpnameItem & { rabRef?: RABDetailItem })[]>();
         displayedOpname.forEach(item => {
             const rabRef = rabItems.find(r => getWorkItemKey(r) === getOpnameItemKey(item));
-            let lingkup = (item as any).lingkup_pekerjaan || (rabRef as any)?.lingkup_pekerjaan || 'SIPIL';
-            
-            // Format IL
-            if (rabRef?.source_type === 'IL' && !lingkup.startsWith('IL ')) {
-                lingkup = `IL ${lingkup}`;
-            }
-
             const cat = rabRef?.kategori_pekerjaan || item.rab_item?.kategori_pekerjaan || 'Lainnya';
-            
-            if (!map.has(lingkup)) map.set(lingkup, new Map());
-            const catMap = map.get(lingkup)!;
-            
-            if (!catMap.has(cat)) catMap.set(cat, []);
-            catMap.get(cat)!.push({ ...item, rabRef });
+            if (!map.has(cat)) map.set(cat, []);
+            map.get(cat)!.push({ ...item, rabRef });
         });
-
-        // Convert to nested array structure
         return Array.from(map.entries())
+            .map(([name, items]) => ({
+                name,
+                items: items.sort((a, b) => {
+                    const rankDiff = getOpnameReviewSortRank(a.status) - getOpnameReviewSortRank(b.status);
+                    if (rankDiff !== 0) return rankDiff;
+                    return Number(b.id) - Number(a.id);
+                })
+            }))
             .sort((a, b) => {
-                // Ensure SIPIL comes first, then ME, then IL
-                if (a[0] === 'SIPIL') return -1;
-                if (b[0] === 'SIPIL') return 1;
-                if (a[0] === 'ME') return -1;
-                if (b[0] === 'ME') return 1;
-                return a[0].localeCompare(b[0]);
-            })
-            .map(([lingkup, catMap]) => ({
-                lingkup,
-                categories: Array.from(catMap.entries())
-                    .map(([name, items]) => ({
-                        name,
-                        items: items.sort((a, b) => {
-                            const rankDiff = getOpnameReviewSortRank(a.status) - getOpnameReviewSortRank(b.status);
-                            if (rankDiff !== 0) return rankDiff;
-                            return Number(b.id) - Number(a.id);
-                        })
-                    }))
-                    .sort((a, b) => {
-                        const aRank = Math.min(...a.items.map(item => getOpnameReviewSortRank(item.status)));
-                        const bRank = Math.min(...b.items.map(item => getOpnameReviewSortRank(item.status)));
-                        if (aRank !== bRank) return aRank - bRank;
-                        return a.name.localeCompare(b.name);
-                    })
-            }));
+                const aRank = Math.min(...a.items.map(item => getOpnameReviewSortRank(item.status)));
+                const bRank = Math.min(...b.items.map(item => getOpnameReviewSortRank(item.status)));
+                if (aRank !== bRank) return aRank - bRank;
+                return a.name.localeCompare(b.name);
+            });
     }, [displayedOpname, rabItems]);
 
     // Handle approve — shows styled confirmation via GlobalAlert
@@ -2494,8 +2012,8 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                             const pendingCount = group.items.filter(i => i.status?.toLowerCase() === 'pending').length;
                                             return (
                                                 <button
-                                                    key={group.nomor_ulok}
-                                                    onClick={() => handleSelectToko(group.nomor_ulok)}
+                                                    key={group.id_toko}
+                                                    onClick={() => handleSelectToko(group.id_toko)}
                                                     className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all text-left group"
                                                 >
                                                     <div className="flex items-center justify-between mb-2">
@@ -2507,11 +2025,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                         )}
                                                     </div>
                                                     <h4 className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors mb-1">{group.nama_toko}</h4>
-                                                    {group.items.some(isContractorFirstOpname) && group.items.every(i => !i.status || ['belum_diajukan', 'draft', 'ditolak', 'revision_contractor'].includes(String(i.status).toLowerCase())) ? (
-                                                        <p className="text-xs font-medium text-amber-600 bg-amber-50 inline-block px-2 py-0.5 rounded border border-amber-200 mt-1">Kontraktor harus mengajukan item opname</p>
-                                                    ) : (
-                                                        <p className="text-xs text-slate-500">{group.items.length} item opname</p>
-                                                    )}
+                                                    <p className="text-xs text-slate-500">{group.count} item opname</p>
                                                     <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors ml-auto mt-2" />
                                                 </button>
                                             );
@@ -2561,26 +2075,17 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                         <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Total Item</p>
                                     </div>
-                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center" onClick={() => setFilterStatus(filterStatus === 'pending' ? '' : 'pending')}>
+                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'pending' ? '' : 'pending')}>
                                         <p className="text-2xl font-bold text-amber-700">{stats.pending}</p>
-                                        <div className="mt-1">
-                                            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Pending</p>
-                                            
-                                        </div>
+                                        <p className="text-xs font-bold text-amber-500 uppercase tracking-wider mt-1">Pending</p>
                                     </div>
-                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center" onClick={() => setFilterStatus(filterStatus === 'disetujui' ? '' : 'disetujui')}>
+                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'disetujui' ? '' : 'disetujui')}>
                                         <p className="text-2xl font-bold text-green-700">{stats.disetujui}</p>
-                                        <div className="mt-1">
-                                            <p className="text-xs font-bold text-green-600 uppercase tracking-wider">Disetujui</p>
-                                            
-                                        </div>
+                                        <p className="text-xs font-bold text-green-500 uppercase tracking-wider mt-1">Disetujui</p>
                                     </div>
-                                    <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-center" onClick={() => setFilterStatus(filterStatus === 'ditolak' ? '' : 'ditolak')}>
+                                    <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'ditolak' ? '' : 'ditolak')}>
                                         <p className="text-2xl font-bold text-red-700">{stats.ditolak}</p>
-                                        <div className="mt-1">
-                                            <p className="text-xs font-bold text-red-600 uppercase tracking-wider">Ditolak</p>
-                                            
-                                        </div>
+                                        <p className="text-xs font-bold text-red-500 uppercase tracking-wider mt-1">Ditolak</p>
                                     </div>
                                     <div className={`p-4 rounded-xl border shadow-sm text-center ${stats.totalSelisih >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}`}>
                                         <p className={`text-lg font-bold ${stats.totalSelisih >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatRp(stats.totalSelisih)}</p>
@@ -2619,34 +2124,14 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {groupedOpname.map((lingkupGroup, li) => (
-                                        <div key={li} className="space-y-4 mb-8">
-                                            <button 
-                                                type="button" 
-                                                onClick={() => toggleLingkup(lingkupGroup.lingkup)}
-                                                className="w-full flex items-center justify-between gap-2 mb-4 border-b-2 border-emerald-500 pb-2 hover:bg-emerald-50/50 transition-colors rounded-t-lg px-2 group"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <Building2 className="w-5 h-5 text-emerald-600" />
-                                                    <h3 className="font-bold text-lg text-slate-800 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">{lingkupGroup.lingkup}</h3>
+                                        {groupedOpname.map((group, gi) => (
+                                            <div key={gi} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                                <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
+                                                    <h4 className="font-bold text-slate-800 uppercase tracking-wide text-sm">{group.name}</h4>
+                                                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-xs">{group.items.length} Item</Badge>
                                                 </div>
-                                                <div className="text-emerald-600 bg-emerald-100/50 p-1 rounded-full group-hover:bg-emerald-200/50 transition-colors">
-                                                    {collapsedLingkup.has(lingkupGroup.lingkup) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                                                </div>
-                                            </button>
-                                            {!collapsedLingkup.has(lingkupGroup.lingkup) && (
-                                                <div className="space-y-4">
-                                                    {lingkupGroup.categories.map((group, gi) => (
-                                                <div key={gi} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                                                    <div className="bg-slate-50 px-5 py-3 border-b flex justify-between items-center">
-                                                        <h4 className="font-bold text-slate-700 uppercase tracking-wide text-sm flex items-center gap-2">
-                                                            <div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>
-                                                            {group.name}
-                                                        </h4>
-                                                        <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs shadow-sm">{group.items.length} Item</Badge>
-                                                    </div>
-                                                    <div className="divide-y divide-slate-100">
-                                                        {group.items.map((item, j) => {
+                                                <div className="divide-y divide-slate-100">
+                                                    {group.items.map((item, j) => {
                                                         const rabRef = item.rabRef;
                                                         const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
                                                         const volRab = Number(sourceRef?.volume || 0);
@@ -2654,24 +2139,6 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                         const hargaMaterial = Number(sourceRef?.harga_material || 0);
                                                         const hargaUpah = Number(sourceRef?.harga_upah || 0);
                                                         const isPending = item.status?.toLowerCase() === 'pending';
-                                                        const isRejectedForRevision = isContractorFirstOpname(item) && item.status?.toLowerCase() === 'ditolak' && !item.locked_at;
-
-                                                        if (isRejectedForRevision) {
-                                                            return (
-                                                                <div key={j} className="p-4 bg-red-50/20 border-b border-red-100 last:border-b-0">
-                                                                    <div className="flex items-center gap-2 mb-2">
-                                                                        <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
-                                                                        <StatusBadge status={item.status} />
-                                                                    </div>
-                                                                    <div className="flex flex-wrap gap-1.5 mb-3">
-                                                                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {satuan}</span>
-                                                                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(hargaMaterial)}</span>
-                                                                        <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hargaUpah)}</span>
-                                                                    </div>
-                                                                    <ContractorRevisionForm item={item} sourceRef={sourceRef} onReviseSuccess={refreshData} />
-                                                                </div>
-                                                            );
-                                                        }
 
                                                         return (
                                                             <div key={j} className={`p-4 hover:bg-slate-50/50 transition-colors ${isPending ? 'bg-amber-50/30' : ''}`}>
@@ -2752,7 +2219,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                     </div>
 
                                                                     {/* Right: Actions */}
-                                                                    {isPending && isLegacyOpname(item) && (
+                                                                    {isPending && (
                                                                         <div className="flex flex-col gap-2 shrink-0">
                                                                             <Button
                                                                                 size="sm"
@@ -2778,16 +2245,12 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                 </div>
                                                             </div>
                                                         );
-                                                        })}
-                                                    </div>
+                                                    })}
                                                 </div>
-                                            ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </CardContent>
@@ -2871,229 +2334,6 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 // MAIN PAGE COMPONENT
 // =============================================================================
 
-function ContractorRevisionForm({ item, sourceRef, onReviseSuccess }: { item: any; sourceRef: any; onReviseSuccess: () => void; }) {
-    const { showAlert } = useGlobalAlert();
-    const [volumeAkhir, setVolumeAkhir] = useState(item.volume_akhir ? String(item.volume_akhir) : '');
-    const [desain, setDesain] = useState(item.desain || '');
-    const [kualitas, setKualitas] = useState(item.kualitas || '');
-    const [spesifikasi, setSpesifikasi] = useState(item.spesifikasi || '');
-    const [catatan, setCatatan] = useState(item.catatan || '');
-    const [foto, setFoto] = useState<File | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const satuan = sourceRef?.satuan || '';
-    const hargaMaterial = Number(sourceRef?.harga_material) || 0;
-    const hargaUpah = Number(sourceRef?.harga_upah) || 0;
-    const hargaSatuan = hargaMaterial + hargaUpah;
-    const volRab = Number(sourceRef?.volume) || 0;
-    const volAkhirNum = parseDecimalInput(volumeAkhir);
-    const selisihVolume = Number((volAkhirNum - volRab).toFixed(4));
-    const totalRab = Math.round(volRab * hargaSatuan);
-    const totalOpname = Math.round(volAkhirNum * hargaSatuan);
-    const selisihBiaya = totalOpname - totalRab;
-    const selisihTone = selisihBiaya > 0 ? 'text-red-700' : selisihBiaya < 0 ? 'text-emerald-700' : 'text-slate-800';
-    const selisihPrefix = selisihBiaya > 0 ? '+' : selisihBiaya < 0 ? '-' : '';
-
-    const handleSubmit = async () => {
-        if (!volumeAkhir || !desain || !kualitas || !spesifikasi) {
-            showAlert({ message: 'Harap lengkapi field wajib', type: 'warning' });
-            return;
-        }
-        setIsSubmitting(true);
-        try {
-            const { reviseContractorFirstOpname } = await import('@/lib/api');
-            const formData = new FormData();
-            formData.append('volume_akhir', volumeAkhir);
-            formData.append('desain', desain);
-            formData.append('kualitas', kualitas);
-            formData.append('spesifikasi', spesifikasi);
-            if (catatan) formData.append('catatan', catatan);
-            if (foto) formData.append('file_foto_opname', foto);
-            
-            formData.append('selisih_volume', String(selisihVolume));
-            formData.append('total_selisih', String(selisihBiaya));
-            formData.append('total_harga_opname', String(totalOpname));
-
-            await reviseContractorFirstOpname(item.id, formData as any);
-            showAlert({ message: 'Revisi berhasil disubmit.', type: 'success' });
-            onReviseSuccess();
-        } catch(err: any) {
-            showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-    
-    return (
-        <div className="mt-4 overflow-hidden rounded-lg border border-blue-200 bg-white shadow-sm">
-            <div className="border-b border-blue-100 bg-blue-50/70 px-4 py-3">
-                <h4 className="flex items-center gap-2 text-sm font-bold text-blue-800">
-                    <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                    Form Revisi (Ditolak)
-                </h4>
-            </div>
-
-            <div className="space-y-4 p-4">
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                    <span className="font-bold">Alasan Penolakan:</span> {item.alasan_penolakan_support || item.catatan || 'Tidak ada alasan.'}
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
-                        <p className="text-xs font-bold uppercase text-slate-500">Volume RAB</p>
-                        <p className="mt-1 text-base font-extrabold text-slate-900">{volRab} <span className="text-xs font-semibold text-slate-500">{satuan}</span></p>
-                    </div>
-                    <div className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-blue-200">
-                        <label htmlFor={`revision-volume-${item.id}`} className="text-xs font-bold uppercase text-blue-700">Volume Akhir *</label>
-                        <div className="mt-1 flex items-center gap-2">
-                            <input
-                                id={`revision-volume-${item.id}`}
-                                name={`revision-volume-${item.id}`}
-                                type="text"
-                                inputMode="decimal"
-                                autoComplete="off"
-                                className="min-w-0 flex-1 rounded-md border border-blue-200 px-2 py-1.5 text-base font-extrabold text-slate-900 outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
-                                value={volumeAkhir}
-                                onChange={(e) => setVolumeAkhir(normalizeVolumeInput(e.target.value))}
-                            />
-                            <span className="text-xs font-semibold text-slate-500">{satuan}</span>
-                        </div>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
-                        <p className="text-xs font-bold uppercase text-slate-500">Selisih Volume</p>
-                        <p className={`mt-1 text-base font-extrabold ${selisihVolume > 0 ? 'text-red-700' : selisihVolume < 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
-                            {selisihVolume > 0 ? '+' : ''}{selisihVolume} <span className="text-xs font-semibold text-slate-500">{satuan}</span>
-                        </p>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
-                        <p className="text-xs font-bold uppercase text-slate-500">Total RAB</p>
-                        <p className="mt-1 text-base font-extrabold text-slate-900">{formatRp(totalRab)}</p>
-                    </div>
-                    <div className="rounded-lg bg-blue-50 p-3 shadow-sm ring-1 ring-blue-200">
-                        <p className="text-xs font-bold uppercase text-blue-700">Total Opname</p>
-                        <p className="mt-1 text-base font-extrabold text-blue-700">{formatRp(totalOpname)}</p>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
-                        <p className="text-xs font-bold uppercase text-slate-500">Selisih Biaya</p>
-                        <p className={`mt-1 text-base font-extrabold ${selisihTone}`}>{selisihPrefix}{formatRp(Math.abs(selisihBiaya))}</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                   <div>
-                       <label htmlFor={`revision-desain-${item.id}`} className="text-xs font-bold text-slate-700">Desain *</label>
-                       <select id={`revision-desain-${item.id}`} name={`revision-desain-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" value={desain} onChange={(e) => setDesain(e.target.value)}>
-                           <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
-                       </select>
-                   </div>
-                   <div>
-                       <label htmlFor={`revision-kualitas-${item.id}`} className="text-xs font-bold text-slate-700">Kualitas *</label>
-                       <select id={`revision-kualitas-${item.id}`} name={`revision-kualitas-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" value={kualitas} onChange={(e) => setKualitas(e.target.value)}>
-                           <option value="">-- Pilih --</option><option value="Baik">Baik</option><option value="Tidak Baik">Tidak Baik</option>
-                       </select>
-                   </div>
-                   <div>
-                       <label htmlFor={`revision-spesifikasi-${item.id}`} className="text-xs font-bold text-slate-700">Spesifikasi *</label>
-                       <select id={`revision-spesifikasi-${item.id}`} name={`revision-spesifikasi-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" value={spesifikasi} onChange={(e) => setSpesifikasi(e.target.value)}>
-                           <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
-                       </select>
-                   </div>
-                   <div>
-                       <label htmlFor={`revision-foto-${item.id}`} className="text-xs font-bold text-slate-700">Foto Bukti (Opsional)</label>
-                       <input id={`revision-foto-${item.id}`} name={`revision-foto-${item.id}`} type="file" accept="image/*" className="mt-1 w-full rounded border p-1.5 text-xs focus-visible:ring-2 focus-visible:ring-blue-500/20" onChange={(e) => e.target.files && setFoto(e.target.files[0])} />
-                   </div>
-                   <div className="lg:col-span-3">
-                       <label htmlFor={`revision-note-${item.id}`} className="text-xs font-bold text-slate-700">Catatan Revisi</label>
-                       <textarea id={`revision-note-${item.id}`} name={`revision-note-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)}></textarea>
-                   </div>
-                </div>
-                <div className="flex justify-end">
-                    <Button size="sm" className="bg-blue-600 px-6 font-bold text-white hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="mr-2 h-4 w-4" aria-hidden="true" />}
-                        Kirim Revisi
-                    </Button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: () => void; }) {
-    const { showAlert } = useGlobalAlert();
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [showRejectDialog, setShowRejectDialog] = useState(false);
-    const [rejectReason, setRejectReason] = useState('');
-
-    const handleAction = async (decision: 'disetujui' | 'ditolak', alasan = '') => {
-        if (decision === 'ditolak' && !alasan.trim()) {
-            showAlert({ message: 'Alasan penolakan wajib diisi.', type: 'error' });
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            const { reviewContractorFirstOpname } = await import('@/lib/api');
-            await reviewContractorFirstOpname(item.id, { id_opname_item: item.id, decision, alasan_penolakan_support: alasan.trim() });
-            setShowRejectDialog(false);
-            setRejectReason('');
-            showAlert({ message: 'Review berhasil disimpan.', type: 'success' });
-            onReviewed();
-        } catch(err: any) {
-            showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    return (
-        <>
-            <div className="flex gap-2">
-                <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => handleAction('disetujui')} disabled={isProcessing}>
-                    <ThumbsUp className="w-4 h-4 mr-1.5" /> Setuju
-                </Button>
-                <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 font-bold" onClick={() => setShowRejectDialog(true)} disabled={isProcessing}>
-                    <ThumbsDown className="w-4 h-4 mr-1.5" /> Tolak
-                </Button>
-            </div>
-
-            {showRejectDialog && (
-                <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-                    <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
-                        <div className="border-b border-red-100 bg-red-50 px-5 py-4">
-                            <div className="flex items-start gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                                    <ThumbsDown className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-black text-slate-900">Tolak Revisi Opname</h3>
-                                    <p className="mt-1 text-sm font-semibold text-red-700">Tuliskan alasan agar kontraktor bisa memperbaiki item ini.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="space-y-3 px-5 py-4">
-                            <label className="text-xs font-black uppercase text-slate-500">Alasan Penolakan</label>
-                            <textarea
-                                className="min-h-28 w-full resize-none rounded-lg border border-slate-300 bg-white p-3 text-sm font-medium text-slate-800 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-100"
-                                placeholder="Contoh: volume revisi belum sesuai, foto bukti belum jelas..."
-                                value={rejectReason}
-                                onChange={(event) => setRejectReason(event.target.value)}
-                                autoFocus
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
-                            <Button type="button" variant="outline" className="font-semibold" onClick={() => setShowRejectDialog(false)} disabled={isProcessing}>Batal</Button>
-                            <Button type="button" className="bg-red-600 font-bold text-white hover:bg-red-700" onClick={() => handleAction('ditolak', rejectReason)} disabled={isProcessing || !rejectReason.trim()}>
-                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
-                                Tolak Revisi
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </>
-    );
-}
-
 export default function OpnamePage() {
     const router = useRouter();
     const { showAlert } = useGlobalAlert();
@@ -3157,14 +2397,3 @@ export default function OpnamePage() {
         </div>
     );
 }
-
-
-
-
-
-
-
-
-
-
-

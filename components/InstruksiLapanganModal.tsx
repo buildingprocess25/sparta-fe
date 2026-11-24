@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Save, Loader2, Upload, X, FileText } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
-import { fetchTokoList, fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, fetchSPKList } from '@/lib/api';
+import { fetchTokoList, fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail } from '@/lib/api';
 import { BRANCH_GROUPS, canViewAllBranches, normalizeBranchValue } from '@/lib/constants';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
@@ -88,32 +88,6 @@ const isNoPpnArea = (toko: any, cabangFallback = "") => {
 
     return identity.some(value => value === "BATAM" || value === "BINTAN" || /\bBATAM\b|\bBINTAN\b/.test(value));
 };
-const toIsoDateOnly = (value?: string | null) => {
-    const raw = String(value ?? "").trim();
-    if (!raw) return "";
-    const isoMatch = raw.match(/^\d{4}-\d{2}-\d{2}/);
-    if (isoMatch) return isoMatch[0];
-    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (slashMatch) {
-        const [, dd, mm, yyyy] = slashMatch;
-        return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
-    }
-    const parsed = new Date(raw);
-    if (Number.isNaN(parsed.getTime())) return "";
-    return parsed.toISOString().slice(0, 10);
-};
-const maxIsoDate = (...values: Array<string | null | undefined>) =>
-    values.map(toIsoDateOnly).filter(Boolean).sort().at(-1) || "";
-const buildSpkDateBounds = (spk?: any) => ({
-    start: toIsoDateOnly(spk?.waktu_mulai),
-    end: maxIsoDate(spk?.effective_waktu_selesai, spk?.st_target_date, spk?.pertambahan_spk_approved_until, spk?.denda_until_date, spk?.waktu_selesai)
-});
-const formatDateId = (value?: string | null) => {
-    const iso = toIsoDateOnly(value);
-    if (!iso) return "-";
-    const [yyyy, mm, dd] = iso.split("-");
-    return `${dd}/${mm}/${yyyy}`;
-};
 
 export default function InstruksiLapanganModal({
     onClose,
@@ -130,9 +104,7 @@ export default function InstruksiLapanganModal({
     const { user } = useSession();
 
     const [cabang, setCabang] = useState('');
-    const [allTokoList, setAllTokoList] = useState<any[]>([]);
     const [tokoList, setTokoList] = useState<any[]>([]);
-    const [spkList, setSpkList] = useState<any[]>([]);
     const [selectedToko, setSelectedToko] = useState<any>(null);
     const [prices, setPrices] = useState<any>({});
     const [tableRows, setTableRows] = useState<any[]>([]);
@@ -145,14 +117,13 @@ export default function InstruksiLapanganModal({
 
     const [tanggalMulai, setTanggalMulai] = useState('');
     const [tanggalSelesai, setTanggalSelesai] = useState('');
-    const [spkStartDate, setSpkStartDate] = useState('');
-    const [spkEndDate, setSpkEndDate] = useState('');
 
     const [isLoading, setIsLoading] = useState(false);
     const [isTokoLoading, setIsTokoLoading] = useState(false);
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertMessage, setAlertMessage] = useState<{title: string, desc: string, type: 'info' | 'error' | 'success' | 'warning'}>({ title: "", desc: "", type: "info" });
     const submitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const loadedInitialTokoIdRef = useRef<number | null>(null);
 
     useEffect(() => {
         const userCabang = normalizeBranch(sessionStorage.getItem('loggedInUserCabang'));
@@ -170,98 +141,23 @@ export default function InstruksiLapanganModal({
         }
         setCabang(userCabang);
 
-        Promise.all([
-            fetchTokoList(),
-            fetchSPKList({ status: "SPK_APPROVED" }).catch(() => ({ data: [] }))
-        ]).then(([tokoRes, spkRes]) => {
+        fetchTokoList().then(res => {
             const allowedBranches = new Set((BRANCH_GROUPS[userCabang] || [userCabang]).map(normalizeBranch));
             const filtered = canViewAllBranches(roles, roles.includes('BUILDING & MAINTENANCE SUPER HUMAN'))
-                ? tokoRes.data
-                : tokoRes.data.filter((t: any) => allowedBranches.has(normalizeBranch(t.cabang)));
-            setAllTokoList(filtered);
+                ? res.data
+                : res.data.filter((t: any) => allowedBranches.has(normalizeBranch(t.cabang)));
             setTokoList(filtered);
-            setSpkList(spkRes.data || []);
         }).catch(err => {
             console.error(err);
             showAlert("Error", "Gagal memuat daftar toko", "error");
         });
     }, [router]);
 
-    const applyDateBoundsForToko = (toko: any) => {
-        const matchingSpk = spkList.find(spk =>
-            String(spk.id_toko) === String(toko?.id)
-            || (
-                String(spk.nomor_ulok || "").trim().toUpperCase() === String(toko?.nomor_ulok || "").trim().toUpperCase()
-                && String(spk.lingkup_pekerjaan || "").trim().toUpperCase() === String(toko?.lingkup_pekerjaan || "").trim().toUpperCase()
-            )
-        );
-        const bounds = buildSpkDateBounds(matchingSpk);
-        setSpkStartDate(bounds.start);
-        setSpkEndDate(bounds.end);
-        setTanggalMulai(prev => prev && ((bounds.start && prev < bounds.start) || (bounds.end && prev > bounds.end)) ? "" : prev);
-        setTanggalSelesai(prev => prev && ((bounds.start && prev < bounds.start) || (bounds.end && prev > bounds.end)) ? "" : prev);
-    };
-
     useEffect(() => {
-        if (!selectedToko) return;
-        applyDateBoundsForToko(selectedToko);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedToko, spkList]);
-
-    useEffect(() => {
-        if (!initialTokoId || !selectedToko) return;
-        let isCancelled = false;
-
-        const syncSameUlokScopes = async () => {
-            const selectedUlok = String(selectedToko.nomor_ulok || "").trim().toUpperCase();
-            if (!selectedUlok) return;
-
-            const fromTokoList = allTokoList.filter((t: any) =>
-                String(t.nomor_ulok || "").trim().toUpperCase() === selectedUlok
-            );
-            const fromSpkList = spkList.filter((spk: any) =>
-                String(spk.nomor_ulok || "").trim().toUpperCase() === selectedUlok
-            );
-
-            const scopeMap = new Map<number, any>();
-            [selectedToko, ...fromTokoList].forEach((t: any) => {
-                const id = Number(t?.id);
-                if (id) scopeMap.set(id, t);
-            });
-
-            const missingTokoIds = Array.from(new Set(
-                fromSpkList
-                    .map((spk: any) => Number(spk.id_toko))
-                    .filter((id: number) => id && !scopeMap.has(id))
-            ));
-
-            const fetchedScopes = await Promise.all(
-                missingTokoIds.map((id: number) => fetchTokoDetail(id).then(res => res.data).catch(() => null))
-            );
-            if (isCancelled) return;
-
-            fetchedScopes.forEach((toko: any) => {
-                const id = Number(toko?.id);
-                if (id) scopeMap.set(id, toko);
-            });
-
-            const sameUlokScopes = Array.from(scopeMap.values())
-                .filter((t: any) => String(t.nomor_ulok || "").trim().toUpperCase() === selectedUlok)
-                .sort((a: any, b: any) => String(a.lingkup_pekerjaan || "").localeCompare(String(b.lingkup_pekerjaan || "")));
-
-            if (sameUlokScopes.length > 0) setTokoList(sameUlokScopes);
-        };
-
-        void syncSameUlokScopes();
-        return () => {
-            isCancelled = true;
-        };
-    }, [initialTokoId, selectedToko, allTokoList, spkList]);
-
-    useEffect(() => {
-        if (!initialTokoId || !cabang) return;
+        if (!initialTokoId || !cabang || loadedInitialTokoIdRef.current === initialTokoId) return;
 
         let isCancelled = false;
+        loadedInitialTokoIdRef.current = initialTokoId;
         const loadInitialToko = async () => {
             setIsTokoLoading(true);
             try {
@@ -289,10 +185,18 @@ export default function InstruksiLapanganModal({
                     if (isCancelled) return;
                     setPrices(priceData);
 
-                    void loadRejectedInstruksiOptions(toko, () => isCancelled);
+                    const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
+                    if (isCancelled) return;
+                    const rejected = (listRes.data || []).filter((il: any) => il.status?.toUpperCase().includes('DITOLAK'));
+                    setRejectedInstruksiList(rejected);
+
+                    if (rejected.length > 0) {
+                        showAlert("Info", "Ada Instruksi Lapangan yang ditolak. Pilih mode revisi jika ingin memperbaiki dokumen lama, atau tetap buat IL baru.", "info");
+                    }
                 }
             } catch (error: any) {
                 if (!isCancelled) {
+                    loadedInitialTokoIdRef.current = null;
                     showAlert("Error", error.message, "error");
                 }
             } finally {
@@ -311,22 +215,6 @@ export default function InstruksiLapanganModal({
             if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
         };
     }, []);
-
-    const loadRejectedInstruksiOptions = async (toko: any, isCancelled?: () => boolean) => {
-        if (!toko?.nomor_ulok) return;
-        try {
-            const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
-            if (isCancelled?.()) return;
-            const rejected = (listRes.data || []).filter((il: any) => il.status?.toUpperCase().includes('DITOLAK'));
-            setRejectedInstruksiList(rejected);
-
-            if (rejected.length > 0) {
-                showAlert("Info", "Ada Instruksi Lapangan yang ditolak. Pilih mode revisi jika ingin memperbaiki dokumen lama, atau tetap buat IL baru.", "info");
-            }
-        } catch (error) {
-            console.warn("Gagal memuat daftar revisi Instruksi Lapangan", error);
-        }
-    };
 
     const handleTokoChange = async (tokoIdStr: string) => {
         const tokoId = Number(tokoIdStr);
@@ -358,7 +246,13 @@ export default function InstruksiLapanganModal({
                 const priceData = await fetchPricesData(toko.cabang || cabang, scope);
                 setPrices(priceData);
 
-                void loadRejectedInstruksiOptions(toko);
+                const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
+                const rejected = (listRes.data || []).filter((il: any) => il.status?.toUpperCase().includes('DITOLAK'));
+                setRejectedInstruksiList(rejected);
+
+                if (rejected.length > 0) {
+                    showAlert("Info", "Ada Instruksi Lapangan yang ditolak. Pilih mode revisi jika ingin memperbaiki dokumen lama, atau tetap buat IL baru.", "info");
+                }
             }
         } catch (error: any) {
             showAlert("Error", error.message, "error");
@@ -520,15 +414,6 @@ export default function InstruksiLapanganModal({
         if (!tanggalMulai || !tanggalSelesai) {
             return showAlert("Peringatan", "Tanggal mulai dan tanggal selesai wajib diisi.", "warning");
         }
-        if (spkStartDate && tanggalMulai < spkStartDate) {
-            return showAlert("Peringatan", `Tanggal mulai tidak boleh sebelum tanggal mulai SPK (${formatDateId(spkStartDate)}).`, "warning");
-        }
-        if (tanggalSelesai < tanggalMulai) {
-            return showAlert("Peringatan", "Tanggal selesai tidak boleh sebelum tanggal mulai.", "warning");
-        }
-        if (spkEndDate && tanggalSelesai > spkEndDate) {
-            return showAlert("Peringatan", `Tanggal selesai tidak boleh melewati batas efektif SPK/ST (${formatDateId(spkEndDate)}).`, "warning");
-        }
 
         if (validDetailItems.length === 0) {
             return showAlert("Peringatan", "Minimal harus ada 1 item pekerjaan dengan volume.", "warning");
@@ -603,11 +488,11 @@ export default function InstruksiLapanganModal({
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label>Pilih Toko <span className="text-red-500">*</span></Label>
-                                        <Select onValueChange={handleTokoChange} value={selectedToko ? String(selectedToko.id) : ""} disabled={isTokoLoading} required>
+                                        <Select onValueChange={handleTokoChange} value={selectedToko ? String(selectedToko.id) : ""} disabled={!!initialTokoId} required>
                                             <SelectTrigger className="bg-white">
                                                 <SelectValue placeholder="-- Pilih Toko Berdasarkan Cabang --" />
                                             </SelectTrigger>
-                                            <SelectContent position="popper" side="bottom" className="z-[220] w-[var(--radix-select-trigger-width)] max-h-72">
+                                            <SelectContent>
                                                 {tokoList.map((toko: any) => (
                                                     <SelectItem key={toko.id} value={String(toko.id)}>
                                                         {toko.nomor_ulok} - {toko.nama_toko} ({toko.lingkup_pekerjaan})
@@ -621,22 +506,13 @@ export default function InstruksiLapanganModal({
                                         <DatePicker
                                             value={tanggalMulai}
                                             onChange={(val) => setTanggalMulai(val)}
-                                            min={spkStartDate}
-                                            max={spkEndDate}
-                                            disabled={!selectedToko}
                                         />
-                                        {selectedToko && (spkStartDate || spkEndDate) && (
-                                            <p className="text-xs text-slate-500">Rentang SPK: {formatDateId(spkStartDate)} s/d {formatDateId(spkEndDate)}</p>
-                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Tanggal Selesai <span className="text-red-500">*</span></Label>
                                         <DatePicker
                                             value={tanggalSelesai}
                                             onChange={(val) => setTanggalSelesai(val)}
-                                            min={tanggalMulai || spkStartDate}
-                                            max={spkEndDate}
-                                            disabled={!selectedToko}
                                         />
                                     </div>
                                     {rejectedInstruksiList.length > 0 && (
@@ -646,7 +522,7 @@ export default function InstruksiLapanganModal({
                                                 <SelectTrigger className="bg-white">
                                                     <SelectValue placeholder="Pilih mode pengajuan" />
                                                 </SelectTrigger>
-                                                <SelectContent position="popper" side="bottom" className="z-[220] w-[var(--radix-select-trigger-width)] max-h-72">
+                                                <SelectContent>
                                                     <SelectItem value="new">Buat Instruksi Lapangan Baru</SelectItem>
                                                     {rejectedInstruksiList.map((il: any) => (
                                                         <SelectItem key={il.id} value={String(il.id)}>
