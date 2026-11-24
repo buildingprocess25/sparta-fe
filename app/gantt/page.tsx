@@ -117,13 +117,27 @@ const mapApprovedInstruksiToTokoOptions = (items: any[] = []) => {
     return Array.from(map.values());
 };
 
+const hasPresentOptionValue = (value: unknown) =>
+    value !== undefined && value !== null && String(value).trim() !== '';
+
 const mergeProjectOptions = (base: any[] = [], extra: any[] = []) => {
     const map = new Map<string, any>();
     [...base, ...extra].forEach((item) => {
         const idToko = item.id_toko || item.id;
         if (!idToko) return;
         const key = `${idToko}`;
-        map.set(key, { ...(map.get(key) || {}), ...item, id_toko: idToko });
+        const existing = map.get(key);
+        if (!existing) {
+            map.set(key, { ...item, id_toko: idToko });
+            return;
+        }
+        const merged = { ...existing, id_toko: idToko };
+        Object.entries(item).forEach(([field, value]) => {
+            if (!hasPresentOptionValue(merged[field]) && hasPresentOptionValue(value)) {
+                merged[field] = value;
+            }
+        });
+        map.set(key, merged);
     });
     return Array.from(map.values());
 };
