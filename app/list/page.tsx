@@ -1,7 +1,5 @@
 "use client"
 
-import { groupSPKForPresentation, presentSPK } from '@/lib/spk-groups';
-import RabDocumentItems from '@/components/RabDocumentItems';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -69,8 +67,6 @@ type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FI
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
-    spk_group_members?: SPKListItem[];
-    raw_ids?: number[];
     id: number;
     tipe: DokumenKategori;
     nomor_ulok: string;
@@ -151,8 +147,6 @@ interface DocumentContextGroup {
 }
 
 interface NormalizedDetail {
-    rab_document_scopes?: Omit<RABDetailResponse, "document_scopes">[];
-    spk_group_members?: SPKListItem[];
     id: number;
     tipe: DokumenKategori;
     nomor_ulok: string;
@@ -963,102 +957,27 @@ const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] => {
         return !activeRabKeys.has(getRabDuplicateKey(item));
     });
 
-    const grouped = new Map<string, RABListItem[]>();
-    visibleItems.forEach(r => {
-        const ulok = r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-';
-        if (!grouped.has(ulok)) grouped.set(ulok, []);
-        grouped.get(ulok)!.push(r);
-    });
-
-    const normalized: NormalizedDoc[] = [];
-    grouped.forEach((groupItems, ulok) => {
-        if (groupItems.length > 1) {
-            const sipil = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'SIPIL');
-            const me = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'ME');
-
-            if (sipil && me && sipil.status === me.status && ['cabang','proyek','nama_pt'].every(key =>
-                String((sipil as any)[key] ?? (sipil.toko as any)?.[key] ?? '').trim().toUpperCase() === String((me as any)[key] ?? (me.toko as any)?.[key] ?? '').trim().toUpperCase())) {
-                const totalGabungan = parseCurrency(sipil.grand_total_final ?? sipil.grand_total) + parseCurrency(me.grand_total_final ?? me.grand_total);
-                normalized.push({
-                    id: sipil.id,
-                    tipe: 'RAB' as DokumenKategori,
-                    nomor_ulok: ulok,
-                    nama_toko: (sipil.nama_toko ?? sipil.toko?.nama_toko ?? '-') + " (Sipil & ME)",
-                    cabang: sipil.cabang ?? sipil.toko?.cabang ?? '-',
-                    proyek: sipil.proyek ?? sipil.toko?.proyek ?? '-',
-                    status: sipil.status,
-                    email_pembuat: sipil.email_pembuat,
-                    total_nilai: parseCurrency(totalGabungan),
-                    created_at: sipil.created_at,
-                    link_pdf: sipil.link_pdf_gabungan ?? null,
-                    lingkup_pekerjaan: 'SIPIL + ME',
-                    kategori_lokasi: (sipil as any).kategori_lokasi,
-                    klasifikasi_bangunan: getBuildingClassification(undefined, (sipil as any).kategori_lokasi),
-                });
-                groupItems.filter(i => i !== sipil && i !== me).forEach(r => {
-                    normalized.push({
-                        id: r.id,
-                        tipe: 'RAB' as DokumenKategori,
-                        nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
-                        nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
-                        cabang: r.cabang ?? r.toko?.cabang ?? '-',
-                        proyek: r.proyek ?? r.toko?.proyek ?? '-',
-                        status: r.status,
-                        email_pembuat: r.email_pembuat,
-                        total_nilai: getRabDisplayTotal(r),
-                        created_at: r.created_at,
-                        link_pdf: r.link_pdf_gabungan ?? null,
-                        lingkup_pekerjaan: (r as any).lingkup_pekerjaan || (r as any).toko?.lingkup_pekerjaan,
-                        kategori_lokasi: (r as any).kategori_lokasi,
-                        klasifikasi_bangunan: getBuildingClassification(undefined, (r as any).kategori_lokasi),
-                    });
-                });
-            } else {
-                groupItems.forEach(r => {
-                    normalized.push({
-                        id: r.id,
-                        tipe: 'RAB' as DokumenKategori,
-                        nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
-                        nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
-                        cabang: r.cabang ?? r.toko?.cabang ?? '-',
-                        proyek: r.proyek ?? r.toko?.proyek ?? '-',
-                        status: r.status,
-                        email_pembuat: r.email_pembuat,
-                        total_nilai: getRabDisplayTotal(r),
-                        created_at: r.created_at,
-                        link_pdf: r.link_pdf_gabungan ?? null,
-                        lingkup_pekerjaan: (r as any).lingkup_pekerjaan || (r as any).toko?.lingkup_pekerjaan,
-                        kategori_lokasi: (r as any).kategori_lokasi,
-                        klasifikasi_bangunan: getBuildingClassification(undefined, (r as any).kategori_lokasi),
-                    });
-                });
-            }
-        } else {
-            const r = groupItems[0];
-            normalized.push({
-                id: r.id,
-                tipe: 'RAB' as DokumenKategori,
-                nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
-                nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
-                cabang: r.cabang ?? r.toko?.cabang ?? '-',
-                proyek: r.proyek ?? r.toko?.proyek ?? '-',
-                status: r.status,
-                email_pembuat: r.email_pembuat,
-                total_nilai: getRabDisplayTotal(r),
-                created_at: r.created_at,
-                link_pdf: r.link_pdf_gabungan ?? null,
-                lingkup_pekerjaan: (r as any).lingkup_pekerjaan || (r as any).toko?.lingkup_pekerjaan,
-                kategori_lokasi: (r as any).kategori_lokasi,
-                klasifikasi_bangunan: getBuildingClassification(undefined, (r as any).kategori_lokasi),
-            });
-        }
-    });
-
-    return normalized;
+    return visibleItems.map(r => ({
+        id: r.id,
+        tipe: 'RAB' as DokumenKategori,
+        nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
+        takeover_sequence: Number((r as any).takeover_sequence || (r as any).toko?.takeover_sequence || (r as any).toko_takeover_sequence || 0),
+        nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
+        cabang: r.cabang ?? r.toko?.cabang ?? '-',
+        proyek: r.proyek ?? r.toko?.proyek ?? '-',
+        status: r.status,
+        email_pembuat: r.email_pembuat,
+        total_nilai: getRabDisplayTotal(r),
+        created_at: r.created_at,
+        link_pdf: r.link_pdf_gabungan ?? null,
+        lingkup_pekerjaan: (r as any).lingkup_pekerjaan || (r as any).toko?.lingkup_pekerjaan,
+        kategori_lokasi: (r as any).kategori_lokasi,
+        klasifikasi_bangunan: getBuildingClassification(undefined, (r as any).kategori_lokasi),
+    }));
 };
 
 const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
-    groupSPKForPresentation(items).map(s => {
+    items.map(s => {
         const raw = s as any;
         return {
             id: s.id,
@@ -1284,94 +1203,20 @@ const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] => {
     });
 };
 
-const normalizeInstruksiLapanganDocs = (items: any[]): NormalizedDoc[] => {
-    // 1. Group active vs rejected keys
-    const activeKeys = new Set(
-        items.filter(item => !isRejectedStatus(item.status))
-             .map(i => i.nomor_ulok ?? '-')
-    );
-
-    const visibleItems = items.filter(item => {
-        if (!isRejectedStatus(item.status)) return true;
-        // Hide rejected if an active one exists for this ulok
-        return !activeKeys.has(item.nomor_ulok ?? '-');
-    });
-
-    const grouped = new Map<string, any[]>();
-    visibleItems.forEach(r => {
-        const ulok = r.nomor_ulok ?? '-';
-        if (!grouped.has(ulok)) grouped.set(ulok, []);
-        grouped.get(ulok)!.push(r);
-    });
-
-    const normalized: NormalizedDoc[] = [];
-    grouped.forEach((groupItems, ulok) => {
-        if (groupItems.length > 1) {
-            const sipil = groupItems.find(i => (i.toko?.lingkup_pekerjaan || '').toUpperCase().includes('SIPIL') || (i.lingkup_pekerjaan || '').toUpperCase().includes('SIPIL'));
-            const me = groupItems.find(i => (i.toko?.lingkup_pekerjaan || '').toUpperCase().includes('ME') || (i.lingkup_pekerjaan || '').toUpperCase().includes('ME'));
-
-            if (sipil && me && sipil.status === me.status && sipil.email_pembuat === me.email_pembuat) {
-                const totalGabungan = parseCurrency(sipil.grand_total_final ?? sipil.grand_total) + parseCurrency(me.grand_total_final ?? me.grand_total);
-                normalized.push({
-                    id: sipil.id,
-                    tipe: 'INSTRUKSI_LAPANGAN' as DokumenKategori,
-                    nomor_ulok: ulok,
-                    nama_toko: (sipil.nama_toko ?? '-') + " (Sipil & ME)",
-                    cabang: sipil.cabang ?? '-',
-                    proyek: sipil.proyek ?? '-',
-                    status: sipil.status,
-                    email_pembuat: sipil.email_pembuat ?? '-',
-                    total_nilai: totalGabungan,
-                    created_at: sipil.created_at ?? sipil.timestamp ?? '-',
-                    link_pdf: sipil.link_pdf_gabungan ?? null,
-                    lingkup_pekerjaan: 'SIPIL + ME',
-                    raw_ids: [sipil.id, me.id], // Simpan array ID
-                });
-                
-                // Add remaining items (if any, like duplicates/revisions)
-                groupItems.filter(i => i !== sipil && i !== me).forEach(r => {
-                    normalized.push({
-                        id: r.id,
-                        tipe: 'INSTRUKSI_LAPANGAN' as DokumenKategori,
-                        nomor_ulok: ulok,
-                        nama_toko: r.nama_toko ?? '-',
-                        cabang: r.cabang ?? '-',
-                        proyek: r.proyek ?? '-',
-                        status: r.status,
-                        email_pembuat: r.email_pembuat ?? '-',
-                        total_nilai: parseCurrency(r.grand_total_final ?? r.grand_total),
-                        created_at: r.created_at ?? r.timestamp ?? '-',
-                        link_pdf: r.link_pdf_gabungan ?? null,
-                        lingkup_pekerjaan: r.toko?.lingkup_pekerjaan ?? r.lingkup_pekerjaan ?? '-',
-                        raw_ids: [r.id]
-                    });
-                });
-                return;
-            }
-        }
-        
-        // Single scope or un-matchable items
-        groupItems.forEach(r => {
-            normalized.push({
-                id: r.id,
-                tipe: 'INSTRUKSI_LAPANGAN' as DokumenKategori,
-                nomor_ulok: r.nomor_ulok ?? '-',
-                nama_toko: r.nama_toko ?? '-',
-                cabang: r.cabang ?? '-',
-                proyek: r.proyek ?? '-',
-                status: r.status,
-                email_pembuat: r.email_pembuat ?? '-',
-                total_nilai: parseCurrency(r.grand_total_final ?? r.grand_total),
-                created_at: r.created_at ?? r.timestamp ?? '-',
-                link_pdf: r.link_pdf_gabungan ?? null,
-                lingkup_pekerjaan: r.toko?.lingkup_pekerjaan ?? r.lingkup_pekerjaan ?? '-',
-                raw_ids: [r.id]
-            });
-        });
-    });
-
-    return normalized;
-};
+const normalizeInstruksiLapanganDocs = (items: any[]): NormalizedDoc[] =>
+    items.map(i => ({
+        id: i.id,
+        tipe: 'INSTRUKSI_LAPANGAN' as DokumenKategori,
+        nomor_ulok: i.nomor_ulok ?? '-',
+        nama_toko: i.nama_toko ?? '-',
+        cabang: i.cabang ?? '-',
+        proyek: i.proyek ?? '-',
+        status: i.status,
+        email_pembuat: i.email_pembuat ?? '-',
+        total_nilai: parseCurrency(i.grand_total_final ?? i.grand_total),
+        created_at: i.created_at ?? i.timestamp ?? '-',
+        link_pdf: i.link_pdf_gabungan ?? null,
+    }));
 
 const normalizeProjekPlanningDocs = (items: ProjekPlanningItem[]): NormalizedDoc[] =>
     items.map(p => ({
@@ -1882,34 +1727,37 @@ export default function DaftarDokumenPage() {
             } else if (doc.tipe === 'RAB') {
                 const res = await fetchRABDetail(doc.id);
                 const d = res.data;
-                const scopes = d.document_scopes?.length ? d.document_scopes : [d];
                 detail = {
                     id: d.rab.id,
                     tipe: 'RAB',
-                    rab_document_scopes: scopes,
-                    id_toko:             d.toko.id,
-                    nomor_ulok:          d.toko.nomor_ulok,
-                    nama_toko:           d.toko.nama_toko,
-                    cabang:              d.toko.cabang,
-                    proyek:              d.toko.proyek,
-                    alamat:              d.toko.alamat,
-                    lingkup_pekerjaan:   scopes.map(scope => scope.toko.lingkup_pekerjaan).join(" + "),
-                    status:              d.rab.status,
-                    email_pembuat:       d.rab.email_pembuat,
-                    nama_pt:             d.rab.nama_pt,
-                    durasi_pekerjaan:    d.rab.durasi_pekerjaan,
-                    kategori_lokasi:     d.rab.kategori_lokasi,
-                    total_nilai: scopes.reduce((sum,scope) => sum + getRabDisplayTotal({...scope.rab,cabang:scope.toko.cabang,nama_toko:scope.toko.nama_toko,alamat:scope.toko.alamat}),0),
-                    grand_total:         String(scopes.reduce((sum,scope) => sum + parseCurrency(scope.rab.grand_total),0)),
-                    grand_total_non_sbo: String(scopes.reduce((sum,scope) => sum + parseCurrency(scope.rab.grand_total_non_sbo),0)),
-                    grand_total_final:   String(scopes.reduce((sum,scope) => sum + parseCurrency(scope.rab.grand_total_final ?? scope.rab.grand_total),0)),
-                    beanspot_type:       d.rab.beanspot_type,
-                    is_hth:              d.rab.is_hth,
-                    hth_meter:           d.rab.hth_meter,
-                    is_fasade:           d.rab.is_fasade,
-                    created_at:          d.rab.created_at,
-                    link_pdf_gabungan:   d.rab.link_pdf_gabungan,
-                    link_pdf_non_sbo:    d.rab.link_pdf_non_sbo,
+                    id_toko: d.toko.id,
+                    nomor_ulok: d.toko.nomor_ulok,
+                    nama_toko: d.toko.nama_toko,
+                    cabang: d.toko.cabang,
+                    proyek: d.toko.proyek,
+                    alamat: d.toko.alamat,
+                    lingkup_pekerjaan: d.toko.lingkup_pekerjaan,
+                    status: d.rab.status,
+                    email_pembuat: d.rab.email_pembuat,
+                    nama_pt: d.rab.nama_pt,
+                    durasi_pekerjaan: d.rab.durasi_pekerjaan,
+                    kategori_lokasi: d.rab.kategori_lokasi,
+                    total_nilai: getRabDisplayTotal({
+                        ...d.rab,
+                        cabang: d.toko.cabang,
+                        nama_toko: d.toko.nama_toko,
+                        alamat: d.toko.alamat,
+                    }),
+                    grand_total: d.rab.grand_total,
+                    grand_total_non_sbo: d.rab.grand_total_non_sbo,
+                    grand_total_final: d.rab.grand_total_final,
+                    beanspot_type: d.rab.beanspot_type,
+                    is_hth: d.rab.is_hth,
+                    hth_meter: d.rab.hth_meter,
+                    is_fasade: d.rab.is_fasade,
+                    created_at: d.rab.created_at,
+                    link_pdf_gabungan: d.rab.link_pdf_gabungan,
+                    link_pdf_non_sbo: d.rab.link_pdf_non_sbo,
                     link_pdf_rekapitulasi: d.rab.link_pdf_rekapitulasi,
                     link_pdf_materai: d.rab.link_pdf_materai,
                     link_lampiran_pendukung: d.rab.link_lampiran_pendukung,
@@ -1931,19 +1779,18 @@ export default function DaftarDokumenPage() {
                 };
             } else if (doc.tipe === 'SPK') {
                 const res = await fetchSPKDetail(doc.id);
-                const d = { ...res.data, pengajuan: presentSPK(res.data.pengajuan) };
+                const d = res.data;
                 const stTarget = buildStTargetDisplay((d.pengajuan as any).effective_waktu_selesai || d.pengajuan.waktu_selesai);
                 detail = {
                     id: d.pengajuan.id,
                     tipe: 'SPK',
-                    spk_group_members: d.pengajuan.spk_group_id ? d.pengajuan.group_members : undefined,
-                    nomor_ulok:        d.pengajuan.nomor_ulok,
-                    nama_toko:         doc.nama_toko,
-                    cabang:            doc.cabang,
-                    proyek:            d.pengajuan.proyek,
-                    status:            d.pengajuan.status,
-                    email_pembuat:     d.pengajuan.email_pembuat,
-                    total_nilai:       getSpkDisplayTotal(d.pengajuan.grand_total, {
+                    nomor_ulok: d.pengajuan.nomor_ulok,
+                    nama_toko: doc.nama_toko,
+                    cabang: doc.cabang,
+                    proyek: d.pengajuan.proyek,
+                    status: d.pengajuan.status,
+                    email_pembuat: d.pengajuan.email_pembuat,
+                    total_nilai: getSpkDisplayTotal(d.pengajuan.grand_total, {
                         cabang: d.pengajuan.toko?.cabang ?? doc.cabang,
                         nama_toko: d.pengajuan.toko?.nama_toko ?? doc.nama_toko,
                         alamat: d.pengajuan.toko?.alamat,
@@ -2130,62 +1977,40 @@ export default function DaftarDokumenPage() {
                     nomor_spk_st: doc.nomor_spk_st,
                 };
             } else if (doc.tipe === 'INSTRUKSI_LAPANGAN') {
-                const idsToFetch = doc.raw_ids && doc.raw_ids.length > 0 ? doc.raw_ids : [doc.id];
-                const resArray = await Promise.all(idsToFetch.map(id => fetchInstruksiLapanganDetail(id)));
-                const validRes = resArray.filter(r => r && r.data);
-                
-                if (validRes.length === 0) throw new Error("Gagal mengambil detail Instruksi Lapangan");
-                
-                const primaryData = validRes[0].data;
-                const mergedItems = validRes.flatMap(r => (r.data.items || []).map((it: any) => ({
-                    ...it,
-                    lingkup_pekerjaan: r.data.toko?.lingkup_pekerjaan ?? '-'
-                })));
-                
-                let totalGabunganFinal = 0;
-                let totalGabungan = 0;
-                let totalGabunganNonSbo = 0;
-                validRes.forEach(r => {
-                    totalGabunganFinal += parseCurrency(r.data.grand_total_final ?? 0);
-                    totalGabungan += parseCurrency(r.data.grand_total ?? 0);
-                    totalGabunganNonSbo += parseCurrency(r.data.grand_total_non_sbo ?? 0);
-                });
-
+                const res = await fetchInstruksiLapanganDetail(doc.id);
+                const d = res.data;
                 detail = {
-                    id: primaryData.id,
+                    id: d.id,
                     tipe: 'INSTRUKSI_LAPANGAN',
-                    nomor_ulok:        primaryData.nomor_ulok || doc.nomor_ulok,
-                    nama_toko:         primaryData.nama_toko || doc.nama_toko,
-                    cabang:            primaryData.cabang || doc.cabang,
-                    proyek:            primaryData.proyek || doc.proyek,
-                    status:            primaryData.status || doc.status,
-                    email_pembuat:     primaryData.email_pembuat || doc.email_pembuat,
-                    total_nilai:       totalGabunganFinal || totalGabungan,
-                    grand_total:       totalGabungan.toString(),
-                    grand_total_non_sbo: totalGabunganNonSbo.toString(),
-                    grand_total_final: totalGabunganFinal.toString(),
-                    created_at:        primaryData.created_at || primaryData.timestamp || doc.created_at,
-                    link_pdf_gabungan: primaryData.link_pdf_gabungan,
-                    link_pdf_non_sbo:  primaryData.link_pdf_non_sbo,
-                    link_pdf_rekapitulasi: primaryData.link_pdf_rekapitulasi,
-                    link_lampiran_pendukung: primaryData.link_lampiran,
-                    approval_koordinator: { pemberi: primaryData.pemberi_persetujuan_koordinator, waktu: primaryData.waktu_persetujuan_koordinator, catatan: primaryData.catatan_persetujuan_koordinator },
-                    approval_manager:     { pemberi: primaryData.pemberi_persetujuan_manager,     waktu: primaryData.waktu_persetujuan_manager, catatan: primaryData.catatan_persetujuan_manager },
-                    approval_kontraktor:  { pemberi: primaryData.pemberi_persetujuan_kontraktor,  waktu: primaryData.waktu_persetujuan_kontraktor, catatan: primaryData.catatan_persetujuan_kontraktor },
-                    alasan_penolakan:    primaryData.alasan_penolakan,
-                    items: mergedItems.map((it: any) => ({
+                    nomor_ulok: d.nomor_ulok || doc.nomor_ulok,
+                    nama_toko: d.nama_toko || doc.nama_toko,
+                    cabang: d.cabang || doc.cabang,
+                    proyek: d.proyek || doc.proyek,
+                    status: d.status || doc.status,
+                    email_pembuat: d.email_pembuat || doc.email_pembuat,
+                    total_nilai: parseCurrency(d.grand_total_final ?? d.grand_total),
+                    grand_total: d.grand_total,
+                    grand_total_non_sbo: d.grand_total_non_sbo,
+                    grand_total_final: d.grand_total_final,
+                    created_at: d.created_at || d.timestamp || doc.created_at,
+                    link_pdf_gabungan: d.link_pdf_gabungan,
+                    link_pdf_non_sbo: d.link_pdf_non_sbo,
+                    link_pdf_rekapitulasi: d.link_pdf_rekapitulasi,
+                    link_lampiran_pendukung: d.link_lampiran,
+                    approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator, catatan: d.catatan_persetujuan_koordinator },
+                    approval_manager: { pemberi: d.pemberi_persetujuan_manager, waktu: d.waktu_persetujuan_manager, catatan: d.catatan_persetujuan_manager },
+                    alasan_penolakan: d.alasan_penolakan,
+                    items: (d.items ?? []).map((it: any) => ({
                         id: it.id,
                         kategori: it.kategori_pekerjaan || '-',
                         jenis_pekerjaan: it.item_pekerjaan || it.jenis_pekerjaan || '-',
-                        satuan:          it.satuan || '-',
-                        volume:          it.volume || 0,
-                        harga_material:  it.harga_material || 0,
-                        harga_upah:      it.harga_upah || 0,
-                        total:           it.total_harga || ((Number(it.volume) || 0) * ((Number(it.harga_material) || 0) + (Number(it.harga_upah) || 0))),
-                        catatan:         it.instruksi || it.keterangan || it.catatan || '-',
-                        lingkup_pekerjaan: it.lingkup_pekerjaan,
+                        satuan: it.satuan || '-',
+                        volume: it.volume || 0,
+                        harga_material: it.harga_material || 0,
+                        harga_upah: it.harga_upah || 0,
+                        total: it.total_harga || ((Number(it.volume) || 0) * ((Number(it.harga_material) || 0) + (Number(it.harga_upah) || 0))),
+                        catatan: it.instruksi || it.keterangan || it.catatan || '-',
                     })),
-                    raw_ids: doc.raw_ids,
                 };
             } else if (doc.tipe === 'PROJECT_PLANNING') {
                 const res = await fetchProjekPlanningDetail(doc.id);
@@ -2219,16 +2044,16 @@ export default function DaftarDokumenPage() {
                     link_rab_me_pp: d.link_rab_me,
                     link_gambar_kerja_final_sipil_pp: d.link_gambar_kerja_final_sipil,
                     link_gambar_kerja_final_me_pp: d.link_gambar_kerja_final_me,
-                    foto_items_pp:           d.foto_items ?? [],
-                    butuh_desain_3d_pp:      d.butuh_desain_3d,
-                    is_ruko_pp:              d.is_ruko,
-                    luas_area_terbangun_pp:  d.luas_area_terbangun,
-                    klasifikasi_bangunan:    getBuildingClassification(d.is_ruko),
-                    luas_area_terbangun:     d.luas_area_terbangun,
-                    bm_approval_pp:    { pemberi: d.bm_approver_email ?? null, waktu: d.bm_waktu_persetujuan ?? null },
-                    pp1_approval:      { pemberi: d.pp1_approver_email ?? null, waktu: d.pp1_waktu_persetujuan ?? null },
-                    pp2_approval:      { pemberi: d.pp2_approver_email ?? null, waktu: d.pp2_waktu_persetujuan ?? null },
-                    pp_manager_approval: { pemberi: d.pp_manager_approver_email ?? null, waktu: d.pp_manager_waktu_persetujuan ?? null },
+                    foto_items_pp: d.foto_items ?? [],
+                    butuh_desain_3d_pp: d.butuh_desain_3d,
+                    is_ruko_pp: d.is_ruko,
+                    luas_area_terbangun_pp: d.luas_area_terbangun,
+                    klasifikasi_bangunan: getBuildingClassification(d.is_ruko),
+                    luas_area_terbangun: d.luas_area_terbangun,
+                    bm_approval_pp: { pemberi: d.bm_approver_email, waktu: d.bm_waktu_persetujuan },
+                    pp1_approval: { pemberi: d.pp1_approver_email, waktu: d.pp1_waktu_persetujuan },
+                    pp2_approval: { pemberi: d.pp2_approver_email, waktu: d.pp2_waktu_persetujuan },
+                    pp_manager_approval: { pemberi: d.pp_manager_approver_email, waktu: d.pp_manager_waktu_persetujuan },
                     bm2_approval: { pemberi: d.bm2_approver_email ?? null, waktu: d.bm2_waktu_persetujuan ?? null },
                     bm_regional_approval: { pemberi: d.bm_regional_approver_email ?? null, waktu: d.bm_regional_waktu_persetujuan ?? null },
                 };
@@ -3909,32 +3734,40 @@ export default function DaftarDokumenPage() {
 
                                 {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN, PROJECT_PLANNING, DOKUMENTASI_BANGUNAN, BERKAS_SERAH_TERIMA, SURAT_PERINGATAN */}
                                 {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && selectedDetail.tipe !== 'BERKAS_SERAH_TERIMA' && selectedDetail.tipe !== 'SURAT_PERINGATAN' && (
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                                    <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                        <div className="w-1.5 h-5 bg-red-500 rounded-full" />
-                                        Nilai Kontrak
-                                    </h4>
-                                    <div className="bg-linear-to-r from-slate-50 to-slate-100/50 rounded-xl p-5 border border-slate-200">
-                                        <p className="text-2xl font-extrabold text-slate-800">
-                                            {formatRupiah(selectedDetail.total_nilai)}
-                                        </p>
-                                        {selectedDetail.tipe === 'SPK' && selectedDetail.spk_group_members?.map(member => (
-                                            <div key={member.id} className="flex justify-between gap-4 mt-2 text-sm text-slate-700">
-                                                <span>Pekerjaan {member.lingkup_pekerjaan}</span>
-                                                <span className="font-semibold">{formatRupiah(parseCurrency(member.grand_total))}</span>
-                                            </div>
-                                        ))}
-                                        {selectedDetail.tipe === 'SPK' && selectedDetail.terbilang && (
-                                            <p className="text-sm text-slate-500 mt-1 italic">"{selectedDetail.terbilang}"</p>
-                                        )}
-                                        {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && (
-                                            <div className="flex flex-wrap gap-4 mt-3 text-sm">
-                                                {selectedDetail.grand_total && (
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                                        <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                            <div className="w-1.5 h-5 bg-red-500 rounded-full" />
+                                            Nilai Kontrak
+                                        </h4>
+                                        <div className="bg-linear-to-r from-slate-50 to-slate-100/50 rounded-xl p-5 border border-slate-200">
+                                            <p className="text-2xl font-extrabold text-slate-800">
+                                                {formatRupiah(selectedDetail.total_nilai)}
+                                            </p>
+                                            {selectedDetail.tipe === 'SPK' && selectedDetail.terbilang && (
+                                                <p className="text-sm text-slate-500 mt-1 italic">"{selectedDetail.terbilang}"</p>
+                                            )}
+                                            {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && (
+                                                <div className="flex flex-wrap gap-4 mt-3 text-sm">
+                                                    {selectedDetail.grand_total && (
+                                                        <div>
+                                                            <span className="text-slate-400">Total: </span>
+                                                            <span className="font-semibold text-slate-700">{formatRupiah(parseCurrency(selectedDetail.grand_total))}</span>
+                                                        </div>
+                                                    )}
+                                                    {selectedDetail.grand_total_non_sbo && (
+                                                        <div>
+                                                            <span className="text-slate-400">Non-SBO: </span>
+                                                            <span className="font-semibold text-slate-700">{formatRupiah(parseCurrency(selectedDetail.grand_total_non_sbo))}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {(selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL') && (
+                                                <div className="flex flex-wrap gap-4 mt-3 text-sm">
                                                     <div>
                                                         <span className="text-slate-400">Subtotal Opname: </span>
                                                         <span className="font-semibold text-slate-700">{formatRupiah(parseCurrency(selectedDetail.grand_total_final ?? selectedDetail.grand_total_opname))}</span>
                                                     </div>
-                                                )}
                                                     <div>
                                                         <span className="text-slate-400">Denda: </span>
                                                         <span className="font-semibold text-red-600">{formatRupiah(parseCurrency(selectedDetail.nilai_denda))}</span>
@@ -4194,132 +4027,55 @@ export default function DaftarDokumenPage() {
                                     </div>
                                 )}
 
-                                {selectedDetail.tipe === 'RAB' && selectedDetail.rab_document_scopes && <RabDocumentItems scopes={selectedDetail.rab_document_scopes} />}
                                 {/* Items Table (RAB, OPNAME, OPNAME_FINAL & INSTRUKSI_LAPANGAN) */}
-                                {(selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.items && selectedDetail.items.length > 0 && (
-                                    <div className="space-y-6">
-                                        {selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' && Array.from(new Set(selectedDetail.items.map(it => (it.lingkup_pekerjaan || '').toUpperCase().includes('SIPIL') ? 'SIPIL' : (it.lingkup_pekerjaan || '').toUpperCase().includes('ME') ? 'ME' : 'LAINNYA'))).sort((a,b) => a === 'SIPIL' ? -1 : 1).map((lingkup, lIdx) => {
-                                            const itemsInLingkup = selectedDetail.items!.filter(it => (it.lingkup_pekerjaan || '').toUpperCase().includes('SIPIL') ? lingkup === 'SIPIL' : (it.lingkup_pekerjaan || '').toUpperCase().includes('ME') ? lingkup === 'ME' : lingkup === 'LAINNYA');
-                                            if (itemsInLingkup.length === 0) return null;
-                                            
-                                            const categories = Array.from(new Set(itemsInLingkup.map(it => it.kategori || 'LAIN-LAIN')));
-                                            
-                                            return (
-                                                <div key={lingkup} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                                                        <h4 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                                                            <div className="w-1.5 h-5 bg-pink-500 rounded-full" />
-                                                            {String.fromCharCode(65 + lIdx)}. Pekerjaan {lingkup}
-                                                        </h4>
-                                                        <div className="text-right">
-                                                            <p className="text-xs text-slate-500">Grand Total {lingkup}</p>
-                                                            <p className="font-bold text-slate-900">{formatRupiah(itemsInLingkup.reduce((s, r) => s + Number(r.total ?? 0), 0))}</p>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    {categories.map((kategori, cIdx) => {
-                                                        const itemsInCat = itemsInLingkup.filter(it => (it.kategori || 'LAIN-LAIN') === kategori);
-                                                        return (
-                                                            <div key={kategori}>
-                                                                <h5 className="border-y border-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 bg-white">
-                                                                    {cIdx + 1}. {kategori}
-                                                                </h5>
-                                                                <div className="overflow-x-auto">
-                                                                    <table className="w-full text-sm">
-                                                                        <thead className="bg-slate-50 text-slate-500">
-                                                                            <tr>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">No</th>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Jenis Pekerjaan</th>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs min-w-48">Catatan</th>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Satuan</th>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Volume</th>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Material</th>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Upah</th>
-                                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Total</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {itemsInCat.map((item, idx) => (
-                                                                                <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/50">
-                                                                                    <td className="px-4 py-2.5 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
-                                                                                    <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{item.jenis_pekerjaan}</td>
-                                                                                    <td className="px-4 py-2.5 text-slate-500 italic text-xs">{item.catatan || '-'}</td>
-                                                                                    <td className="px-4 py-2.5 text-center text-slate-500 whitespace-nowrap">{item.satuan}</td>
-                                                                                    <td className="px-4 py-2.5 text-center text-slate-600 whitespace-nowrap">{item.volume}</td>
-                                                                                    <td className="px-4 py-2.5 text-right text-slate-600 whitespace-nowrap">{formatRupiah(item.harga_material)}</td>
-                                                                                    <td className="px-4 py-2.5 text-right text-slate-600 whitespace-nowrap">{formatRupiah(item.harga_upah)}</td>
-                                                                                    <td className="px-4 py-2.5 text-right font-semibold text-slate-800 whitespace-nowrap">{formatRupiah(item.total)}</td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                        <tfoot className="bg-slate-50 border-t border-slate-200">
-                                                                            <tr>
-                                                                                <td colSpan={7} className="px-4 py-3 text-right font-semibold text-slate-700">Subtotal {kategori}</td>
-                                                                                <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
-                                                                                    {formatRupiah(itemsInCat.reduce((s, r) => s + Number(r.total ?? 0), 0))}
-                                                                                </td>
-                                                                            </tr>
-                                                                        </tfoot>
-                                                                    </table>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            );
-                                        })}
-
-                                        {/* For OPNAME / OPNAME_FINAL - fallback to original table */}
-                                        {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && (
-                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                                <div className="px-6 py-4 border-b border-slate-100">
-                                                    <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                                        <div className={`w-1.5 h-5 ${selectedDetail.tipe === 'OPNAME' ? 'bg-sky-500' : 'bg-orange-500'} rounded-full`} />
-                                                        Item Pekerjaan ({selectedDetail.items.length} item)
-                                                    </h4>
-                                                </div>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm">
-                                                        <thead className="bg-slate-50 text-slate-500">
-                                                            <tr>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">No</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Kategori</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Jenis Pekerjaan</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs min-w-48">Catatan</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Satuan</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Volume</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Material</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Upah</th>
-                                                                <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Total</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {selectedDetail.items.map((item, idx) => (
-                                                                <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/50">
-                                                                    <td className="px-4 py-2.5 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
-                                                                    <td className="px-4 py-2.5 text-slate-600 font-medium text-xs whitespace-nowrap">{item.kategori}</td>
-                                                                    <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{item.jenis_pekerjaan}</td>
-                                                                    <td className="px-4 py-2.5 text-slate-500 italic text-xs">{item.catatan || '-'}</td>
-                                                                    <td className="px-4 py-2.5 text-center text-slate-500 whitespace-nowrap">{item.satuan}</td>
-                                                                    <td className="px-4 py-2.5 text-center text-slate-600 whitespace-nowrap">{item.volume}</td>
-                                                                    <td className="px-4 py-2.5 text-right text-slate-600 whitespace-nowrap">{formatRupiah(item.harga_material)}</td>
-                                                                    <td className="px-4 py-2.5 text-right text-slate-600 whitespace-nowrap">{formatRupiah(item.harga_upah)}</td>
-                                                                    <td className="px-4 py-2.5 text-right font-semibold text-slate-800 whitespace-nowrap">{formatRupiah(item.total)}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                        <tfoot className="bg-slate-100 border-t border-slate-300">
-                                                            <tr>
-                                                                <td colSpan={8} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
-                                                                <td className="p-3 font-extrabold text-slate-800 text-right whitespace-nowrap">
-                                                                    {formatRupiah((selectedDetail.items || []).reduce((s, r) => s + Number(r.total ?? 0), 0))}
-                                                                </td>
-                                                            </tr>
-                                                        </tfoot>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        )}
+                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.items && selectedDetail.items.length > 0 && (
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-slate-100">
+                                            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                <div className={`w-1.5 h-5 ${selectedDetail.tipe === 'OPNAME' ? 'bg-sky-500' : selectedDetail.tipe === 'OPNAME_FINAL' ? 'bg-orange-500' : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'bg-pink-500' : 'bg-blue-500'} rounded-full`} />
+                                                Item Pekerjaan ({selectedDetail.items.length} item)
+                                            </h4>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-slate-50 text-slate-500">
+                                                    <tr>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">No</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Kategori</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Jenis Pekerjaan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs min-w-48">Catatan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Satuan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Volume</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Material</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Upah</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {selectedDetail.items.map((item, idx) => (
+                                                        <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                                                            <td className="px-4 py-2.5 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
+                                                            <td className="px-4 py-2.5 text-slate-600 font-medium text-xs whitespace-nowrap">{item.kategori}</td>
+                                                            <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{item.jenis_pekerjaan}</td>
+                                                            <td className="px-4 py-2.5 text-slate-500 italic text-xs">{item.catatan || '-'}</td>
+                                                            <td className="px-4 py-2.5 text-center text-slate-500 whitespace-nowrap">{item.satuan}</td>
+                                                            <td className="px-4 py-2.5 text-center text-slate-600 whitespace-nowrap">{item.volume}</td>
+                                                            <td className="px-4 py-2.5 text-right text-slate-600 whitespace-nowrap">{formatRupiah(item.harga_material)}</td>
+                                                            <td className="px-4 py-2.5 text-right text-slate-600 whitespace-nowrap">{formatRupiah(item.harga_upah)}</td>
+                                                            <td className="px-4 py-2.5 text-right font-semibold text-slate-800 whitespace-nowrap">{formatRupiah(item.total)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot className="bg-slate-100 border-t border-slate-300">
+                                                    <tr>
+                                                        <td colSpan={8} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
+                                                        <td className="p-3 font-extrabold text-slate-800 text-right whitespace-nowrap">
+                                                            {formatRupiah((selectedDetail.items || []).reduce((s, r) => s + Number(r.total ?? 0), 0))}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
                                     </div>
                                 )}
 
