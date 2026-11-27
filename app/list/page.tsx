@@ -190,8 +190,11 @@ interface NormalizedDetail {
     approval_koordinator?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
     approval_manager?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
     approval_direktur?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
+    approval_kontraktor?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
+    raw_ids?: number[];
     items?: Array<{
         id: number;
+        lingkup_pekerjaan?: string;
         kategori: string;
         jenis_pekerjaan: string;
         satuan: string;

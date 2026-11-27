@@ -1192,6 +1192,8 @@ export type RABDetailItem = {
     id_rab:            number;
     source_type?:      'RAB' | 'IL';
     id_instruksi_lapangan_item?: number;
+    instruksi_lapangan_item?: any;
+    lingkup_pekerjaan?: string;
     kategori_pekerjaan:string;
     jenis_pekerjaan:   string;
     satuan:            string;
@@ -2043,6 +2045,11 @@ export type SupervisionWorkspace = {
     unified_checkpoints?: UnifiedSupervisionCheckpoint[];
     scope_date_alignment?: SupervisionScopeDateAlignment[];
     has_date_mismatch?: boolean;
+    st_gabungan_progress?: {
+        filled: number;
+        total: number;
+        is_submitted?: boolean;
+    };
 };
 
 export const fetchSupervisionWorkspace = async (
@@ -2543,11 +2550,14 @@ export type OpnameItem = {
     alasan_penolakan_support?: string | null;
     locked_at?: string | null;
     revision_no?: number;
+    lingkup_pekerjaan?: string;
     created_at:      string;
     // Joined from rab_item relation
     rab_item?: {
         id:                 number;
         id_rab:             number;
+        source_type?:       string;
+        lingkup_pekerjaan?: string;
         kategori_pekerjaan: string;
         jenis_pekerjaan:    string;
         satuan:             string;
@@ -2561,6 +2571,8 @@ export type OpnameItem = {
     instruksi_lapangan_item?: {
         id:                 number;
         id_instruksi_lapangan: number;
+        source_type?:       string;
+        lingkup_pekerjaan?: string;
         kategori_pekerjaan: string;
         jenis_pekerjaan:    string;
         satuan:             string;

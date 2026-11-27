@@ -13,7 +13,7 @@ export default function SerahTerimaGabunganPage() {
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [data, setData] = useState<{ tokoData: any; templateItems: any[] } | null>(null);
+    const [data, setData] = useState<{ tokoData: any; templateItems: any[]; draftState?: any } | null>(null);
 
     useEffect(() => {
         if (!nomorUlok) return;

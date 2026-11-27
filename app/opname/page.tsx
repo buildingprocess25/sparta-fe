@@ -1072,7 +1072,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             await Promise.all(promises);
 
             showAlert({ message: "Semua opname berhasil disubmit.", type: "success" });
-            await reloadData();
+            if (selectedUlok) await handleSelectUlok(selectedUlok);
         } catch (err: any) {
             showAlert({ message: err.message || "Terjadi kesalahan saat menyimpan bulk opname.", type: "error" });
         } finally {

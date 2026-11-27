@@ -148,6 +148,7 @@ interface NormalizedListItem {
     nilai_denda?: string;
     related_rab_ids?: number[];
     scope_details?: RabScopeSummary[];
+    _all_ids?: number[];
 }
 
 interface NormalizedDetail {
@@ -220,6 +221,7 @@ interface NormalizedDetail {
     related_rab_ids?: number[];
     scope_details?: RabScopeSummary[];
     _raw?: any;
+    _all_ids?: number[];
 }
 
 // =============================================
